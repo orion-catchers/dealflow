@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { Quote } from "../../contracts/application";
 import type { Recommendation } from "../../contracts/krishna";
@@ -59,13 +59,13 @@ function PipelineBoard({
       /* optional */
     }
   }, []);
-  const startResize = (stage: string, event: PointerEvent<HTMLButtonElement>) => {
+  const startResize = (stage: string, event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
     const origin = event.clientX;
     const start = widthsRef.current[stage] ?? 220;
     const handle = event.currentTarget;
     handle.classList.add("is-dragging");
-    const move = (ev: PointerEvent) => {
+    const move = (ev: globalThis.PointerEvent) => {
       const next = Math.min(460, Math.max(168, start + ev.clientX - origin));
       const merged = { ...widthsRef.current, [stage]: next };
       widthsRef.current = merged;
