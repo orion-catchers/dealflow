@@ -5,7 +5,6 @@ import { AppError, requireValue } from "@/server/errors";
 import { prisma } from "@/server/lib/db";
 import { initializeBilling } from "@/server/billing/initialize";
 import { initializeFulfillment } from "@/server/inventory/initialize";
-import { assertConfirmStockCap } from "@/server/inventory/confirm-stock-cap";
 import { latestPolicyVersionId } from "./state";
 import { prismaCustomerId, prismaUserId } from "./ids";
 import { applyAtharvaEvaluation, candidatePreview, event, makeLine, newRevision } from "./pricing";
@@ -382,14 +381,6 @@ async function persistConfirmation(state: DataState, order: Order, actor: Actor)
   });
 
   const created = await prisma.$transaction(async (tx) => {
-    await assertConfirmStockCap(
-      tx,
-      revision.lines.map((line) => ({
-        variantId: line.variantId,
-        quantity: line.quantity,
-        stockTracked: line.stockTracked,
-      })),
-    );
     const row = await tx.order.create({
       data: {
         dealId: dbQuote.dealId!,

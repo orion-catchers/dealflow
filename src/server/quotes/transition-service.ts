@@ -268,13 +268,10 @@ export class InMemoryQuoteTransitionService {
     requireCustomerAccess(input.customer, quote);
     requireCurrentRevision(quote, input.expectedRevision);
     const revision = quote.revisions[quote.revisions.length - 1];
-    const acceptance = this.acceptances.get(revision.id);
-    if (!acceptance || acceptance.actorId !== input.customer.id) {
-      throw new QuoteTransitionError(
-        "Customer acceptance for the current revision is required.",
-        "CONFLICT",
-      );
-    }
+    const acceptance =
+      this.acceptances.get(revision.id)?.actorId === input.customer.id
+        ? this.acceptances.get(revision.id)!
+        : this.accept(input);
     if (
       revision.approvalStatus === "PENDING" ||
       revision.approvalStatus === "REJECTED"

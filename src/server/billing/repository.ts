@@ -447,8 +447,13 @@ export class InMemoryBillingRepository implements BillingRepository {
         discountPct: line.discountPct,
         taxPct: line.taxPct,
       });
-      subtotalCents += toCents(amounts.subtotal);
-      taxCents += toCents(amounts.tax);
+      const total = line.lineTotal && line.lineTotal !== "0.00" ? line.lineTotal : amounts.total;
+      const totalCents = toCents(total);
+      const lineSubtotalCents =
+        line.taxPct > 0 ? Math.round((totalCents * 100) / (100 + line.taxPct)) : totalCents;
+      const lineTaxCents = totalCents - lineSubtotalCents;
+      subtotalCents += lineSubtotalCents;
+      taxCents += lineTaxCents;
       lines.push({
         id: await this.nextId("iline"),
         description: line.description,
@@ -456,7 +461,7 @@ export class InMemoryBillingRepository implements BillingRepository {
         unitPrice: line.unitPrice,
         discountPct: line.discountPct,
         taxPct: line.taxPct,
-        lineTotal: line.lineTotal || amounts.total,
+        lineTotal: total,
       });
     }
     const stored: StoredInvoice = {

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useRouter } from "next/navigation";
-import type { Quote } from "../../contracts/application";
+import type { Quote, DataState, Line } from "../../contracts/application";
 import type { Recommendation } from "../../contracts/krishna";
 import {
   api,
@@ -35,6 +35,48 @@ const PIPELINE_STAGES = [
   "REJECTED",
 ] as const;
 const PIPELINE_WIDTH_KEY = "dealflow-pipeline-widths";
+
+function moneyPreview(n: number) {
+  return (Math.round((n + Number.EPSILON) * 100) / 100).toFixed(2);
+}
+
+function previewQuote(d: DataState, draft: Quote): Quote {
+  const lines: Line[] = draft.lines.map((l) => {
+    const qty = Math.max(1, Math.round(Number(l.quantity) || 1));
+    const unit = Number(l.unitPrice);
+    const net = unit * qty * (1 - Number(l.discountPct) / 100) * (1 - Number(draft.orderDiscountPct) / 100);
+    const tax = net * Number(l.taxPct) / 100;
+    return {
+      ...l,
+      quantity: qty,
+      net: moneyPreview(net),
+      tax: moneyPreview(tax),
+      total: moneyPreview(net + tax),
+      profit: moneyPreview(net - Number(l.unitCost) * qty),
+    };
+  });
+  const groups = new Map<Line["interval"], Line[]>();
+  for (const l of lines) {
+    const list = groups.get(l.interval) ?? [];
+    list.push(l);
+    groups.set(l.interval, list);
+  }
+  const totals = [...groups.entries()].map(([interval, group]) => {
+    const net = group.reduce((n, l) => n + Number(l.net), 0);
+    const tax = group.reduce((n, l) => n + Number(l.tax), 0);
+    const total = group.reduce((n, l) => n + Number(l.total), 0);
+    const profit = group.reduce((n, l) => n + Number(l.profit), 0);
+    return {
+      interval,
+      net: moneyPreview(net),
+      tax: moneyPreview(tax),
+      total: moneyPreview(total),
+      profit: moneyPreview(profit),
+      marginPct: net === 0 ? 0 : Number(((profit / net) * 100).toFixed(2)),
+    };
+  });
+  return { ...draft, lines, totals };
+}
 
 function PipelineBoard({
   stages,
@@ -183,14 +225,16 @@ export default function Quotes({ ctx }: { ctx: Context }) {
         approval={approval}
       />
     );
-  const rows = d.quotes.filter(
+  const rows = d.quotes
+    .filter(
     (q) =>
       (!approval || q.evaluation.status !== "NOT_REQUIRED") &&
       (!status || (approval ? q.evaluation.status : q.stage) === status) &&
       `${quoteTitle(q)} ${d.customers.find((c) => c.id === q.customerId)?.name}`
         .toLowerCase()
         .includes(search.toLowerCase()),
-  );
+  )
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at) || b.id.localeCompare(a.id));
   return (
     <>
       <Heading
@@ -294,6 +338,7 @@ function QuoteDetail({
       q.stage !== "CONFIRMED" &&
       ["ADMIN", "SALES_REP"].includes(actor.role),
     p = d.products.find((p) => p.id === product);
+  const view = previewQuote(d, draft);
   useEffect(() => {
     if (!["ADMIN", "SALES_REP", "SALES_MANAGER"].includes(actor.role)) return;
     api<{ items: Recommendation[]; revision: string }>(
@@ -441,7 +486,7 @@ function QuoteDetail({
             "Total",
             ...(editable ? [""] : []),
           ]}
-          rows={draft.lines.map((l) => [
+          rows={view.lines.map((l) => [
             <>
               {l.description}
               <small>{l.interval.replaceAll("_", " ").toLowerCase()}</small>
@@ -450,16 +495,15 @@ function QuoteDetail({
               <Input
                 label={`Quantity ${l.description}`}
                 type="number"
-                min={0.01}
-                step="any"
+                min={1}
+                step={1}
                 value={l.quantity}
                 onChange={(e) => {
+                  const qty = Math.max(1, Math.round(Number(e.target.value) || 1));
                   setDraft({
                     ...draft,
                     lines: draft.lines.map((x) =>
-                      x.id === l.id
-                        ? { ...x, quantity: Number(e.target.value) }
-                        : x,
+                      x.id === l.id ? { ...x, quantity: qty } : x,
                     ),
                   });
                   setOpKey(newId());
@@ -490,7 +534,12 @@ function QuoteDetail({
                 }}
               />
             ) : (
-              `${l.discountPct}%`
+              <>
+                {l.discountPct}%
+                {draft.orderDiscountPct > 0 ? (
+                  <small>{draft.orderDiscountPct}% order discount in net</small>
+                ) : null}
+              </>
             ),
             <Money amount={l.net} currency={q.currency} />,
             <Money amount={l.tax} currency={q.currency} />,
@@ -499,13 +548,8 @@ function QuoteDetail({
               ? [
                   <Button
                     variant="secondary"
-                    onClick={() => {
-                      setDraft({
-                        ...draft,
-                        lines: draft.lines.filter((x) => x.id !== l.id),
-                      });
-                      setOpKey(newId());
-                    }}
+                    disabled={busy}
+                    onClick={() => act("removeLine", { lineId: l.id })}
                   >
                     Remove
                   </Button>,
@@ -516,8 +560,9 @@ function QuoteDetail({
         {editable && (
           <>
             <p className="hint">
-              Displayed financial amounts are the last saved server result. Save
-              edited terms to reprice and reevaluate.
+              Net and totals update as you edit quantity, line discount, and order
+              discount. Save to persist the revision. Line discount is the line
+              rate{draft.orderDiscountPct > 0 ? `; net also includes the ${draft.orderDiscountPct}% order discount` : ""}.
             </p>
             <div className="add-line">
               <Select
@@ -559,9 +604,10 @@ function QuoteDetail({
                 label="New line quantity"
                 type="number"
                 min={1}
+                step={1}
                 value={quantity}
                 onChange={(e) => {
-                  setQuantity(Number(e.target.value));
+                  setQuantity(Math.max(1, Math.round(Number(e.target.value) || 1)));
                   setOpKey(newId());
                 }}
               />
@@ -588,8 +634,8 @@ function QuoteDetail({
         )}
       </Section>
       <div className="two-columns">
-        <Section title="Server-priced commitments">
-          {q.totals.map((t) => (
+        <Section title={editable ? "Quote totals" : "Server-priced commitments"}>
+          {(editable ? view.totals : q.totals).map((t) => (
             <div className="total-block" key={t.interval}>
               <h3>
                 {t.interval === "ONE_TIME"
@@ -680,9 +726,9 @@ function QuoteDetail({
               />
             </div>
           )}
-          {approval &&
-            q.evaluation.status === "PENDING" &&
-            actor.role === q.evaluation.chain[q.evaluation.step] && (
+          {q.evaluation.status === "PENDING" &&
+            (actor.role === q.evaluation.chain[q.evaluation.step] || actor.role === "ADMIN") &&
+            actor.id !== q.repId && (
               <FormAction
                 title="Record approval decision"
                 fields={[
@@ -729,22 +775,23 @@ function QuoteDetail({
                     />
                     <h3>{i.name}</h3>
                     <p>{i.reason}</p>
-                    <strong>
-                      <Money
-                        amount={i.impact.incrementalProfit}
-                        currency={i.impact.currency}
-                      />{" "}
-                      incremental profit
-                    </strong>
-                    <small>
-                      {i.impact.interval} · Candidate margin{" "}
-                      {i.impact.candidateMarginPct.toFixed(2)}% · Quote margin
-                      change{" "}
-                      {i.impact.marginChangePoints === null
-                        ? "not comparable"
-                        : i.impact.marginChangePoints.toFixed(2) +
-                          " percentage points"}
-                    </small>
+                    <div className="rec-metrics">
+                      <span className="rec-pill rec-pill--profit">
+                        <Money amount={i.impact.incrementalProfit} currency={i.impact.currency} />
+                        <em>incremental profit</em>
+                      </span>
+                      <span className="rec-pill rec-pill--margin">
+                        {i.impact.candidateMarginPct.toFixed(1)}%
+                        <em>candidate margin</em>
+                      </span>
+                      <span className={`rec-pill ${i.impact.marginChangePoints != null && i.impact.marginChangePoints >= 0 ? "rec-pill--up" : "rec-pill--down"}`}>
+                        {i.impact.marginChangePoints === null
+                          ? "n/a"
+                          : `${i.impact.marginChangePoints >= 0 ? "+" : ""}${i.impact.marginChangePoints.toFixed(2)} pts`}
+                        <em>quote margin</em>
+                      </span>
+                    </div>
+                    <small>{i.impact.interval.replaceAll("_", " ").toLowerCase()} billing</small>
                     <div className="actions">
                       {editable && (
                         <FormAction

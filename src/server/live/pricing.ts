@@ -104,7 +104,7 @@ export function applyAtharvaEvaluation(state: DataState, quote: Quote) {
         lineId: l.id,
         productId: l.productId,
         variantId: l.variantId || undefined,
-        category: product?.category === "Services" ? "SERVICES" : "HARDWARE",
+        category: product?.category === "Services" ? "SERVICES" : product?.category === "Accessories" ? "ACCESSORIES" : "HARDWARE",
         description: l.description,
         quantity: l.quantity,
         unitPrice: l.unitPrice,

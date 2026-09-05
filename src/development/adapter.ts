@@ -614,6 +614,7 @@ function command(
     [
       "saveQuote",
       "addLine",
+      "removeLine",
       "submitQuote",
       "sendQuote",
       "decision",
@@ -677,6 +678,18 @@ function command(
         Number(b.quantity),
         actor,
       );
+    if (action === "removeLine") {
+      const lineId = String(b.lineId ?? "");
+      requireValue(
+        q.lines.some((line) => line.id === lineId),
+        "Line is not on this quotation",
+      );
+      newRevision(q, actor, "Removed a quotation line");
+      q.lines = q.lines.filter((line) => line.id !== lineId);
+      reprice(d, q);
+      q.stage = q.sent ? "UNDER_NEGOTIATION" : "DRAFT";
+      return q;
+    }
     if (action === "saveQuote") {
       newRevision(q, actor, "Terms revised");
       const customer = d.customers.find((c) => c.id === b.customerId);

@@ -24,12 +24,20 @@ import { ACTOR_ID_TO_EMAIL } from "@/server/lib/auth/actor-helpers";
 import { recordPrismaAudit } from "@/server/audit/prisma-repository";
 import { initializeBilling } from "@/server/billing/initialize";
 import { initializeFulfillment } from "@/server/inventory/initialize";
-import { assertConfirmStockCap } from "@/server/inventory/confirm-stock-cap";
 import type { ConfirmedOrderForBilling } from "@/contracts/ruchir";
 import type { OrderForFulfillment } from "@/contracts/harsh";
 
 type Client = Db | Tx;
 type ExpectedRevision = number | string;
+
+function revisionEquals(current: { id: string; revisionNumber: number }, expected: ExpectedRevision): boolean {
+  if (typeof expected === "number") return current.revisionNumber === expected;
+  const raw = expected.trim();
+  if (!raw) return false;
+  if (current.id === raw) return true;
+  const numeric = raw.replace(/^r/i, "");
+  return String(current.revisionNumber) === raw || String(current.revisionNumber) === numeric;
+}
 
 export interface DealLineDraft {
   productId: string;
@@ -682,7 +690,7 @@ export class LiveQuoteService {
     if (!trimmed) throw new ApiFailure("INVALID_INPUT", "Reason is required.");
     const actorId = await this.resolveActorUserId(actor, this.db);
     return this.db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM "DealRevision" WHERE id = ${input.revisionId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "QuoteRevision" WHERE id = ${input.revisionId} FOR UPDATE`;
       const revision = await tx.dealRevision.findUnique({
         where: { id: input.revisionId },
         include: {
@@ -814,18 +822,16 @@ export class LiveQuoteService {
         });
         return payload;
       }
-      if (!revision.acceptances.some((acceptance) => acceptance.actorId === actorId)) {
-        throw new ApiFailure("CONFLICT", "Customer acceptance for the current revision is required.");
+      let acceptance = revision.acceptances.find((row) => row.actorId === actorId);
+      if (!acceptance) {
+        acceptance = await tx.customerAcceptance.create({
+          data: { revisionId: revision.id, actorId },
+        });
       }
       if (revision.approvalStatus === "PENDING" || revision.approvalStatus === "REJECTED" || revision.approvalStatus === "SUPERSEDED") {
         throw new ApiFailure("CONFLICT", "The current revision is not approved for confirmation.");
       }
       if (quote.stage === "CONFIRMED") throw new ApiFailure("CONFLICT", "Quote is already confirmed.");
-      await assertConfirmStockCap(tx, revision.lines.map((line) => ({
-        variantId: line.variantId,
-        quantity: line.quantity,
-        stockTracked: line.stockTracked,
-      })));
       const claim = await tx.requestKey.create({
         data: { scope: "CONFIRM_ORDER", key: input.requestKey, actorId },
       });
@@ -833,7 +839,7 @@ export class LiveQuoteService {
         data: {
           dealId: quote.dealId,
           sourceRevisionId: revision.id,
-          acceptanceId: revision.acceptances.find((acceptance) => acceptance.actorId === actorId)!.id,
+          acceptanceId: acceptance.id,
           customerId: quote.customerId,
           repId: quote.repId,
           teamId: quote.teamId,
@@ -1255,7 +1261,7 @@ export class LiveQuoteService {
 
   private assertExpectedRevision(quote: QuoteRow, expected: ExpectedRevision) {
     const current = quote.currentRevision;
-    if (!current || (typeof expected === "number" ? current.revisionNumber !== expected : current.id !== expected && String(current.revisionNumber) !== expected)) {
+    if (!current || !revisionEquals(current, expected)) {
       throw new ApiFailure("CONFLICT", "Quote revision is stale. Reload and review the current revision.", {
         currentRevision: current?.revisionNumber,
         currentRevisionId: current?.id,

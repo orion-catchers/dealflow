@@ -237,6 +237,7 @@ export async function loadDataState(): Promise<DataState> {
     prisma.stock.findMany(),
     prisma.subscriptionPlan.findMany({ where: { archivedAt: null } }),
     prisma.quote.findMany({
+      orderBy: { lastActivityAt: "desc" },
       include: {
         customer: true,
         rep: true,
@@ -306,7 +307,12 @@ export async function loadDataState(): Promise<DataState> {
     return {
       id: p.id,
       name: p.name,
-      category: categoryFromCode(p.category.code) === "SERVICES" || categoryFromCode(p.category.code) === "SUBSCRIPTIONS" ? "Services" : "Hardware",
+      category: (() => {
+        const code = categoryFromCode(p.category.code);
+        if (code === "SERVICES" || code === "SUBSCRIPTIONS") return "Services";
+        if (code === "ACCESSORIES") return "Accessories";
+        return "Hardware";
+      })(),
       unit: mapped.unit,
       description: p.description,
       price: money(p.basePrice),

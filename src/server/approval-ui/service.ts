@@ -270,7 +270,7 @@ export class ApprovalUiService {
     if (!actorUserId) throw new ApiFailure("UNAUTHENTICATED", "Actor is not a database user");
 
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM "DealRevision" WHERE id = ${revisionId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "QuoteRevision" WHERE id = ${revisionId} FOR UPDATE`;
       const row = await tx.dealRevision.findUnique({
         where: { id: revisionId },
         include: {

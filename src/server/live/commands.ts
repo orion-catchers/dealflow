@@ -468,7 +468,7 @@ export async function runLiveCommand(
       return q;
     }
 
-    if (["saveQuote", "addLine", "submitQuote", "sendQuote", "decision", "reply", "reviewDate"].includes(action)) {
+    if (["saveQuote", "addLine", "removeLine", "submitQuote", "sendQuote", "decision", "reply", "reviewDate"].includes(action)) {
       roles(actor, "ADMIN", "SALES_REP", "SALES_MANAGER", "FINANCE_OPS");
       const q = getQuote(state, actor, key);
       revisionCheck(q.revision, b.expectedRevision);
@@ -503,6 +503,16 @@ export async function runLiveCommand(
       roles(actor, "ADMIN", "SALES_REP");
       requireValue(q.stage !== "CONFIRMED", "Confirmed quotation is locked");
       if (action === "addLine") return canonical.addLine(q, String(b.productId), String(b.variantId), Number(b.quantity), actor);
+      if (action === "removeLine") {
+        const lineId = String(b.lineId ?? "");
+        requireValue(q.lines.some((line) => line.id === lineId), "Line is not on this quotation");
+        newRevision(q, actor, "Removed a quotation line");
+        q.lines = q.lines.filter((line) => line.id !== lineId);
+        applyAtharvaEvaluation(state, q);
+        q.stage = q.sent ? "UNDER_NEGOTIATION" : "DRAFT";
+        dirty.quotes.set(q.id, q);
+        return q;
+      }
       if (action === "saveQuote") {
         newRevision(q, actor, "Terms revised");
         const customer = state.customers.find((c) => c.id === b.customerId);

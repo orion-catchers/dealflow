@@ -301,7 +301,7 @@ function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;on
         <h1>{path==='/signup'?'Request an account':'Welcome back'}</h1>
         <p>{path==='/signup'?'Your administrator will verify your access.':'Sign in with your assigned company account.'}</p>
         <p className="dev-copy">{mode==='DEV FIXTURE'?'DEV FIXTURE · Local JSON store accounts':'LIVE · Seeded sales demo below — do not use password123'}</p>
-        {path!=='/signup'&&<small className="auth-demo">Email <code>arjun@nexa.example</code> · password <code>arjun-nexa-2026!</code>{' '}<button type="button" onClick={()=>{setEmail('arjun@nexa.example');setPassword('arjun-nexa-2026!');setIssue('');}}>Fill demo</button></small>}
+        {path!=='/signup'&&<div className="auth-demo"><span>Demo fill</span><div className="auth-personas">{[['Rep','arjun@nexa.example','arjun-nexa-2026!'],['Manager','sana@nexa.example','sana-nexa-2026!'],['Finance','farah@nexa.example','farah-nexa-2026!'],['Customer','neha@acme.example','neha-acme-2026!']].map(([label,mail,pass])=><button type="button" key={label} onClick={()=>{setEmail(mail);setPassword(pass);setIssue('');}}>{label}</button>)}</div></div>}
         {done?<div className="notice" role="status">Account requested. Your administrator must activate access.<Link href="/login">Return to sign in</Link></div>:<form onSubmit={async event=>{
           event.preventDefault();setBusy(true);setIssue('');
           const submitted=new FormData(event.currentTarget);
@@ -314,7 +314,7 @@ function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;on
         }}>
           {path==='/signup'&&<Input label="Full name" name="name" value={name} onChange={event=>setName(event.target.value)} required autoComplete="name"/>}
           <Input label="Work email" name="email" type="email" value={email} onChange={event=>setEmail(event.target.value)} required autoComplete="username"/>
-          <Input label="Password" name="password" type="password" value={password} onChange={event=>setPassword(event.target.value)} required minLength={8} autoComplete={path==='/signup'?'new-password':'off'}/>
+          <Input label="Password" name="password" type="password" value={password} onChange={event=>setPassword(event.target.value)} required minLength={8} autoComplete={path==='/signup'?'new-password':'current-password'}/>
           {issue&&<p role="alert" className="error">{issue}</p>}
           <Button type="submit" disabled={busy}>{busy?'Please wait…':path==='/signup'?'Request access':'Sign in'}</Button>
         </form>}
@@ -344,7 +344,7 @@ function Home({ctx}:{ctx:Context}){
   return <>
     <Heading title={`Good to see you, ${actor.name.split(' ')[0]}`} description="A clear view of your pipeline and the work that needs you next."><Link className="primary-link" href="/quotes/new">New quotation</Link></Heading>
     <div className="metrics">{metrics.map(([name,value,url])=><Link className="metric" href={String(url)} key={name}><span>{name}</span><strong>{value}</strong><small>View details</small></Link>)}</div>
-    <Section title="Your recent quotations" actions={<OpenLink href="/quotes" variant="secondary">View all</OpenLink>}><Table head={['Quotation','Customer','Status','One-time total','Next step','']} rows={d.quotes.slice(0,5).map(q=>[quoteTitle(q),d.customers.find(c=>c.id===q.customerId)?.name,<StatusBadge status={q.stage}/>,<Money amount={q.totals.find(t=>t.interval==='ONE_TIME')?.total??'0.00'} currency={q.currency}/>,q.stage==='CONFIRMED'?'Allocate stock':q.evaluation.status==='PENDING'?'Review approval':q.sent?'Await customer acceptance':'Review and send',<OpenLink key={q.id} href={'/quotes/'+q.id}/>])}/></Section>
+    <Section title="Your recent quotations" actions={<OpenLink href="/quotes" variant="secondary">View all</OpenLink>}><Table head={['Quotation','Customer','Status','One-time total','Next step','']} rows={[...d.quotes].sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)).slice(0,5).map(q=>[quoteTitle(q),d.customers.find(c=>c.id===q.customerId)?.name,<StatusBadge status={q.stage}/>,<Money amount={q.totals.find(t=>t.interval==='ONE_TIME')?.total??'0.00'} currency={q.currency}/>,q.stage==='CONFIRMED'?'Allocate stock':q.evaluation.status==='PENDING'?'Review approval':q.sent?'Await customer acceptance':'Review and send',<OpenLink key={q.id} href={'/quotes/'+q.id}/>])}/></Section>
     <div className="two-columns home-guides">
       <Section title="Warehouse and delivery">
         <p>After a customer accepts, this is where stock is received, split across warehouses, and shipped. Previews do not reserve inventory until you allocate.</p>

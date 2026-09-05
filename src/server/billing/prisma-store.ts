@@ -482,15 +482,19 @@ export class PrismaBillingStore implements BillingStore {
         discountPct: line.discountPct,
         taxPct: line.taxPct,
       });
+      const total = line.lineTotal && line.lineTotal !== "0.00" ? line.lineTotal : amounts.total;
+      const totalCents = toCents(total);
+      const subtotalCents =
+        line.taxPct > 0 ? Math.round((totalCents * 100) / (100 + line.taxPct)) : totalCents;
       return {
         description: line.description,
         quantity: line.quantity,
         unitPrice: line.unitPrice,
         discountPct: line.discountPct,
         taxPct: line.taxPct,
-        lineTotal: line.lineTotal || amounts.total,
-        subtotal: amounts.subtotal,
-        tax: amounts.tax,
+        lineTotal: total,
+        subtotal: fromCents(subtotalCents),
+        tax: fromCents(totalCents - subtotalCents),
       };
     });
     const subtotalCents = lines.reduce((acc, l) => acc + toCents(l.subtotal), 0);
