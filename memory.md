@@ -197,9 +197,16 @@ _No entries yet._
     set at planning time; override cancels PLANNED shipments and creates new ones, never
     touches SHIPPED/DELIVERED; service-only orders derive DELIVERED with
     `stockTrackedUnits: 0`.
-14. UI tracks delegated (Grok 4.6 Medium per user request): Reports screen (15), Product
-    dashboard/editor + price lists + customers (16/17/supplementary), Fulfillment list/
-    detail (07/08), Warehouses/stock/receipts (supplementary).
+14. UI tracks delegated (Grok 4.6 Medium per user request for remaining tracks): Reports
+    screen (15), Product dashboard/editor + price lists + customers (16/17/supplementary),
+    Fulfillment list/detail (07/08), Warehouses/stock/receipts (supplementary).
+15. **Screen 15 Reports UI landed (subagent) — DEV FIXTURE.** `src/app/(internal)/reports/page.tsx`
+    (Suspense around `useSearchParams`) + `src/features/reports/ui/ReportsDashboard.tsx`.
+    Filters (period/CUSTOM from-to, team, rep scoped to team, approval, product, category)
+    sync to URL; sales + approval metric cards; by-stage Tailwind bars; by-rep / by-product /
+    quotes DataTables; PDF/XLSX export via `/api/reports/export` using the same applied
+    filters. Smoke: `GET /reports` 200, `GET /api/reports?period=THIS_MONTH` 200 (3 rows,
+    range 2026-09-01 → 2026-10-01), export XLSX 200 with correct Content-Disposition.
 
 **Status legend for Harsh's lane:** everything is **DEV FIXTURE** (in-memory repositories)
 until Ruchir's Prisma schema lands; then the repository adapters swap to Prisma.
