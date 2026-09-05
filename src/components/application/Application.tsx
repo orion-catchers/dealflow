@@ -24,6 +24,34 @@ const navigation=[
   ['/settings/customers','Setup',Settings],
 ] as const;
 
+type ShellMemory={actor:Actor;mode:string;data:DataState|null};
+const SHELL_KEY='dealflow-shell';
+let shellMemory:ShellMemory|null=null;
+
+function readShell():ShellMemory|null{
+  if(typeof window==='undefined')return null;
+  if(shellMemory)return shellMemory;
+  try{
+    const raw=window.sessionStorage.getItem(SHELL_KEY);
+    if(!raw)return null;
+    const parsed=JSON.parse(raw) as ShellMemory;
+    if(!parsed?.actor||typeof parsed.actor.id!=='string')return null;
+    shellMemory=parsed;
+    return parsed;
+  }catch{
+    return null;
+  }
+}
+
+function writeShell(next:ShellMemory|null){
+  shellMemory=next;
+  if(typeof window==='undefined')return;
+  try{
+    if(!next)window.sessionStorage.removeItem(SHELL_KEY);
+    else window.sessionStorage.setItem(SHELL_KEY,JSON.stringify(next));
+  }catch{/* quota is optional */}
+}
+
 function sessionToActor(data: unknown): Actor | null {
   if (!data || typeof data !== 'object') return null;
   const value = data as Record<string, unknown>;
@@ -43,10 +71,10 @@ function sessionToActor(data: unknown): Actor | null {
 export default function Application(){
   const pathname=usePathname()??'/';
   const router=useRouter();
-  const [actor,setActor]=useState<Actor|null>(null);
-  const [data,setData]=useState<DataState|null>(null);
-  const [mode,setMode]=useState('NOT CONNECTED');
-  const [loading,setLoading]=useState(true);
+  const remembered=readShell();
+  const [actor,setActor]=useState<Actor|null>(remembered?.actor??null);
+  const [data,setData]=useState<DataState|null>(remembered?.data??null);
+  const [mode,setMode]=useState(remembered?.mode??'NOT CONNECTED');
   const [error,setError]=useState('');
   const [message,setMessage]=useState('');
   const [menu,setMenu]=useState(false);
@@ -59,26 +87,26 @@ export default function Application(){
 
   useEffect(()=>{
     let cancelled=false;
-    if(publicPage){
-      setLoading(false);
-      return;
-    }
-    if(actor){
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
+    if(publicPage)return;
     fetch('/api/auth/me',{cache:'no-store'}).then(async response=>{
       const result=await response.json();
       if(cancelled)return;
-      if(response.ok){setActor(sessionToActor(result.data));setMode(result.mode??'LIVE');}
-      else if(response.status!==401)setError(result.error?.message??'The session could not be checked.');
-    }).catch(reason=>{if(!cancelled)setError(reason instanceof Error?reason.message:'The session could not be checked.');})
-      .finally(()=>{if(!cancelled)setLoading(false);});
+      if(response.ok){
+        const next=sessionToActor(result.data);
+        if(next){setActor(next);setMode(result.mode??'LIVE');}
+      }else if(response.status===401){
+        writeShell(null);
+        setActor(null);
+        setData(null);
+      }else setError(result.error?.message??'The session could not be checked.');
+    }).catch(reason=>{if(!cancelled)setError(reason instanceof Error?reason.message:'The session could not be checked.');});
     return()=>{cancelled=true;};
-  },[publicPage,actor]);
+  },[publicPage]);
 
   useEffect(()=>{reload().catch(reason=>setError(reason instanceof Error?reason.message:'The workspace could not be loaded.'));},[reload]);
+  useEffect(()=>{
+    if(actor)writeShell({actor,mode,data});
+  },[actor,mode,data]);
   useEffect(()=>{setMenu(false);},[pathname]);
   useEffect(()=>{
     try{setCollapsed(window.localStorage.getItem('dealflow-sidebar')==='collapsed');}catch{/* local preference is optional */}
@@ -98,15 +126,13 @@ export default function Application(){
   if(publicPage)return <Auth path={pathname} mode={mode} error={error} onLogin={async(nextActor,nextMode)=>{
     setActor(nextActor);
     setMode(nextMode??'LIVE');
-    setLoading(false);
     if(nextActor.role!=='CUSTOMER'){
       try{setData(await api<DataState>('workspace'));}
       catch(reason){setError(reason instanceof Error?reason.message:'The workspace could not be loaded.');}
     }
     router.push(nextActor.role==='CUSTOMER'?'/portal':'/home');
   }}/>;
-  if(loading&&!actor)return <main className="standalone" role="status">Loading your workspace…</main>;
-  if(!actor)return <main className="standalone"><h1>{error?'Service not connected':'Sign in to continue'}</h1><p>{error||'Your session has expired or you have not signed in.'}</p><Link href="/login">Open sign in</Link></main>;
+  if(!actor)return null;
   if(actor.role==='CUSTOMER'&&!pathname.startsWith('/portal'))return <main className="standalone"><h1>Customer access only</h1><Link href="/portal">Open your customer portal</Link></main>;
   if(actor.role!=='CUSTOMER'&&pathname.startsWith('/portal'))return <main className="standalone"><h1>Customer account required</h1><Link href="/home">Return to workspace</Link></main>;
 
@@ -128,7 +154,7 @@ export default function Application(){
       <div className="sidebar-footer">
         <span className="avatar" aria-hidden="true">{actor.name.split(' ').map(s=>s[0]).join('')}</span>
         <div><strong>{actor.name}</strong><small>{actor.role.replaceAll('_',' ')}</small></div>
-        <button type="button" aria-label="Sign out" title="Sign out" onClick={async()=>{await api('auth/logout',{});location.href='/login';}}><LogOut size={18}/></button>
+        <button type="button" aria-label="Sign out" title="Sign out" onClick={async()=>{writeShell(null);await api('auth/logout',{});location.href='/login';}}><LogOut size={18}/></button>
       </div>
     </aside>
     <div className="main-column">
