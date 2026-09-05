@@ -71,16 +71,16 @@ need a short interface note (before/after) in this file under "Interface notes".
 | Boundary | Owner | Status | Notes |
 |---|---|---|---|
 | Auth session → Actor | Ruchir | NOT CONNECTED | Harsh routes use `src/lib/auth/dev-actor.ts` (`x-dev-actor` header, dev only) until Ruchir's `getActor` lands. Same signature. |
-| Catalog resolve | Harsh | DEV FIXTURE | `ResolvePriceInput → ResolvedPrice` in `src/contracts/harsh.ts`. |
+| Catalog resolve | Harsh | DEV FIXTURE | Live API + Screens 16/17; in-memory repo until Prisma. |
 | Quote pricing / policy / revisions | Atharva | NOT STARTED | — |
 | Suggestions / customer proposal | Krishna | NOT STARTED | — |
 | Customer confirmation → orderReady | Atharva | NOT STARTED | Harsh consumes `OrderForFulfillment` (defined in harsh.ts) — Atharva to confirm field mapping. |
-| Split preview/commit | Harsh | DEV FIXTURE | See Harsh log. |
+| Split preview/commit | Harsh | DEV FIXTURE | Screens 07/08 + Engine 2 tests; in-memory until Prisma. |
 | Fulfillment initializer (inside confirmOrder tx) | Harsh | DEV FIXTURE | `InitializeFulfillmentInput/Result` in harsh.ts. DB-only, no reservation. |
 | Billing initializer | Ruchir | NOT STARTED | — |
-| Delivery read for Invoice Detail / Health | Harsh | DEV FIXTURE | `OrderDeliveryRead` in harsh.ts. |
+| Delivery read for Invoice Detail / Health | Harsh | DEV FIXTURE | `GET /api/fulfillment/[orderId]/delivery`. |
 | Plans (`/api/plans`) | Ruchir | NOT STARTED | Harsh uses `planRefs` fixture (`PlanRef`). |
-| Reports | Harsh | DEV FIXTURE | Consumes `ReportQuoteRecord[]` (stored facts); needs Atharva's quote repository to assemble live rows. |
+| Reports | Harsh | DEV FIXTURE | Screen 15 + PDF/XLSX from stored facts; Atharva's quote repo must project into `ReportQuoteRecord`. |
 
 ---
 
@@ -236,8 +236,14 @@ _No entries yet._
     variant POST, rule PUT, resolve). tsc clean project-wide.
 19. All Harsh-owned screens (07, 08, 15, 16, 17) plus supplementary warehouses and
     customer master are reachable. Remaining: Prisma adapters (blocked on Ruchir's
-    schema), live `confirmOrder` wiring (Atharva), session auth (Ruchir). Full
-    typecheck/test/build next.
+    schema), live `confirmOrder` wiring (Atharva), session auth (Ruchir).
+20. **Verification (2026-09-05, this session):** `npx tsc --noEmit` clean; `npx vitest run`
+    **141/141 passing** (11 files); `npx next build` compiled, typed, and generated 29
+    routes including all Harsh screens (`/products`, `/products/[id]`, `/products/new`,
+    `/price-lists`, `/customers`, `/warehouses`, `/fulfillment`, `/fulfillment/[orderId]`,
+    `/reports`) and the catalog/inventory/reports API families. Harsh's lane is **DEV
+    FIXTURE** throughout. LIVE requires Ruchir's Prisma schema + Atharva's `orderReady`
+    / `ReportQuoteRecord` projection.
 
 **Status legend for Harsh's lane:** everything is **DEV FIXTURE** (in-memory repositories)
 until Ruchir's Prisma schema lands; then the repository adapters swap to Prisma.
@@ -254,4 +260,9 @@ _None yet. Format: date, owner, file, before → after example, consumers notifi
 
 - Event date/time confirmed? Blueprint assumes T = 22:00 IST event day.
 - Ruchir: confirm you accept the foundation scaffold or replace it (before others branch).
+  Pinned: Next 15.3.3, React 19.1, TS 5.8, Tailwind 4.1, vitest 3.2, zod 3.25, xlsx 0.18.5,
+  pdf-lib 1.17.1. Reconcile freely; keep vitest/xlsx/pdf-lib/zod or tell Harsh the replacements.
 - Atharva: confirm `OrderForFulfillment` mapping and `ReportQuoteRecord` projection.
+- Harsh lane complete at DEV FIXTURE. Next for Harsh once schema lands: Prisma adapters
+  for `CatalogRepository`, `InventoryRepository`, `ReportRepository` (`set*Repository`
+  already exists).
