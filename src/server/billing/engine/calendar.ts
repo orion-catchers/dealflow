@@ -7,7 +7,13 @@ const MONTHS: Record<BillingInterval, number> = { MONTHLY: 1, QUARTERLY: 3, YEAR
 export function parseDate(iso: IsoDate): { year: number; month: number; day: number } {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (!m) throw new Error(`Not a date-only ISO string: '${iso}'`);
-  return { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) };
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) {
+    throw new Error(`Not a real calendar date: '${iso}'`);
+  }
+  return { year, month, day };
 }
 
 export function formatDate(year: number, month: number, day: number): IsoDate {

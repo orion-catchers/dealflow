@@ -2,8 +2,15 @@ import { z } from "zod";
 import type { BillingInterval, CancelPolicy, InvoiceStatus, PaymentMethod, SubscriptionStatus } from "@/contracts/ruchir";
 import { parseInput } from "@/features/catalog/api";
 import { moneySchema } from "@/features/catalog/api";
+import { parseDate } from "./engine/calendar";
 
-export const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
+export const isoDateSchema = z.string().superRefine((value, ctx) => {
+  try {
+    parseDate(value);
+  } catch {
+    ctx.addIssue({ code: "custom", message: "Date must be a real YYYY-MM-DD calendar date" });
+  }
+});
 export const requestKeySchema = z.string().trim().min(1).max(200);
 
 export const billingIntervalSchema = z.enum(["MONTHLY", "QUARTERLY", "YEARLY"] satisfies [

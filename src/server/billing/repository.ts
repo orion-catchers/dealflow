@@ -114,6 +114,7 @@ type RequestRow = {
   id: string;
   scope: string;
   key: string;
+  actorId: string | null;
   completedAt: IsoTimestamp | null;
   payload: unknown;
 };
@@ -287,13 +288,17 @@ export class InMemoryBillingRepository implements BillingRepository {
   }
 
   async claimRequest(scope: RequestScopeName, key: string, actorId?: string): Promise<ClaimResult> {
-    void actorId;
     const mapKey = requestMapKey(scope, key);
     const existing = this.state.requests.get(mapKey);
-    if (existing?.completedAt) return { replayed: true, payload: existing.payload };
+    if (existing?.completedAt) {
+      if (actorId && existing.actorId && existing.actorId !== actorId) {
+        throw new ApiFailure("CONFLICT", "Request key belongs to another actor");
+      }
+      return { replayed: true, payload: existing.payload };
+    }
     if (existing) throw new ApiFailure("CONFLICT", "Request already in progress");
     const id = await this.nextId("req");
-    this.state.requests.set(mapKey, { id, scope, key, completedAt: null, payload: null });
+    this.state.requests.set(mapKey, { id, scope, key, actorId: actorId ?? null, completedAt: null, payload: null });
     return { replayed: false, claimId: id };
   }
 
@@ -759,6 +764,9 @@ export async function executePayment(
   const claim = await store.claimRequest("PAYMENT", input.requestKey, input.recordedById);
   if (claim.replayed) {
     const payload = claim.payload as PaymentRecord;
+    if (payload.invoiceId !== input.invoiceId || toCents(payload.amount) !== toCents(input.amount)) {
+      throw new ApiFailure("CONFLICT", "Request key was used for a different payment");
+    }
     return { ...payload, replayed: true };
   }
 

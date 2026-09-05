@@ -95,6 +95,10 @@ describe("due billing", () => {
     const listed = await svc.listInvoices(finance);
     expect(listed.filter((i) => i.kind === "RECURRING")).toHaveLength(1);
   });
+
+  it("rejects impossible asOf dates", async () => {
+    await expectFailure(svc.runDueBilling(finance, { requestKey: "due-bad", asOf: "2026-13-01" }), "INVALID_INPUT");
+  });
 });
 
 describe("payments", () => {
@@ -143,6 +147,54 @@ describe("payments", () => {
     });
     expect(rest.replayed).toBe(false);
     expect((await svc.getInvoice(finance, invoiceId)).status).toBe("PAID");
+  });
+
+  it("rejects replay of another actor's payment key", async () => {
+    const init = await svc.initializeOnStore(order(), "init-1");
+    const invoiceId = init.oneTimeInvoice!.id;
+    await svc.recordPayment(finance, {
+      invoiceId,
+      amount: "100.00",
+      method: "BANK_TRANSFER",
+      reference: "NEFT-x",
+      paidOn: "2026-09-02",
+      requestKey: "pay-shared",
+    });
+    await expectFailure(
+      svc.recordPayment(admin, {
+        invoiceId,
+        amount: "100.00",
+        method: "BANK_TRANSFER",
+        reference: "NEFT-x",
+        paidOn: "2026-09-02",
+        requestKey: "pay-shared",
+      }),
+      "CONFLICT",
+    );
+  });
+
+  it("rejects the same key used for a different payment", async () => {
+    const init = await svc.initializeOnStore(order(), "init-1");
+    const invoiceId = init.oneTimeInvoice!.id;
+    await svc.recordPayment(finance, {
+      invoiceId,
+      amount: "100.00",
+      method: "CASH",
+      reference: "a",
+      paidOn: "2026-09-02",
+      requestKey: "pay-mismatch",
+    });
+    await expectFailure(
+      svc.recordPayment(finance, {
+        invoiceId,
+        amount: "200.00",
+        method: "CASH",
+        reference: "b",
+        paidOn: "2026-09-02",
+        requestKey: "pay-mismatch",
+      }),
+      "CONFLICT",
+    );
   });
 
   it("forbids customers from recording payments", async () => {

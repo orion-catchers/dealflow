@@ -223,6 +223,9 @@ export class PrismaBillingStore implements BillingStore {
       where: { scope_key: { scope: asScope(scope), key } },
     });
     if (existing?.completedAt && existing.resultPayload != null) {
+      if (actorId && existing.actorId && existing.actorId !== actorId) {
+        throw new ApiFailure("CONFLICT", "Request key belongs to another actor");
+      }
       return { replayed: true, payload: existing.resultPayload };
     }
     if (existing) throw new ApiFailure("CONFLICT", "Request already in progress");

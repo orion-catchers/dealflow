@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, addInterval, addMonthsAnchored, daysBetween, periodFrom } from "./calendar";
+import { addDays, addInterval, addMonthsAnchored, daysBetween, parseDate, periodFrom } from "./calendar";
 
 describe("addMonthsAnchored", () => {
   it("clamps Jan 31 to Feb 28 and returns to the anchor day in March", () => {
@@ -39,5 +39,13 @@ describe("daysBetween / addDays", () => {
     expect(daysBetween("2026-10-01", "2026-09-16")).toBe(-15);
     expect(addDays("2026-09-05", 15)).toBe("2026-09-20");
     expect(addDays("2026-12-25", 10)).toBe("2027-01-04");
+  });
+});
+
+describe("parseDate", () => {
+  it("rejects impossible calendar dates", () => {
+    expect(() => parseDate("2026-13-01")).toThrow(/real calendar date/);
+    expect(() => parseDate("2026-02-29")).toThrow(/real calendar date/);
+    expect(parseDate("2028-02-29")).toEqual({ year: 2028, month: 2, day: 29 });
   });
 });
