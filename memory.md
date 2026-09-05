@@ -70,7 +70,7 @@ need a short interface note (before/after) in this file under "Interface notes".
 
 | Boundary | Owner | Status | Notes |
 |---|---|---|---|
-| Auth session → Actor | Ruchir | LIVE | Cookie `dealflow_session`; `getActor` from `@/server/lib/auth/dev-actor`. Dev still falls back to `x-dev-actor`. |
+| Auth session → Actor | Ruchir | LIVE | Cookie `dealflow_session`; routes use `getAuthorizedActor` from `@/server/lib/auth/permissions` (role matrix enforced). `x-dev-actor` only with `DEALFLOW_DEV_IMPERSONATION=1` outside production. Seeded accounts have unique passwords (`src/fixtures/ruchir.ts`); no shared password. |
 | Catalog resolve | Harsh | DEV FIXTURE | Live API + Screens 16/17; in-memory repo until Prisma. |
 | Quote pricing / policy / revisions | Atharva | LIVE | Prisma `LiveQuoteService` + HTTP `/api/quotes/*`. Fixture GET removed. |
 | Suggestions / customer proposal | Krishna | LIVE (portal mutations) | `POST /api/quotes/:id/proposals` and `/api/portal/quotes/:id/proposals`. Fixture portal still used when `DEALFLOW_ADAPTER=development`. |
@@ -184,6 +184,22 @@ Checks: `node node_modules/typescript/bin/tsc --noEmit` passed; `node node_modul
 3. Added `src/contracts/ruchir.ts` and `docs/deploy.md`. CI now runs `pnpm test`.
 4. Session auth: `/api/auth/login|signup|logout|me`, cookie `dealflow_session`, admin user activation.
 5. Approval screens 05/06 + `/users` against Prisma.
+
+## 2026-09-05T18:25:00+05:30 (Asia/Kolkata) - Owner: Ruchir
+
+Replaced shared-password auth with per-user credentials plus enforced role-based access.
+
+Files: `src/server/lib/auth/permissions.ts` (new role matrix + `getAuthorizedActor`), `src/server/lib/auth/cookies.ts` (new), `src/server/lib/auth/dev-actor.ts`, `src/server/lib/auth/session.ts`, `src/server/lib/auth/permissions.test.ts` (new), `src/proxy.ts` (new Next 16 page guard), `src/fixtures/ruchir.ts`, `prisma/seed.ts`, `src/development/{seed,store}.ts`, 64 route files under `src/app/api/**`, `auth-flow.test.ts`, `.env.example`, `docs/deploy.md`.
+
+Changes:
+- Every API route now resolves the actor through `getAuthorizedActor(request)`: real session → role matrix check (PDF §3 roles: SALES_REP builds/quotes; SALES_MANAGER approves + policies + dashboard; FINANCE fulfillment/stock/billing; CUSTOMER portal-only; ADMIN backend config + users + reports). Default deny for unknown `/api/*`.
+- Removed the default `admin-dev` impersonation: `x-dev-actor` requires `DEALFLOW_DEV_IMPERSONATION=1` outside production; otherwise 401 without a session.
+- Killed shared passwords: DB seed uses per-account `devPassword` from ruchir fixtures (was `password123` for all); dev fixture store uses per-account passwords from `src/development/seed.ts` (was `DealFlow2026!` for all). Deleted `.dealflow-development/store.json` so dev stores regenerate.
+- `src/proxy.ts` redirects unauthenticated page requests (non-`/api`) to `/login` — optimistic cookie-presence check only; real authz stays server-side.
+
+Checks (timezone IST): `pnpm typecheck` clean; `pnpm lint` 0 errors (3 pre-existing warnings in teammate files); `pnpm test` 231 passed / 32 files after `pnpm db:seed` reseed; live DB probe: admin + customer logins with unique passwords, customer blocked on `/api/quotes`, `/api/products`, `/api/admin/users`, `/api/fulfillment`, allowed on `/api/portal/*`; `x-dev-actor` without cookie → 401 by default, resolves fixture actor only with opt-in flag.
+
+Limitations: role matrix is path+method based — row-level scoping (rep sees own quotes) still lives in services; customer portal reads not yet Prisma-live (Krishna adapter boundary unchanged); `pnpm build` and browser flow not run this session.
 6. Engine 3 in `src/server/billing/`. Atharva imports `initializeBilling(tx, order, requestKey)` from `@/server/billing/initialize` — no `BillingService` construct. First recurring invoice comes from due billing, not init.
 7. Screens 09/10/12/13: `/subscriptions`, `/billing`, `/invoices`. `GET /api/plans` still returns `PlanRef[]`.
 

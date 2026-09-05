@@ -7,6 +7,9 @@ type RuchirFixtures = {
     name: string;
     role: "ADMIN" | "SALES_REP" | "SALES_MANAGER" | "FINANCE" | "CUSTOMER";
     status: "PENDING" | "ACTIVE" | "DISABLED";
+    // Demo credentials for seeded accounts only; each account has its own
+    // password. Production signups set their own via /api/auth/signup.
+    devPassword: string;
     team?: FixtureSymbol;
   }[];
   customerMemberships: readonly {
@@ -30,6 +33,7 @@ export const ruchirFixtures = {
       name: "Dev Sharma",
       role: "ADMIN",
       status: "ACTIVE",
+      devPassword: "admin-nexa-2026!",
     },
     {
       sym: "rep-arjun",
@@ -37,6 +41,7 @@ export const ruchirFixtures = {
       name: "Arjun Mehta",
       role: "SALES_REP",
       status: "ACTIVE",
+      devPassword: "arjun-nexa-2026!",
       team: "team-west",
     },
     {
@@ -45,6 +50,7 @@ export const ruchirFixtures = {
       name: "Priya Nair",
       role: "SALES_REP",
       status: "ACTIVE",
+      devPassword: "priya-nexa-2026!",
       team: "team-west",
     },
     {
@@ -53,6 +59,7 @@ export const ruchirFixtures = {
       name: "Sana Iyer",
       role: "SALES_MANAGER",
       status: "ACTIVE",
+      devPassword: "sana-nexa-2026!",
       team: "team-west",
     },
     {
@@ -61,6 +68,7 @@ export const ruchirFixtures = {
       name: "Farah Khan",
       role: "FINANCE",
       status: "ACTIVE",
+      devPassword: "farah-nexa-2026!",
     },
     {
       sym: "customer-neha",
@@ -68,6 +76,7 @@ export const ruchirFixtures = {
       name: "Neha Rao",
       role: "CUSTOMER",
       status: "ACTIVE",
+      devPassword: "neha-acme-2026!",
     },
     {
       sym: "customer-rohan",
@@ -75,6 +84,7 @@ export const ruchirFixtures = {
       name: "Rohan Das",
       role: "CUSTOMER",
       status: "ACTIVE",
+      devPassword: "rohan-beta-2026!",
     },
     {
       sym: "customer-meera",
@@ -82,6 +92,7 @@ export const ruchirFixtures = {
       name: "Meera Joshi",
       role: "CUSTOMER",
       status: "ACTIVE",
+      devPassword: "meera-gamma-2026!",
     },
     {
       sym: "pending-vikram",
@@ -89,6 +100,7 @@ export const ruchirFixtures = {
       name: "Vikram Singh",
       role: "SALES_REP",
       status: "PENDING",
+      devPassword: "vikram-nexa-2026!",
     },
   ],
   customerMemberships: [

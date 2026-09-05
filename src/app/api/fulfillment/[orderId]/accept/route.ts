@@ -1,5 +1,5 @@
 import { handle } from "@/lib/api/respond";
-import { getActor } from "@/server/lib/auth/dev-actor";
+import { getAuthorizedActor } from "@/server/lib/auth/permissions";
 import { acceptBodySchema } from "@/features/inventory/api";
 import { getFulfillmentService } from "@/server/inventory/live";
 
@@ -7,7 +7,7 @@ import { getFulfillmentService } from "@/server/inventory/live";
 export async function POST(request: Request, { params }: { params: Promise<{ orderId: string }> }) {
   return handle(async () => {
     const { orderId } = await params;
-    const actor = await getActor(request);
+    const actor = await getAuthorizedActor(request);
     const body = acceptBodySchema.parse(await request.json());
     return getFulfillmentService().accept({ orderId, actor, ...body });
   });

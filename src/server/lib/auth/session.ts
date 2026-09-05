@@ -1,9 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { NextResponse } from "next/server";
 import { prisma } from "@/server/lib/db";
+import { SESSION_COOKIE, SESSION_MAX_AGE_SECONDS } from "./cookies";
 
-export const SESSION_COOKIE = "dealflow_session";
-export const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+export { SESSION_COOKIE, SESSION_MAX_AGE_SECONDS } from "./cookies";
 
 export function hashSessionToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");

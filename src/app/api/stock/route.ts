@@ -1,12 +1,12 @@
 import { handle } from "@/lib/api/respond";
-import { getActor } from "@/server/lib/auth/dev-actor";
+import { getAuthorizedActor } from "@/server/lib/auth/permissions";
 import { stockQuerySchema } from "@/features/inventory/api";
 import { getFulfillmentService } from "@/server/inventory/live";
 
 /** GET /api/stock?warehouseId=&variantId= — StockListItem[] (internal roles). */
 export async function GET(request: Request) {
   return handle(async () => {
-    const actor = await getActor(request);
+    const actor = await getAuthorizedActor(request);
     const url = new URL(request.url);
     const query = stockQuerySchema.parse({
       warehouseId: url.searchParams.get("warehouseId") ?? undefined,

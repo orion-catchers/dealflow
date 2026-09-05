@@ -1,11 +1,11 @@
 import { handle } from "@/lib/api/respond";
-import { getActor } from "@/server/lib/auth/dev-actor";
+import { getAuthorizedActor } from "@/server/lib/auth/permissions";
 import { readJson } from "@/features/catalog/api";
 import { getLiveHealthService } from "@/server/health/live-service";
 
 export async function POST(request: Request) {
   return handle(async () => {
-    const actor = await getActor(request);
+    const actor = await getAuthorizedActor(request);
     const body = (await readJson(request)) as Record<string, unknown>;
     return getLiveHealthService().createTask({
       actor,

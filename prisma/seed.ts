@@ -52,8 +52,6 @@ async function main(): Promise<void> {
 
   await truncateAll(prisma);
 
-  const passwordHash = await hashPassword("password123");
-
   for (const team of harshFixtures.salesTeams) {
     const row = await prisma.salesTeam.create({
       data: { name: team.name },
@@ -62,6 +60,7 @@ async function main(): Promise<void> {
   }
 
   for (const user of ruchirFixtures.users) {
+    const passwordHash = await hashPassword(user.devPassword);
     const row = await prisma.user.create({
       data: {
         email: user.email,
