@@ -10,15 +10,13 @@ import { recordPrismaAudit } from "@/server/audit/prisma-repository";
 type Client = Db | Tx;
 type PolicyRow = Prisma.PolicyVersionGetPayload<{
   include: {
-    tierCeilings: true;
-    categoryCeilings: { include: { category: true } };
+    policyCeilings: { include: { category: true } };
     chainSteps: true;
   };
 }>;
 
 const POLICY_INCLUDE = {
-  tierCeilings: true,
-  categoryCeilings: { include: { category: true } },
+  policyCeilings: { include: { category: true } },
   chainSteps: { orderBy: { stepIndex: "asc" as const } },
 } as const;
 
@@ -29,14 +27,14 @@ function tierName(tier: DiscountTier): string {
 }
 
 export function snapshotForTier(row: PolicyRow, tier: DiscountTier): PolicySnapshot {
-  const tierCeiling = row.tierCeilings.find((item) => item.tier === tier);
+  const tierCeiling = row.policyCeilings.find((item) => item.tier === tier && item.categoryId === null);
   if (!tierCeiling) {
     throw new ApiFailure("INVALID_INPUT", `Published policy has no ${tier} tier ceiling.`);
   }
 
   const categoryCeilings: Record<string, string> = {};
-  for (const item of row.categoryCeilings) {
-    if (item.tier !== tier) continue;
+  for (const item of row.policyCeilings) {
+    if (item.tier !== tier || item.categoryId === null || !item.category) continue;
     categoryCeilings[item.category.name] = item.ceilingPct.toString();
     categoryCeilings[item.category.code] = item.ceilingPct.toString();
   }
@@ -65,15 +63,15 @@ function view(row: PolicyRow) {
     name: row.name,
     createdAt: row.createdAt.toISOString(),
     rules: gold.rules,
-    tierCeilings: row.tierCeilings.map((item) => ({
+    tierCeilings: row.policyCeilings.filter((item) => item.categoryId === null).map((item) => ({
       tier: item.tier,
       ceilingPct: item.ceilingPct.toString(),
     })),
-    categoryCeilings: row.categoryCeilings.map((item) => ({
+    categoryCeilings: row.policyCeilings.filter((item) => item.categoryId !== null && item.category).map((item) => ({
       tier: item.tier,
       categoryId: item.categoryId,
-      categoryCode: item.category.code,
-      categoryName: item.category.name,
+      categoryCode: item.category!.code,
+      categoryName: item.category!.name,
       ceilingPct: item.ceilingPct.toString(),
     })),
     chain: row.chainSteps.map((item) => ({
@@ -136,7 +134,7 @@ export class LivePolicyService {
       const legacyRules = body.rules && typeof body.rules === "object"
         ? body.rules as Record<string, unknown>
         : body;
-      const tierCeilings = previous.tierCeilings.map((item) => {
+      const tierCeilings = previous.policyCeilings.filter((item) => item.categoryId === null).map((item) => {
         const patch = findInput<Record<string, unknown>>(body.tierCeilings, (x) => x.tier === item.tier);
         const legacy = item.tier === "GOLD" ? legacyRules.defaultCeilingPct : undefined;
         return {
@@ -144,14 +142,14 @@ export class LivePolicyService {
           ceilingPct: decimalInput(patch?.ceilingPct ?? legacy ?? item.ceilingPct.toString(), `${item.tier} ceiling`)!,
         };
       });
-      const categoryCeilings = previous.categoryCeilings.map((item) => {
+      const categoryCeilings = previous.policyCeilings.filter((item) => item.categoryId !== null && item.category).map((item) => {
         const patch = findInput<Record<string, unknown>>(body.categoryCeilings, (x) =>
-          x.categoryId === item.categoryId || x.categoryCode === item.category.code || x.categoryName === item.category.name,
+          x.categoryId === item.categoryId || x.categoryCode === item.category!.code || x.categoryName === item.category!.name,
         );
         return {
           tier: item.tier,
           categoryId: item.categoryId,
-          ceilingPct: decimalInput(patch?.ceilingPct ?? item.ceilingPct.toString(), `${item.category.code} ceiling`)!,
+          ceilingPct: decimalInput(patch?.ceilingPct ?? item.ceilingPct.toString(), `${item.category!.code} ceiling`)!,
         };
       });
       const chain = Array.isArray(body.chain)
@@ -185,8 +183,7 @@ export class LivePolicyService {
             "Total discount budget",
             true,
           ),
-          tierCeilings: { create: tierCeilings },
-          categoryCeilings: { create: categoryCeilings },
+          policyCeilings: { create: [...tierCeilings, ...categoryCeilings] },
           chainSteps: { create: chain },
         },
         include: POLICY_INCLUDE,

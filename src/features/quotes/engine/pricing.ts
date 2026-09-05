@@ -1,19 +1,19 @@
 import type {
   BillingInterval,
   Currency,
-  PricedQuoteLine,
+  PricedDealLine,
   PricingResult,
-  QuoteLineInput,
+  DealLineInput,
 } from "@/contracts/atharva";
 
 export interface PricingInput {
   currency: Currency;
-  lines: Array<QuoteLineInput & { lineId?: string }>;
+  lines: Array<DealLineInput & { lineId?: string }>;
   orderDiscountPct: string;
 }
 
 interface ParsedLine {
-  input: QuoteLineInput & { lineId?: string };
+  input: DealLineInput & { lineId?: string };
   unitPriceCents: bigint;
   unitCostCents: bigint;
   taxPct: number;
@@ -120,7 +120,7 @@ export function priceQuote({
   let marginTotalCents = 0n;
   let totalUndiscountedCents = 0n;
 
-  const pricedLines: PricedQuoteLine[] = parsedLines.map((line, index) => {
+  const pricedLines: PricedDealLine[] = parsedLines.map((line, index) => {
     const effectiveDiscountPct = effectiveDiscount(line.discountPct, orderPct);
     const discountCents = roundedProduct(
       line.undiscountedCents,

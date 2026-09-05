@@ -4,11 +4,11 @@ import type {
   PolicyBreach,
   PolicyEvaluation,
   PolicySnapshot,
-  PricedQuoteLine,
+  PricedDealLine,
 } from "@/contracts/atharva";
 
 export interface PolicyEvaluationInput {
-  lines: PricedQuoteLine[];
+  lines: PricedDealLine[];
   orderDiscountPct: string;
   policySnapshot: PolicySnapshot;
 }
@@ -54,7 +54,7 @@ function decimal(value: number): string {
 }
 
 function ceilingForLine(
-  line: PricedQuoteLine,
+  line: PricedDealLine,
   snapshot: PolicySnapshot,
 ): number {
   const defaultCeiling = parsePercentage(
@@ -77,7 +77,7 @@ function ceilingForLine(
 
 function evaluateInterval(
   interval: BillingInterval,
-  lines: PricedQuoteLine[],
+  lines: PricedDealLine[],
   orderDiscountPct: number,
   policySnapshot: PolicySnapshot,
 ): IntervalRisk {
@@ -169,7 +169,7 @@ export function evaluatePolicy({
     orderDiscountValue,
     "order discount",
   );
-  const groupedLines = new Map<BillingInterval, PricedQuoteLine[]>();
+  const groupedLines = new Map<BillingInterval, PricedDealLine[]>();
 
   for (const line of lines) {
     const currentLines = groupedLines.get(line.billingInterval) ?? [];

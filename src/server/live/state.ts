@@ -14,7 +14,7 @@ import type {
   Product,
   Proposal,
   Quote,
-  QuoteRevision,
+  DealRevision,
   Stock,
   Subscription,
   Task,
@@ -195,7 +195,7 @@ function snapshotRevision(
     approvalSteps: { stepIndex: number; role: string; status: string }[];
     lines: Parameters<typeof lineFromQuote>[0][];
   },
-): QuoteRevision {
+): DealRevision {
   const lines = rev.lines.map(lineFromQuote);
   return {
     revision: revisionLabel(rev.revisionNumber),
@@ -263,7 +263,7 @@ export async function loadDataState(): Promise<DataState> {
     prisma.payment.findMany(),
     prisma.recommendationRule.findMany(),
     prisma.policyVersion.findMany({
-      include: { tierCeilings: true, categoryCeilings: { include: { category: true } }, chainSteps: true },
+      include: { policyCeilings: { include: { category: true } }, chainSteps: true },
       orderBy: { createdAt: "desc" },
       take: 1,
     }),
@@ -526,8 +526,8 @@ export async function loadDataState(): Promise<DataState> {
   const policyRow = policyVersions[0];
   const policy: Policy = policyRow
     ? {
-        tierLimits: Object.fromEntries(policyRow.tierCeilings.map((t) => [t.tier === "STANDARD" ? "Bronze" : t.tier === "SILVER" ? "Silver" : "Gold", Number(t.ceilingPct)])),
-        categoryLimits: Object.fromEntries(policyRow.categoryCeilings.map((c) => [c.category.code === "SERVICES" || c.category.code === "SUBSCRIPTIONS" ? "Services" : "Hardware", Number(c.ceilingPct)])),
+        tierLimits: Object.fromEntries(policyRow.policyCeilings.filter((t) => t.categoryId === null).map((t) => [t.tier === "STANDARD" ? "Bronze" : t.tier === "SILVER" ? "Silver" : "Gold", Number(t.ceilingPct)])),
+        categoryLimits: Object.fromEntries(policyRow.policyCeilings.filter((c) => c.categoryId !== null && c.category).map((c) => [c.category!.code === "SERVICES" || c.category!.code === "SUBSCRIPTIONS" ? "Services" : "Hardware", Number(c.ceilingPct)])),
         financeExcess: Number(policyRow.financeWorstExcessPct),
         financeWeighted: Number(policyRow.financeWeightedExcessPct),
         budget: money(policyRow.totalDiscountBudgetPct ?? 0),

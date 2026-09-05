@@ -4,8 +4,8 @@ import type {
   PricingResult,
   PolicyEvaluation,
   Quote,
-  QuoteLineInput,
-  QuoteRevision,
+  DealLineInput,
+  DealRevision,
   QuoteStage,
   RevisionApprovalStatus,
 } from "@/contracts/atharva";
@@ -14,10 +14,10 @@ export interface CreateQuoteInput {
   quoteId: Id;
   customerId: Id;
   salesRepId: Id;
-  currency: QuoteRevision["currency"];
+  currency: DealRevision["currency"];
   createdBy: Id;
   createdAt: ISODate;
-  lines: QuoteRevision["lines"];
+  lines: DealRevision["lines"];
   pricing: PricingResult;
   evaluation: PolicyEvaluation;
   promisedDate?: string;
@@ -29,8 +29,8 @@ export interface CreateRevisionInput {
   revisionId?: Id;
   createdBy: Id;
   createdAt: ISODate;
-  currency: QuoteRevision["currency"];
-  lines: QuoteRevision["lines"];
+  currency: DealRevision["currency"];
+  lines: DealRevision["lines"];
   pricing: PricingResult;
   evaluation: PolicyEvaluation;
   promisedDate?: string;
@@ -42,7 +42,7 @@ export interface QuoteScope {
 }
 
 export interface ReplaceLinesInput extends CreateRevisionInput {
-  lines: QuoteRevision["lines"];
+  lines: DealRevision["lines"];
 }
 
 export class QuoteRepositoryError extends Error {
@@ -71,7 +71,7 @@ function revisionFrom(
   input: CreateQuoteInput | CreateRevisionInput,
   quoteId: Id,
   revisionNumber: number,
-): QuoteRevision {
+): DealRevision {
   return {
     id:
       ("revisionId" in input ? input.revisionId : undefined) ??
@@ -231,7 +231,7 @@ export class InMemoryQuoteRepository {
 
   addLine(
     input: CreateRevisionInput,
-    line: QuoteRevision["lines"][number],
+    line: DealRevision["lines"][number],
   ): Quote {
     const quote = this.getById(input.quoteId);
     const currentRevision = quote.revisions[quote.revisions.length - 1];
@@ -258,7 +258,7 @@ export class InMemoryQuoteRepository {
     return this.createRevision({ ...input, lines });
   }
 
-  getRevision(quoteId: Id, revisionId: Id): QuoteRevision {
+  getRevision(quoteId: Id, revisionId: Id): DealRevision {
     const quote = this.getById(quoteId);
     const revision = quote.revisions.find(
       (candidate) => candidate.id === revisionId,
@@ -275,4 +275,4 @@ export class InMemoryQuoteRepository {
   }
 }
 
-export type { QuoteLineInput };
+export type { DealLineInput };

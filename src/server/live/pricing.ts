@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Actor, DataState, Evaluation, Line, Product, Quote, QuoteRevision } from "@/contracts/application";
+import type { Actor, DataState, Evaluation, Line, Product, Quote, DealRevision } from "@/contracts/application";
 import type { PricedCandidate } from "@/contracts/krishna";
 import { priceQuote } from "@/features/quotes/engine/pricing";
 import { evaluatePolicy } from "@/server/governance/policy-evaluation";
@@ -12,7 +12,7 @@ export function event(actor: Actor, text: string, revision?: string) {
   return { id: randomUUID(), at: new Date().toISOString(), actor: actor.name, text, revision };
 }
 
-export function snapshot(q: Quote): QuoteRevision {
+export function snapshot(q: Quote): DealRevision {
   return structuredClone({
     revision: q.revision,
     lines: q.lines,

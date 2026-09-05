@@ -36,10 +36,9 @@ type AtharvaFixtures = {
     financeWorstExcessPct: string;
     financeWeightedExcessPct: string;
     totalDiscountBudgetPct: string | null;
-    tierCeilings: readonly { tier: string; ceilingPct: string }[];
-    categoryCeilings: readonly {
+    ceilings: readonly {
       tier: string;
-      category: FixtureSymbol;
+      category?: FixtureSymbol;
       ceilingPct: string;
     }[];
     chain: readonly { stepIndex: number; role: string }[];
@@ -84,13 +83,11 @@ export const atharvaFixtures = {
       financeWorstExcessPct: "5",
       financeWeightedExcessPct: "3",
       totalDiscountBudgetPct: null,
-      tierCeilings: [
+      ceilings: [
         { tier: "STANDARD", ceilingPct: "5" },
         { tier: "SILVER", ceilingPct: "10" },
         { tier: "GOLD", ceilingPct: "15" },
         { tier: "PLATINUM", ceilingPct: "20" },
-      ],
-      categoryCeilings: [
         { tier: "GOLD", category: "cat-hardware", ceilingPct: "15" },
         { tier: "GOLD", category: "cat-services", ceilingPct: "10" },
         { tier: "SILVER", category: "cat-services", ceilingPct: "8" },

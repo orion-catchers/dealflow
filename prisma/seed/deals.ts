@@ -12,13 +12,7 @@ import {
   type QuoteStage,
   type RevisionApprovalStatus,
 } from "@/generated/prisma/client";
-import {
-  assertDemoTotals,
-  evaluateRevision,
-  type CategoryCeiling,
-  type EvaluatedLineInput,
-  type TierCeiling,
-} from "./math";
+import { assertDemoTotals, evaluateRevision, type EvaluatedLineInput, type PolicyCeiling } from "./math";
 import { SymbolResolver } from "./resolver";
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -55,8 +49,7 @@ type CustomerMeta = {
 type PolicyMeta = {
   sym: string;
   id: string;
-  tierCeilings: TierCeiling[];
-  categoryCeilings: CategoryCeiling[];
+  ceilings: PolicyCeiling[];
   chain: { stepIndex: number; role: string }[];
   thresholds: {
     managerWorstExcessPct: string;
@@ -145,14 +138,10 @@ export function buildSeedCatalog(resolver: SymbolResolver, policyId: string): Se
     policy: {
       sym: policyFixture.sym,
       id: policyId,
-      tierCeilings: policyFixture.tierCeilings.map((row) => ({
+      ceilings: policyFixture.ceilings.map((row) => ({
         tier: row.tier,
         ceilingPct: row.ceilingPct,
-      })),
-      categoryCeilings: policyFixture.categoryCeilings.map((row) => ({
-        tier: row.tier,
-        categorySym: row.category,
-        ceilingPct: row.ceilingPct,
+        categorySym: "category" in row ? row.category : null,
       })),
       chain: [...policyFixture.chain],
       thresholds: {
@@ -316,15 +305,26 @@ export async function expandDeal(
     customer.discountTier,
     deal.lines.map((line) => lineToEvalInput(catalog, customer, line)),
     deal.orderPct,
-    catalog.policy.tierCeilings,
-    catalog.policy.categoryCeilings,
+    catalog.policy.ceilings,
     catalog.policy.thresholds,
   );
 
   const eventDate = daysBefore(seedTime, deal.daysAgo);
   const teamId = resolver.tryResolve("team-west") ?? null;
+  const dealRow = await db.deal.create({
+    data: {
+      customerId: resolver.resolve(deal.customer),
+      repId: resolver.resolve(deal.rep),
+      teamId,
+      status: quoteStageFor(deal.outcome),
+      lastActivityAt: eventDate,
+      createdAt: eventDate,
+      updatedAt: eventDate,
+    },
+  });
   const quote = await db.quote.create({
     data: {
+      dealId: dealRow.id,
       customerId: resolver.resolve(deal.customer),
       repId: resolver.resolve(deal.rep),
       teamId,
@@ -344,9 +344,10 @@ export async function expandDeal(
     createdAt: eventDate,
   });
 
-  const revision = await db.quoteRevision.create({
+  const revision = await db.dealRevision.create({
     data: {
       quoteId: quote.id,
+      dealId: quote.dealId,
       revisionNumber: 1,
       policyVersionId: catalog.policy.id,
       riskLevel: totals.riskLevel,
@@ -383,7 +384,7 @@ export async function expandDeal(
   });
 
   await writeAudit(db, resolver, {
-    entityType: "QuoteRevision",
+    entityType: "DealRevision",
     entityId: revision.id,
     revisionId: revision.id,
     actorSym: deal.rep,
@@ -398,14 +399,14 @@ export async function expandDeal(
 
   const lineIdsByProduct = new Map<string, string>();
   for (let position = 0; position < deal.lines.length; position++) {
-    const dealLine = deal.lines[position]!;
+    const lineInput = deal.lines[position]!;
     const evaluated = totals.lines[position]!;
-    const productSym = dealLine.product;
-    const variantSym = dealLine.variant ?? `${dealLine.product}-std`;
+    const productSym = lineInput.product;
+    const variantSym = lineInput.variant ?? `${lineInput.product}-std`;
     const product = catalog.products.get(productSym)!;
     const planSym = product.defaultPlanSym;
     const planId = planSym ? resolver.resolve(planSym) : null;
-    const quoteLine = await db.quoteLine.create({
+    const storedLine = await db.dealLine.create({
       data: {
         revisionId: revision.id,
         productId: resolver.resolve(productSym),
@@ -431,7 +432,7 @@ export async function expandDeal(
         createdAt: eventDate,
       },
     });
-    lineIdsByProduct.set(productSym, quoteLine.id);
+    lineIdsByProduct.set(productSym, storedLine.id);
   }
 
   if (totals.riskLevel !== "NONE") {
@@ -453,7 +454,7 @@ export async function expandDeal(
           createdAt: eventDate,
         },
       });
-      await db.quoteRevisionApprovalStep.create({
+      await db.dealApprovalStep.create({
         data: {
           revisionId: revision.id,
           stepIndex: step.stepIndex,
@@ -465,7 +466,7 @@ export async function expandDeal(
         },
       });
       await writeAudit(db, resolver, {
-        entityType: "QuoteRevision",
+        entityType: "DealRevision",
         entityId: revision.id,
         revisionId: revision.id,
         actorSym,
@@ -538,6 +539,7 @@ async function confirmDeal(
 
   const order = await db.order.create({
     data: {
+      dealId: (await db.quote.findUniqueOrThrow({ where: { id: _quoteId }, select: { dealId: true } })).dealId!,
       sourceRevisionId: revisionId,
       acceptanceId: acceptance.id,
       customerId: resolver.resolve(deal.customer),
@@ -577,7 +579,7 @@ async function confirmDeal(
     createdAt: confirmDate,
   });
 
-  const revisionLines = await db.quoteLine.findMany({
+  const revisionLines = await db.dealLine.findMany({
     where: { revisionId },
     orderBy: { position: "asc" },
   });
@@ -587,7 +589,7 @@ async function confirmDeal(
     const orderLine = await db.orderLine.create({
       data: {
         orderId: order.id,
-        sourceQuoteLineId: line.id,
+        sourceDealLineId: line.id,
         productId: line.productId,
         variantId: line.variantId,
         quantity: line.quantity,
@@ -865,8 +867,7 @@ export function runDemoAssertions(catalog: SeedCatalog): void {
     acme.discountTier,
     flowBLines.map((line) => lineToEvalInput(catalog, acme, line)),
     "0",
-    catalog.policy.tierCeilings,
-    catalog.policy.categoryCeilings,
+    catalog.policy.ceilings,
     catalog.policy.thresholds,
   );
   assertDemoTotals("Acme flowb", flowBTotals, {
@@ -885,8 +886,7 @@ export function runDemoAssertions(catalog: SeedCatalog): void {
     acme.discountTier,
     exceptionLines.map((line) => lineToEvalInput(catalog, acme, line)),
     "0",
-    catalog.policy.tierCeilings,
-    catalog.policy.categoryCeilings,
+    catalog.policy.ceilings,
     catalog.policy.thresholds,
   );
   assertDemoTotals("Acme exception", exceptionTotals, {

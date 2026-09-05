@@ -4,9 +4,9 @@ import type {
   DashboardSummary,
   HealthEvaluation,
   PolicySnapshot,
-  PricedQuoteLine,
+  PricedDealLine,
   Quote,
-  QuoteRevision,
+  DealRevision,
 } from "@/contracts/atharva";
 
 const policy: PolicySnapshot = {
@@ -27,7 +27,7 @@ const policy: PolicySnapshot = {
   },
 };
 
-const withinLimitLine: PricedQuoteLine = {
+const withinLimitLine: PricedDealLine = {
   lineId: "line-laptop-1",
   productId: "product-laptop",
   variantId: "variant-laptop-gold",
@@ -50,7 +50,7 @@ const withinLimitLine: PricedQuoteLine = {
   marginPct: "9.09",
 };
 
-const riskyServiceLine: PricedQuoteLine = {
+const riskyServiceLine: PricedDealLine = {
   lineId: "line-support-1",
   productId: "product-support",
   variantId: "variant-support-standard",
@@ -73,7 +73,7 @@ const riskyServiceLine: PricedQuoteLine = {
   marginPct: "52.38",
 };
 
-const pricingFor = (lines: PricedQuoteLine[], orderDiscountPct: string) => ({
+const pricingFor = (lines: PricedDealLine[], orderDiscountPct: string) => ({
   lines,
   orderDiscountPct,
   effectiveDiscountPct: orderDiscountPct,
@@ -117,7 +117,7 @@ const pendingEvaluation = {
   policySnapshot: policy,
 };
 
-const approvedRevision: QuoteRevision = {
+const approvedRevision: DealRevision = {
   id: "revision-routine-1",
   quoteId: "quote-routine",
   revisionNumber: 1,
@@ -131,7 +131,7 @@ const approvedRevision: QuoteRevision = {
   approvalStatus: "NOT_REQUIRED",
 };
 
-const pendingRevision: QuoteRevision = {
+const pendingRevision: DealRevision = {
   id: "revision-exception-2",
   quoteId: "quote-exception",
   revisionNumber: 2,

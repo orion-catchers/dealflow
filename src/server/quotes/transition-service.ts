@@ -3,7 +3,7 @@ import type {
   Id,
   OrderReady,
   Quote,
-  QuoteRevision,
+  DealRevision,
 } from "@/contracts/atharva";
 import {
   InMemoryQuoteRepository,
@@ -37,10 +37,10 @@ export interface TransitionRevisionInput {
   revisionId?: Id;
   createdBy: Id;
   createdAt: string;
-  currency: QuoteRevision["currency"];
-  lines: QuoteRevision["lines"];
-  pricing: QuoteRevision["pricing"];
-  evaluation: QuoteRevision["evaluation"];
+  currency: DealRevision["currency"];
+  lines: DealRevision["lines"];
+  pricing: DealRevision["pricing"];
+  evaluation: DealRevision["evaluation"];
   promisedDate?: string;
 }
 

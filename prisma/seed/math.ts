@@ -18,26 +18,24 @@ export function effectivePct(linePct: Decimal, orderPct: Decimal): Decimal {
   return roundPct(D(100).times(D(1).minus(lineFactor.times(orderFactor))));
 }
 
-export type TierCeiling = { tier: string; ceilingPct: string };
-export type CategoryCeiling = {
+export type PolicyCeiling = {
   tier: string;
-  categorySym: string;
+  categorySym: string | null;
   ceilingPct: string;
 };
 
 export function ceilingFor(
   tier: string,
   categorySym: string | null,
-  tierCeilings: TierCeiling[],
-  categoryCeilings: CategoryCeiling[],
+  ceilings: PolicyCeiling[],
 ): Decimal {
-  const tierRow = tierCeilings.find((row) => row.tier === tier);
+  const tierRow = ceilings.find((row) => row.tier === tier && row.categorySym === null);
   if (!tierRow) {
     throw new Error(`Missing tier ceiling for ${tier}`);
   }
   let ceiling = D(tierRow.ceilingPct);
   if (categorySym) {
-    const categoryRow = categoryCeilings.find(
+    const categoryRow = ceilings.find(
       (row) => row.tier === tier && row.categorySym === categorySym,
     );
     if (categoryRow) {
@@ -105,8 +103,7 @@ export function evaluateRevision(
   tier: string,
   lines: EvaluatedLineInput[],
   orderPct: string,
-  tierCeilings: TierCeiling[],
-  categoryCeilings: CategoryCeiling[],
+  ceilings: PolicyCeiling[],
   thresholds: PolicyThresholds,
 ): RevisionTotals {
   const orderDiscount = D(orderPct);
@@ -130,8 +127,7 @@ export function evaluateRevision(
     const ceiling = ceilingFor(
       tier,
       line.categorySym,
-      tierCeilings,
-      categoryCeilings,
+      ceilings,
     );
     const excess = roundPct(Decimal.max(D(0), effective.minus(ceiling)));
     const undiscounted = unitPrice.times(line.qty);

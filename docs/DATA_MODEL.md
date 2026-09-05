@@ -42,9 +42,11 @@ Identity: `User`, `Session`, `SalesTeam`, `CustomerMembership`, `Customer`.
 
 Catalog: `Category`, `Product`, `Variant`, `PriceList`, `PriceRule` (+ tax/plan FKs on product).
 
-Governance: `PolicyVersion`, `PolicyTierCeiling`, `PolicyCategoryCeiling`, `PolicyChainStep`.
+Governance: `PolicyVersion`, `PolicyCeiling`, `PolicyChainStep`.
 
 Quotes: `Quote`, `QuoteRevision`, `QuoteLine`, `QuoteRevisionApprovalStep`, `ApprovalDecision`, `CustomerAcceptance`, `PortalMessage`.
+
+Sales: `Deal`, `Quote`, `DealRevision`, `DealLine`, `DealApprovalStep`, `ApprovalDecision`, `CustomerAcceptance`, `PortalMessage`.
 
 Orders: `Order`, `OrderLine`.
 

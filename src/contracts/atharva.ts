@@ -55,7 +55,7 @@ export interface Actor {
   customerId?: Id;
 }
 
-export interface QuoteLineInput {
+export interface DealLineInput {
   productId: Id;
   variantId?: Id;
   category?: string;
@@ -69,7 +69,7 @@ export interface QuoteLineInput {
   stockTracked: boolean;
 }
 
-export interface PricedQuoteLine extends QuoteLineInput {
+export interface PricedDealLine extends DealLineInput {
   lineId: Id;
   priceSnapshot: DecimalString;
   costSnapshot: DecimalString;
@@ -94,7 +94,7 @@ export interface PricingTotals {
 }
 
 export interface PricingResult {
-  lines: PricedQuoteLine[];
+  lines: PricedDealLine[];
   totals: PricingTotals;
   orderDiscountPct: DecimalString;
   effectiveDiscountPct: DecimalString;
@@ -136,7 +136,7 @@ export interface PolicyEvaluation {
   policySnapshot: PolicySnapshot;
 }
 
-export interface QuoteRevision {
+export interface DealRevision {
   id: Id;
   quoteId: Id;
   revisionNumber: number;
@@ -144,7 +144,7 @@ export interface QuoteRevision {
   createdBy: Id;
   currency: Currency;
   promisedDate?: string;
-  lines: PricedQuoteLine[];
+  lines: PricedDealLine[];
   pricing: PricingResult;
   evaluation: PolicyEvaluation;
   approvalStatus: RevisionApprovalStatus;
@@ -160,7 +160,7 @@ export interface Quote {
   currentRevisionId: Id;
   currentRevisionNumber: number;
   lastBusinessActivityAt: ISODate;
-  revisions: QuoteRevision[];
+  revisions: DealRevision[];
 }
 
 export interface ApprovalRecord {

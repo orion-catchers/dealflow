@@ -31,11 +31,7 @@ export async function POST(
         "customerTier must be Bronze, Silver, or Gold",
       );
     }
-    const body = {
-      expectedRevision: raw.expectedRevision,
-      customerTier: normalizedTier as "BRONZE" | "SILVER" | "GOLD" | undefined,
-    };
-    const result = await getLiveQuoteService().send(actor, id, body);
+    const result = await getLiveQuoteService().send(actor, id, raw.expectedRevision);
     try {
       await notifyQuoteSent(id);
     } catch (reason) {

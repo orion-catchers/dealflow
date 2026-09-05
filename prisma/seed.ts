@@ -196,22 +196,12 @@ async function main(): Promise<void> {
     });
     resolver.register(policy.sym, row.id);
 
-    for (const ceiling of policy.tierCeilings) {
-      await prisma.policyTierCeiling.create({
+    for (const ceiling of policy.ceilings) {
+      await prisma.policyCeiling.create({
         data: {
           policyVersionId: row.id,
           tier: ceiling.tier as "STANDARD" | "SILVER" | "GOLD" | "PLATINUM",
-          ceilingPct: ceiling.ceilingPct,
-        },
-      });
-    }
-
-    for (const ceiling of policy.categoryCeilings) {
-      await prisma.policyCategoryCeiling.create({
-        data: {
-          policyVersionId: row.id,
-          tier: ceiling.tier as "STANDARD" | "SILVER" | "GOLD" | "PLATINUM",
-          categoryId: resolver.resolve(ceiling.category),
+          categoryId: "category" in ceiling ? resolver.resolve(ceiling.category) : null,
           ceilingPct: ceiling.ceilingPct,
         },
       });

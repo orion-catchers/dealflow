@@ -3,7 +3,7 @@
  * policy engine, tax jurisdiction rules, or billing guarantees. */
 import { Decimal } from 'decimal.js';
 import { randomUUID } from 'node:crypto';
-import type { Actor, DataState, Evaluation, Line, Product, Quote, QuoteRevision } from '../contracts/application';
+import type { Actor, DataState, Evaluation, Line, Product, Quote, DealRevision } from '../contracts/application';
 import type { PricedCandidate } from '../contracts/krishna';
 import { requireValue } from '../server/errors';
 export const dec=(n:Decimal.Value)=>new Decimal(n);
@@ -11,7 +11,7 @@ export const money=(n:Decimal.Value)=>dec(n).toDecimalPlaces(2,Decimal.ROUND_HAL
 export const date=()=>new Date().toISOString().slice(0,10);
 export function plusPeriod(start:string, interval:string) { const d=new Date(start+'T00:00:00Z'),day=d.getUTCDate();d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+({MONTHLY:1,QUARTERLY:3,YEARLY:12}[interval]??1));const last=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();d.setUTCDate(Math.min(day,last));return d.toISOString().slice(0,10); }
 export function event(actor:Actor,text:string,revision?:string) {return {id:randomUUID(),at:new Date().toISOString(),actor:actor.name,text,revision};}
-export function snapshot(q:Quote):QuoteRevision {return structuredClone({revision:q.revision,lines:q.lines,totals:q.totals,orderDiscountPct:q.orderDiscountPct,promisedDate:q.promisedDate,evaluation:q.evaluation,at:q.at});}
+export function snapshot(q:Quote):DealRevision {return structuredClone({revision:q.revision,lines:q.lines,totals:q.totals,orderDiscountPct:q.orderDiscountPct,promisedDate:q.promisedDate,evaluation:q.evaluation,at:q.at});}
 export function newRevision(q:Quote,actor:Actor,text:string) {requireValue(q.stage!=='CONFIRMED','Confirmed quotations are locked');q.history.push(snapshot(q));q.revision=`r${Number(q.revision.slice(1))+1}`;q.at=new Date().toISOString();q.acceptedAt=undefined;q.events.push(event(actor,text,q.revision));}
 export function resolvedPrice(s:DataState,q:Quote,p:Product,variantId:string) {const c=s.customers.find(c=>c.id===q.customerId)!;const rule=s.priceRules.find(r=>r.productId===p.id&&r.tier===c.tier&&r.currency===q.currency);return money(dec(rule?.price??p.price).plus(p.variants.find(v=>v.id===variantId)?.extraPrice??0));}
 export function makeLine(s:DataState,q:Quote,productId:string,variantId:string,quantity:number):Line {const p=s.products.find(p=>p.id===productId);requireValue(p?.active,'Choose an active product');requireValue(p.variants.some(v=>v.id===variantId),'Choose a valid variant');requireValue(Number.isFinite(quantity)&&quantity>0&&quantity<=1e6,'Quantity must be positive');return {id:randomUUID(),productId,variantId,description:`${p.name} · ${p.variants.find(v=>v.id===variantId)!.name}`,quantity,discountPct:0,unitPrice:resolvedPrice(s,q,p,variantId),unitCost:p.cost,taxPct:p.taxPct,tax:'0.00',net:'0.00',total:'0.00',profit:'0.00',interval:p.interval,stockTracked:p.stockTracked};}

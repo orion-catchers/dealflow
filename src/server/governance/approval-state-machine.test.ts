@@ -3,7 +3,7 @@ import type {
   Actor,
   PolicyEvaluation,
   Quote,
-  QuoteRevision,
+  DealRevision,
 } from "@/contracts/atharva";
 import {
   InMemoryApprovalStateMachine,
@@ -39,7 +39,7 @@ const revision = {
   quoteId: "quote-1",
   revisionNumber: 1,
   evaluation,
-} as QuoteRevision;
+} as DealRevision;
 const quote = {
   id: "quote-1",
   customerId: "customer-acme",

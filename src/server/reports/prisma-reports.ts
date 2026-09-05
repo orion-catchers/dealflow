@@ -1,5 +1,5 @@
 ﻿/**
- * Prisma ReportRepository — projects stored Quote / QuoteRevision / Order rows into
+ * Prisma ReportRepository — projects stored Quote / DealRevision / Order rows into
  * `ReportQuoteRecord`. Reports never recompute pricing or policy; they flatten persisted
  * totals and line snapshots.
  */

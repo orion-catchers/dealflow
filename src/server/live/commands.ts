@@ -281,15 +281,11 @@ export async function runLiveCommand(
           financeWorstExcessPct: p.financeExcess,
           financeWeightedExcessPct: p.financeWeighted,
           totalDiscountBudgetPct: Number(p.budget),
-          tierCeilings: {
+          policyCeilings: {
             create: [
-              { tier: "GOLD", ceilingPct: p.tierLimits.Gold ?? 15 },
-              { tier: "SILVER", ceilingPct: p.tierLimits.Silver ?? 10 },
-              { tier: "STANDARD", ceilingPct: p.tierLimits.Bronze ?? 5 },
-            ],
-          },
-          categoryCeilings: {
-            create: [
+              { tier: "GOLD", categoryId: null, ceilingPct: p.tierLimits.Gold ?? 15 },
+              { tier: "SILVER", categoryId: null, ceilingPct: p.tierLimits.Silver ?? 10 },
+              { tier: "STANDARD", categoryId: null, ceilingPct: p.tierLimits.Bronze ?? 5 },
               { tier: "GOLD", categoryId: hardware.id, ceilingPct: p.categoryLimits.Hardware ?? 15 },
               { tier: "GOLD", categoryId: services.id, ceilingPct: p.categoryLimits.Services ?? 10 },
             ],
