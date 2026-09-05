@@ -123,3 +123,7 @@ dialog.df-dialog{position:fixed;inset:0;margin:auto;width:min(640px,calc(100% - 
   .login-body .auth-form>p:not(.dev-copy):not(.auth-switch){font-size:16px}
   .login-body .auth-form form{max-width:none}
 }
+.auth-demo{max-width:390px;margin:10px 0 0;font-size:12px;line-height:1.55;color:#415665;text-transform:none;letter-spacing:0}
+.auth-demo code{font-size:12px;color:var(--ink)}
+.auth-demo button{margin-left:6px;border:0;background:transparent;color:var(--teal);padding:0;font:inherit;cursor:pointer}
+.topbar-end{margin-left:auto}

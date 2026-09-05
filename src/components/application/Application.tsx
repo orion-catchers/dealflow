@@ -59,6 +59,14 @@ export default function Application(){
 
   useEffect(()=>{
     let cancelled=false;
+    if(publicPage){
+      setLoading(false);
+      return;
+    }
+    if(actor){
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     fetch('/api/auth/me',{cache:'no-store'}).then(async response=>{
       const result=await response.json();
@@ -68,7 +76,7 @@ export default function Application(){
     }).catch(reason=>{if(!cancelled)setError(reason instanceof Error?reason.message:'The session could not be checked.');})
       .finally(()=>{if(!cancelled)setLoading(false);});
     return()=>{cancelled=true;};
-  },[]);
+  },[publicPage,actor]);
 
   useEffect(()=>{reload().catch(reason=>setError(reason instanceof Error?reason.message:'The workspace could not be loaded.'));},[reload]);
   useEffect(()=>{setMenu(false);},[pathname]);
@@ -87,8 +95,17 @@ export default function Application(){
     return result;
   };
 
-  if(publicPage)return <Auth path={pathname} mode={mode} error={error} onLogin={(nextActor,nextMode)=>{setActor(nextActor);setMode(nextMode??'LIVE');router.push(nextActor.role==='CUSTOMER'?'/portal':'/home');}}/>;
-  if(loading)return <main className="standalone" role="status">Loading your workspace…</main>;
+  if(publicPage)return <Auth path={pathname} mode={mode} error={error} onLogin={async(nextActor,nextMode)=>{
+    setActor(nextActor);
+    setMode(nextMode??'LIVE');
+    setLoading(false);
+    if(nextActor.role!=='CUSTOMER'){
+      try{setData(await api<DataState>('workspace'));}
+      catch(reason){setError(reason instanceof Error?reason.message:'The workspace could not be loaded.');}
+    }
+    router.push(nextActor.role==='CUSTOMER'?'/portal':'/home');
+  }}/>;
+  if(loading&&!actor)return <main className="standalone" role="status">Loading your workspace…</main>;
   if(!actor)return <main className="standalone"><h1>{error?'Service not connected':'Sign in to continue'}</h1><p>{error||'Your session has expired or you have not signed in.'}</p><Link href="/login">Open sign in</Link></main>;
   if(actor.role==='CUSTOMER'&&!pathname.startsWith('/portal'))return <main className="standalone"><h1>Customer access only</h1><Link href="/portal">Open your customer portal</Link></main>;
   if(actor.role!=='CUSTOMER'&&pathname.startsWith('/portal'))return <main className="standalone"><h1>Customer account required</h1><Link href="/home">Return to workspace</Link></main>;
@@ -117,19 +134,18 @@ export default function Application(){
     <div className="main-column">
       <header className="topbar">
         <button className="mobile-menu" type="button" aria-expanded={menu} aria-controls="primary-navigation" aria-label="Toggle navigation" onClick={()=>setMenu(!menu)}><Menu size={20}/></button>
-        <span>Sales operations <span className="muted">/ {pathname.split('/').filter(Boolean)[0]??'home'}</span></span>
-        <div><StatusBadge status={mode}/><span className="top-date">{new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</span></div>
+        <div className="topbar-end"><StatusBadge status={mode}/><span className="top-date">{new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</span></div>
       </header>
       <main id="main">
         {message&&<div className="notice" role="status">{message}<button type="button" onClick={()=>setMessage('')} aria-label="Dismiss notification">×</button></div>}
         {error&&<div role="alert" className="error">{error}<Button onClick={()=>{setError('');reload().catch(reason=>setError(reason instanceof Error?reason.message:'Retry failed.'));}}>Retry</Button></div>}
-        {actor.role==='CUSTOMER'?<CustomerPortal path={pathname}/>:!data?<p className="inline-loading" role="status">Loading business records…</p>:pathname==='/home'?<Home ctx={ctx}/>:pathname.startsWith('/quotes')||pathname==='/pipeline'||pathname.startsWith('/approvals')?<Quotes ctx={ctx}/>:pathname.startsWith('/products')||pathname.startsWith('/settings')||pathname==='/policies'||pathname==='/price-lists'?<Setup ctx={ctx}/>:['/fulfillment','/subscriptions','/invoices','/health','/reports'].some(p=>pathname.startsWith(p))?<Operations ctx={ctx}/>:<><Heading title="Page not found" description="This route does not exist."/><Link href="/home">Return to overview</Link></>}
+        {actor.role==='CUSTOMER'?<CustomerPortal path={pathname}/>:!data?null:pathname==='/home'?<Home ctx={ctx}/>:pathname.startsWith('/quotes')||pathname==='/pipeline'||pathname.startsWith('/approvals')?<Quotes ctx={ctx}/>:pathname.startsWith('/products')||pathname.startsWith('/settings')||pathname==='/policies'||pathname==='/price-lists'?<Setup ctx={ctx}/>:['/fulfillment','/subscriptions','/invoices','/health','/reports'].some(p=>pathname.startsWith(p))?<Operations ctx={ctx}/>:<><Heading title="Page not found" description="This route does not exist."/><Link href="/home">Return to overview</Link></>}
       </main>
     </div>
   </div>;
 }
 
-function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;onLogin:(actor:Actor,mode?:string)=>void}){
+function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;onLogin:(actor:Actor,mode?:string)=>void|Promise<void>}){
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
   const [name,setName]=useState('');
@@ -161,16 +177,21 @@ function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;on
         <span className="eyebrow">DEALFLOW360 WORKSPACE</span>
         <h1>{path==='/signup'?'Request an account':'Welcome back'}</h1>
         <p>{path==='/signup'?'Your administrator will verify your access.':'Sign in with your assigned company account.'}</p>
-        <p className="dev-copy">{mode==='DEV FIXTURE'?'DEV FIXTURE · Local JSON store accounts':'LIVE · Use seeded company accounts from the README'}</p>
+        <p className="dev-copy">{mode==='DEV FIXTURE'?'DEV FIXTURE · Local JSON store accounts':'LIVE · Seeded sales demo below — do not use password123'}</p>
+        {path!=='/signup'&&<small className="auth-demo">Email <code>arjun@nexa.example</code> · password <code>arjun-nexa-2026!</code>{' '}<button type="button" onClick={()=>{setEmail('arjun@nexa.example');setPassword('arjun-nexa-2026!');setIssue('');}}>Fill demo</button></small>}
         {done?<div className="notice" role="status">Account requested. Your administrator must activate access.<Link href="/login">Return to sign in</Link></div>:<form onSubmit={async event=>{
           event.preventDefault();setBusy(true);setIssue('');
-          try{if(path==='/signup'){await api('auth/signup',{name,email,password});setDone(true);}else{const result=await api<{actor?:Actor;mode?:string;id?:string;name?:string;email?:string;role?:Role;active?:boolean;customerId?:string}>('auth/login',{email,password});const actor=result.actor??sessionToActor(result);if(!actor)throw new Error('Sign in could not be completed.');onLogin(actor,result.mode??'LIVE');}}
+          const submitted=new FormData(event.currentTarget);
+          const nextEmail=String(submitted.get('email')??email).trim();
+          const nextPassword=String(submitted.get('password')??password);
+          const nextName=String(submitted.get('name')??name).trim();
+          try{if(path==='/signup'){await api('auth/signup',{name:nextName,email:nextEmail,password:nextPassword});setDone(true);}else{const result=await api<{actor?:Actor;mode?:string;id?:string;name?:string;email?:string;role?:Role;active?:boolean;customerId?:string}>('auth/login',{email:nextEmail,password:nextPassword});const actor=result.actor??sessionToActor(result);if(!actor)throw new Error('Sign in could not be completed.');await onLogin(actor,result.mode??'LIVE');}}
           catch(reason){setIssue(reason instanceof Error?reason.message:'Sign in could not be completed.');}
           finally{setBusy(false);}
         }}>
-          {path==='/signup'&&<Input label="Full name" value={name} onChange={event=>setName(event.target.value)} required autoComplete="name"/>}
-          <Input label="Work email" type="email" value={email} onChange={event=>setEmail(event.target.value)} required autoComplete="username"/>
-          <Input label="Password" type="password" value={password} onChange={event=>setPassword(event.target.value)} required minLength={8} autoComplete={path==='/signup'?'new-password':'current-password'}/>
+          {path==='/signup'&&<Input label="Full name" name="name" value={name} onChange={event=>setName(event.target.value)} required autoComplete="name"/>}
+          <Input label="Work email" name="email" type="email" value={email} onChange={event=>setEmail(event.target.value)} required autoComplete="username"/>
+          <Input label="Password" name="password" type="password" value={password} onChange={event=>setPassword(event.target.value)} required minLength={8} autoComplete={path==='/signup'?'new-password':'off'}/>
           {issue&&<p role="alert" className="error">{issue}</p>}
           <Button type="submit" disabled={busy}>{busy?'Please wait…':path==='/signup'?'Request access':'Sign in'}</Button>
         </form>}
