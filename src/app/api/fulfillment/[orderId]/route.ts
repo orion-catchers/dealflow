@@ -1,6 +1,6 @@
 import { handle } from "@/lib/api/respond";
 import { getActor } from "@/server/lib/auth/dev-actor";
-import { getFulfillmentService } from "@/server/inventory/service";
+import { getFulfillmentService } from "@/server/inventory/live";
 
 /** GET /api/fulfillment/:orderId — FulfillmentDetail for Screen 08. */
 export async function GET(request: Request, { params }: { params: Promise<{ orderId: string }> }) {

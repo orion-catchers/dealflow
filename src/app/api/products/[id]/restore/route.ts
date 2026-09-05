@@ -1,7 +1,7 @@
 /** Restore an archived product — DEV FIXTURE. POST (ADMIN). */
 import { handle } from "@/lib/api/respond";
 import { getActor } from "@/server/lib/auth/dev-actor";
-import { getCatalogService } from "@/server/catalog/service";
+import { getCatalogService } from "@/server/catalog/live";
 
 type Ctx = { params: Promise<{ id: string }> };
 

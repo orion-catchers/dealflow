@@ -6,7 +6,7 @@ import type { NextRequest } from "next/server";
 import { handle } from "@/lib/api/respond";
 import { getActor } from "@/server/lib/auth/dev-actor";
 import { parseReportFilters } from "@/features/reports/api";
-import { getReportService } from "@/server/reports/service";
+import { getReportService } from "@/server/reports/live";
 
 export async function GET(request: NextRequest) {
   return handle(async () => {
