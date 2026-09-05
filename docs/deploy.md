@@ -64,3 +64,50 @@ Set `DATABASE_URL` and `SESSION_SECRET` on that host. Confirm `/api/auth/login` 
 6. Finance can open invoices after billing routes land.
 
 If login works and invoices 404, auth is up and billing is not. Do not call that a full deploy.
+
+## Production checklist (industry)
+
+Use this as a gate before calling a host “production.”
+
+- [ ] PostgreSQL **16** only (confirm `SHOW server_version`).
+- [ ] `DATABASE_URL` uses TLS (`sslmode=require` or equivalent) on public networks.
+- [ ] `SESSION_SECRET` is ≥32 random bytes, unique per environment, not in Git.
+- [ ] `NODE_ENV=production`.
+- [ ] `DEALFLOW_ADAPTER` is **not** set.
+- [ ] Seed accounts and `password123` are disabled or the host is clearly a **demo**.
+- [ ] Backups / PITR enabled; restore tested once.
+- [ ] Release runs `pnpm db:deploy` then `pnpm build` / `pnpm start` on Node **24**.
+- [ ] CI green on the commit you deploy (`.github/workflows/ci.yml`).
+- [ ] Smoke: Origin-checked POST login; staff home; one portal user isolated.
+- [ ] Load balancer does **not** treat `/api/health` as k8s liveness (that route is deal-health and needs auth). See [OPERATIONS.md](OPERATIONS.md).
+
+## Example Node 24 VPS
+
+```bash
+corepack enable
+corepack prepare pnpm@11.3.0 --activate
+git clone <repo> && cd dealflow
+# export DATABASE_URL SESSION_SECRET NODE_ENV=production
+pnpm install --frozen-lockfile
+pnpm db:deploy
+pnpm build
+pnpm start
+```
+
+Put a reverse proxy (Caddy/nginx) in front for HTTPS. Set `PORT` if the proxy expects a non-3000 upstream.
+
+## Vercel / similar
+
+Set the same env vars. Build: `pnpm build`. Install: `pnpm install --frozen-lockfile`. Provide a Postgres 16 URL the serverless region can reach. Prisma generate runs as part of `pnpm build`. Confirm the host’s Node version is **24**.
+
+## Compose (app + db) note
+
+This repository’s `docker-compose.yml` currently defines **Postgres only**. The Next.js app is run on the host (`pnpm dev` / `pnpm start`). If you add an `app` service later, pass the internal Docker DNS name in `DATABASE_URL`, not `localhost`.
+
+## Rollback
+
+1. Redeploy the previous Git SHA / image.
+2. If the failed release applied a migration you cannot reverse in code, restore the pre-release database snapshot, then start the old app.
+3. Never `pnpm db:reset` on integration or production.
+
+Full incident playbooks: [OPERATIONS.md](OPERATIONS.md). API/security: [API.md](API.md), [SECURITY.md](SECURITY.md).
