@@ -1,4 +1,4 @@
-import type { PortalActor, PortalQuote, PortalReadRepository } from '../../contracts/krishna.ts';
+import type { PortalActor, PortalQuote, PortalReadRepository } from '../../contracts/krishna';
 
 export class PortalAccessError extends Error {
   readonly status: 401 | 403 | 404;

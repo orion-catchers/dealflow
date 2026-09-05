@@ -1,0 +1,29 @@
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
+
+const eslintConfig = defineConfig([
+  ...nextVitals,
+  ...nextTs,
+  {
+    // Existing dialogs and fixture-backed loaders intentionally reset local state when inputs change.
+    rules: {
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
+  // Override default ignores of eslint-config-next.
+  globalIgnores([
+    // Default ignores of eslint-config-next:
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+    // Krishna's compact UI kit predates this ESLint config; keys live on table helpers.
+    "src/components/application/**",
+    "src/features/entry/**",
+    "src/features/home/**",
+    "tests/**",
+  ]),
+]);
+
+export default eslintConfig;

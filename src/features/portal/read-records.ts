@@ -1,7 +1,7 @@
 import type {
   PortalActor, PortalInvoice, PortalInvoiceReadRepository, PortalOrder, PortalOrderReadRepository,
-} from '../../contracts/krishna.ts';
-import { PortalAccessError } from './read-quote.ts';
+} from '../../contracts/krishna';
+import { PortalAccessError } from './read-quote';
 
 function requireCustomer(actor: PortalActor | null): string {
   if (!actor) throw new PortalAccessError(401, 'Sign in to continue');

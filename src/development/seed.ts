@@ -1,5 +1,15 @@
 import type { Actor, DataState, Quote } from '../contracts/application';
 import { makeLine,reprice,date,plusPeriod } from './pricing';
+// Demo credentials for the development fixture store; one distinct password
+// per account. Production accounts always use their own signup credentials.
+export const userPasswords:Record<string,string>={
+  'admin-dev':'admin-dealflow-2026!',
+  'rep-arjun':'arjun-dealflow-2026!',
+  'manager-sana':'sana-dealflow-2026!',
+  'finance-farah':'farah-dealflow-2026!',
+  'customer-neha':'neha-dealflow-2026!',
+  'customer-beta-user':'riya-dealflow-2026!',
+};
 export function seed():DataState {
   const users:Actor[]=[['admin-dev','Dev Mehta','admin','ADMIN'],['rep-arjun','Arjun Shah','sales','SALES_REP'],['manager-sana','Sana Iyer','manager','SALES_MANAGER'],['finance-farah','Farah Khan','finance','FINANCE_OPS'],['customer-neha','Neha Kapoor','acme','CUSTOMER'],['customer-beta-user','Riya Patel','beta','CUSTOMER']].map(([id,name,email,role])=>({id,name,email:`${email}@dealflow.test`,role:role as Actor['role'],active:true,...(email==='acme'?{customerId:'customer-acme'}:email==='beta'?{customerId:'customer-beta'}:{})}));
   const products:DataState['products']=[['laptop','Latitude Pro 14','Hardware','50000','40000','ONE_TIME',true],['dock','Connect USB-C Dock','Hardware','3000','2000','ONE_TIME',true],['mouse','Precision Mouse','Hardware','1800','900','ONE_TIME',true],['support','Business Care','Services','1000','400','MONTHLY',false],['setup','Workspace Setup','Services','5000','1800','ONE_TIME',false],['monitor','Studio Display 27','Hardware','18000','14000','ONE_TIME',true]].map(([id,name,category,price,cost,interval,stockTracked])=>({id:String(id),name:String(name),category:String(category),price:String(price),cost:String(cost),interval:interval as 'ONE_TIME'|'MONTHLY',stockTracked:!!stockTracked,description:`${name} for modern teams.`,unit:interval==='MONTHLY'?'seat':'unit',taxPct:18,active:true,planId:interval==='MONTHLY'?'plan-care':'',variants:[{id:`${id}-standard`,name:'Standard',extraPrice:'0.00'},...(id==='laptop'?[{id:'laptop-32gb',name:'32 GB / 1 TB',extraPrice:'8000.00'}]:[])]}));

@@ -1,7 +1,7 @@
 import type {
   ConfirmationResult, PortalActor, PortalConfirmationInput, PortalNegotiationPort, PortalProposalInput, ProposalResult,
-} from '../../contracts/krishna.ts';
-import { createRequestKey } from '../recommendations/service.ts';
+} from '../../contracts/krishna';
+import { createRequestKey } from '../recommendations/service';
 
 export class PortalValidationError extends Error {
   readonly status = 422 as const;

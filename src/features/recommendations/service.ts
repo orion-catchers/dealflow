@@ -1,7 +1,7 @@
 import type {
   CanonicalQuotePort, Recommendation, RecommendationPreviewPort, RevisionRequest,
-} from '../../contracts/krishna.ts';
-import { rankRecommendations } from './rank.ts';
+} from '../../contracts/krishna';
+import { rankRecommendations } from './rank';
 
 export function createRequestKey(prefix: string): string {
   const uuid = globalThis.crypto?.randomUUID?.();
