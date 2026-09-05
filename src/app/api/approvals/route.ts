@@ -1,11 +1,14 @@
+import type { NextRequest } from "next/server";
 import { handle } from "@/lib/api/respond";
+import { parseApprovalListFilter } from "@/server/approval-ui/api";
+import { getApprovalUiService } from "@/server/approval-ui/service";
 import { getActor } from "@/server/lib/auth/dev-actor";
-import { atharvaFixtures } from "@/fixtures/atharva-dev";
 
-export async function GET(request: Request) {
+/** GET /api/approvals?status=PENDING|RETURNED|COMPLETED|ALL */
+export async function GET(request: NextRequest) {
   return handle(async () => {
     const actor = await getActor(request);
-    if (actor.role === "CUSTOMER") return [];
-    return atharvaFixtures.approvals;
+    const filter = parseApprovalListFilter(request.nextUrl.searchParams);
+    return getApprovalUiService().listApprovals(actor, filter);
   });
 }

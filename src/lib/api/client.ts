@@ -36,6 +36,7 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
   try {
     res = await fetch(path, {
       ...rest,
+      credentials: "include",
       headers: {
         ...(json !== undefined ? { "content-type": "application/json" } : {}),
         "x-dev-actor": getDevActor(),

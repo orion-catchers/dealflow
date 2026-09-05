@@ -1,14 +1,22 @@
-/**
- * DEV FIXTURE of Ruchir's /api/plans; Ruchir's implementation replaces this file.
- * Serves `planRefs` so the product editor can link subscription products to a plan.
- */
+import type { NextRequest } from "next/server";
 import { handle } from "@/lib/api/respond";
 import { getActor } from "@/server/lib/auth/dev-actor";
-import { getCatalogService } from "@/server/catalog/service";
+import { getBillingService } from "@/server/billing/live";
 
-export async function GET(request: Request) {
+/** GET /api/plans — PlanRef[] for the product editor; `?full=1` returns SubscriptionPlanRecord[]. */
+export async function GET(request: NextRequest) {
   return handle(async () => {
     const actor = await getActor(request);
-    return getCatalogService().listPlans(actor);
+    const svc = getBillingService();
+    if (request.nextUrl.searchParams.get("full") === "1") return svc.listPlans(actor);
+    return svc.listPlanRefs(actor);
+  });
+}
+
+/** POST /api/plans — ADMIN create. */
+export async function POST(request: NextRequest) {
+  return handle(async () => {
+    const actor = await getActor(request);
+    return getBillingService().createPlan(actor, await request.json());
   });
 }
