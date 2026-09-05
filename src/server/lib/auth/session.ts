@@ -1,0 +1,82 @@
+import { createHash, randomBytes } from "node:crypto";
+import type { NextResponse } from "next/server";
+import { prisma } from "@/server/lib/db";
+
+export const SESSION_COOKIE = "dealflow_session";
+export const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+
+export function hashSessionToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+export function generateSessionToken(): string {
+  return randomBytes(32).toString("hex");
+}
+
+export function parseSessionCookie(cookieHeader: string | null): string | undefined {
+  if (!cookieHeader) return undefined;
+  for (const part of cookieHeader.split(";")) {
+    const trimmed = part.trim();
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq);
+    if (key === SESSION_COOKIE) return trimmed.slice(eq + 1);
+  }
+  return undefined;
+}
+
+export function sessionCookieOptions(): {
+  httpOnly: boolean;
+  sameSite: "lax";
+  path: string;
+  secure: boolean;
+  maxAge: number;
+} {
+  return {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: SESSION_MAX_AGE_SECONDS,
+  };
+}
+
+export function setSessionCookie(response: NextResponse, token: string): void {
+  response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
+}
+
+export function clearSessionCookie(response: NextResponse): void {
+  response.cookies.set(SESSION_COOKIE, "", { ...sessionCookieOptions(), maxAge: 0 });
+}
+
+export async function createSession(userId: string): Promise<{ token: string; expiresAt: Date }> {
+  const token = generateSessionToken();
+  const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
+  await prisma.session.create({
+    data: {
+      userId,
+      tokenHash: hashSessionToken(token),
+      expiresAt,
+    },
+  });
+  return { token, expiresAt };
+}
+
+export async function destroySessionByToken(token: string): Promise<void> {
+  await prisma.session.deleteMany({ where: { tokenHash: hashSessionToken(token) } });
+}
+
+export async function findUserBySessionToken(token: string) {
+  const session = await prisma.session.findUnique({
+    where: { tokenHash: hashSessionToken(token) },
+    include: {
+      user: {
+        include: {
+          memberships: true,
+        },
+      },
+    },
+  });
+  if (!session || session.expiresAt < new Date()) return null;
+  return session.user;
+}

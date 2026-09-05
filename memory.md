@@ -70,16 +70,16 @@ need a short interface note (before/after) in this file under "Interface notes".
 
 | Boundary | Owner | Status | Notes |
 |---|---|---|---|
-| Auth session → Actor | Ruchir | NOT CONNECTED | Harsh routes use `src/lib/auth/dev-actor.ts` (`x-dev-actor` header, dev only) until Ruchir's `getActor` lands. Same signature. |
+| Auth session → Actor | Ruchir | LIVE | Cookie `dealflow_session`; `getActor` from `@/server/lib/auth/dev-actor`. Dev still falls back to `x-dev-actor`. |
 | Catalog resolve | Harsh | DEV FIXTURE | Live API + Screens 16/17; in-memory repo until Prisma. |
 | Quote pricing / policy / revisions | Atharva | NOT STARTED | — |
 | Suggestions / customer proposal | Krishna | NOT STARTED | — |
 | Customer confirmation → orderReady | Atharva | NOT STARTED | Harsh consumes `OrderForFulfillment` (defined in harsh.ts) — Atharva to confirm field mapping. |
 | Split preview/commit | Harsh | DEV FIXTURE | Screens 07/08 + Engine 2 tests; in-memory until Prisma. |
 | Fulfillment initializer (inside confirmOrder tx) | Harsh | DEV FIXTURE | `InitializeFulfillmentInput/Result` in harsh.ts. DB-only, no reservation. |
-| Billing initializer | Ruchir | NOT STARTED | — |
+| Billing initializer | Ruchir | LIVE | `initializeBilling(tx, order, requestKey)` from `@/server/billing/initialize`. First recurring invoice is due-run, not init. |
 | Delivery read for Invoice Detail / Health | Harsh | DEV FIXTURE | `GET /api/fulfillment/[orderId]/delivery`. |
-| Plans (`/api/plans`) | Ruchir | NOT STARTED | Harsh uses `planRefs` fixture (`PlanRef`). |
+| Plans (`/api/plans`) | Ruchir | LIVE | GET returns `PlanRef[]` (Prisma plans plus catalog fixture ids). POST/PATCH are ADMIN. |
 | Reports | Harsh | DEV FIXTURE | Screen 15 + PDF/XLSX from stored facts; Atharva's quote repo must project into `ReportQuoteRecord`. |
 
 ---
@@ -90,7 +90,18 @@ need a short interface note (before/after) in this file under "Interface notes".
 _No entries yet._
 
 ### Ruchir
-_No entries yet._
+
+**2026-09-05 — Session 2 (branch `ruchir/auth-billing-screens`)**
+
+1. Schema/migrations/seed/CI/version pins already on `main` from earlier PRs (Prisma 7.10, Postgres 16).
+2. Locked remaining decisions: Neon for hosted Postgres 16; teammates propose schema via PR; billing uses RequestKey + partial unique indexes + row locks; seed assembly stays `src/fixtures/<lane>.ts`.
+3. Added `src/contracts/ruchir.ts` and `docs/deploy.md`. CI now runs `pnpm test`.
+4. Session auth: `/api/auth/login|signup|logout|me`, cookie `dealflow_session`, admin user activation.
+5. Approval screens 05/06 + `/users` against Prisma.
+6. Engine 3 in `src/server/billing/`. Atharva imports `initializeBilling(tx, order, requestKey)` from `@/server/billing/initialize` — no `BillingService` construct. First recurring invoice comes from due billing, not init.
+7. Screens 09/10/12/13: `/subscriptions`, `/billing`, `/invoices`. `GET /api/plans` still returns `PlanRef[]`.
+
+**Status:** Auth, Engine 3, and Ruchir screens are on this branch. Catalog/inventory remain Harsh DEV FIXTURE. Atharva still wires `confirmOrder` → `initializeBilling`.
 
 **Notes for Ruchir from Harsh (2026-09-05):**
 - Harsh created a minimal scaffold (`package.json`, `tsconfig.json`, `next.config.ts`,
@@ -252,16 +263,14 @@ until Ruchir's Prisma schema lands; then the repository adapters swap to Prisma.
 
 ## 5. Interface notes (cross-lane changes)
 
-_None yet. Format: date, owner, file, before → after example, consumers notified._
+- **2026-09-05, Ruchir, `src/server/billing/initialize.ts`:** Atharva's `confirmOrder` should call `initializeBilling(tx, order, requestKey)` inside the same Prisma transaction as order insert. Replay with the same key returns `{ replayed: true }` and the original invoice/subscription ids. Does not create the first recurring invoice. Consumers: Atharva.
+- **2026-09-05, Ruchir, `GET /api/plans`:** still `{ id, name, interval }[]` for Harsh's product editor. Extra Prisma plans may appear with cuid ids; fixture ids `plan-support-monthly` etc. remain from the catalog merge. `POST /api/plans` is ADMIN. Consumers: Harsh ProductEditor.
 
 ---
 
 ## 6. Open questions / blockers
 
 - Event date/time confirmed? Blueprint assumes T = 22:00 IST event day.
-- Ruchir: confirm you accept the foundation scaffold or replace it (before others branch).
-  Pinned: Next 15.3.3, React 19.1, TS 5.8, Tailwind 4.1, vitest 3.2, zod 3.25, xlsx 0.18.5,
-  pdf-lib 1.17.1. Reconcile freely; keep vitest/xlsx/pdf-lib/zod or tell Harsh the replacements.
 - Atharva: confirm `OrderForFulfillment` mapping and `ReportQuoteRecord` projection.
 - Harsh lane complete at DEV FIXTURE. Next for Harsh once schema lands: Prisma adapters
   for `CatalogRepository`, `InventoryRepository`, `ReportRepository` (`set*Repository`

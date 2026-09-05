@@ -56,6 +56,18 @@ const STATUS_COLORS: Record<string, string> = {
   "DEV FIXTURE": "bg-yellow-100 text-yellow-900",
   LIVE: "bg-emerald-100 text-emerald-800",
   "NOT CONNECTED": "bg-rose-100 text-rose-800",
+  UNPAID: "bg-rose-100 text-rose-800",
+  PARTIALLY_PAID: "bg-amber-100 text-amber-800",
+  PAID: "bg-emerald-100 text-emerald-800",
+  VOID: "bg-slate-200 text-slate-700",
+  RETURNED: "bg-orange-100 text-orange-800",
+  APPROVE: "bg-emerald-100 text-emerald-800",
+  REJECT: "bg-rose-100 text-rose-800",
+  RETURN: "bg-amber-100 text-amber-800",
+  MANAGER: "bg-blue-100 text-blue-800",
+  FINANCE: "bg-violet-100 text-violet-800",
+  NONE: "bg-slate-100 text-slate-700",
+  PAUSED: "bg-amber-100 text-amber-800",
 };
 
 export function StatusBadge({ status, label }: { status: string; label?: string }) {
@@ -225,6 +237,11 @@ const NAV: { href: string; label: string }[] = [
   { href: "/warehouses", label: "Warehouses" },
   { href: "/fulfillment", label: "Fulfillment" },
   { href: "/reports", label: "Reports" },
+  { href: "/approvals", label: "Approvals" },
+  { href: "/subscriptions", label: "Subscriptions" },
+  { href: "/billing", label: "Billing" },
+  { href: "/invoices", label: "Invoices" },
+  { href: "/users", label: "Users" },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

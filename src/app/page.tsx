@@ -6,6 +6,12 @@ import Link from "next/link";
  */
 export default function Home() {
   const links = [
+    { href: "/login", label: "Sign in (01)" },
+    { href: "/approvals", label: "Approvals list (05)" },
+    { href: "/subscriptions", label: "Subscriptions (09)" },
+    { href: "/billing", label: "Billing run (10)" },
+    { href: "/invoices", label: "Invoices (12)" },
+    { href: "/users", label: "Users and roles" },
     { href: "/products", label: "Product Dashboard (16)" },
     { href: "/warehouses", label: "Warehouses & Stock (supplementary)" },
     { href: "/customers", label: "Customer Master (supplementary)" },

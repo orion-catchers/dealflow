@@ -6,6 +6,7 @@ B2B quote-to-cash workflow for Nexa Office Solutions. Every deal change triggers
 - Team work log: [`memory.md`](./memory.md)
 - Architecture and data model: [`docs/architecture.md`](./docs/architecture.md)
 - Demo walkthrough: [`docs/demo-walkthrough.md`](./docs/demo-walkthrough.md)
+- Deploy and migrate: [`docs/deploy.md`](./docs/deploy.md)
 
 Stack: Next.js 16, TypeScript, Tailwind 4, Prisma 7.10, PostgreSQL 16, and Vitest. One app, one database, one deployment.
 
