@@ -7,6 +7,9 @@ import Link from "next/link";
 export default function Home() {
   const links = [
     { href: "/login", label: "Sign in (01)" },
+    { href: "/quotes", label: "Quotes" },
+    { href: "/health", label: "Deal Health" },
+    { href: "/policies", label: "Policies" },
     { href: "/approvals", label: "Approvals list (05)" },
     { href: "/subscriptions", label: "Subscriptions (09)" },
     { href: "/billing", label: "Billing run (10)" },
