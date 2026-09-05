@@ -85,7 +85,7 @@ export function FulfillmentList() {
       key: "open",
       header: "",
       render: (row) => (
-        <Link href={`/fulfillment/${row.orderId}`} className="df-button df-button--primary">
+        <Link href={`/fulfillment/${row.orderId}`} className="df-button df-open">
           Open
         </Link>
       ),
@@ -286,7 +286,7 @@ function StockReceiptForm({ stock, onDone }: { stock: StockListItem[]; onDone: (
         <ul className="mt-2 list-disc pl-5 text-sm">
           {eligible.map((item) => (
             <li key={item.backorder.id}>
-              <Link href={`/fulfillment/${item.orderId}`} className="df-button df-button--secondary">
+              <Link href={`/fulfillment/${item.orderId}`} className="df-button df-open">
                 Open
               </Link>{" "}
               {item.customerName} · coverable {item.coverable}

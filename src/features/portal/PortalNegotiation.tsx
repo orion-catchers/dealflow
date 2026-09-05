@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import type { ConfirmationResult, PortalMessage, PortalConfirmationInput, PortalNegotiationView, PortalProposalInput, ProposalResult } from '../../contracts/krishna';
-import { Button, Card, DataTable, EmptyState, ErrorState, Input, Money, Select, StatusBadge, Tabs, Timeline } from '../../components/ui';
+import { revisionTitle } from '../../components/application/shared';
 import { createRequestKey } from '../recommendations/service';
 
 type LineDraft = { comment: string; quantity: string; discountPct: string };
@@ -32,7 +32,7 @@ export function PortalNegotiation({ quoteId, view, connection = 'NOT CONNECTED',
       const lineChanges = Object.entries(drafts).map(([lineId, draft]) => ({ lineId, comment: draft.comment.trim() || undefined, quantity: draft.quantity !== '' ? Number(draft.quantity) : undefined, discountPct: draft.discountPct !== '' ? Number(draft.discountPct) : undefined })).filter(change => change.comment || change.quantity !== undefined || change.discountPct !== undefined);
       proposalKey.current ??= createRequestKey('portal-proposal');
       const result = await onSubmitProposal({ quoteId, expectedRevision: view.current.revision, lineChanges, requestedDeliveryDate: requestedDate || undefined, requestKey: proposalKey.current });
-      setNotice(`Request ${result.proposalId} submitted for revision ${result.proposedRevision}.`); setDrafts({}); setRequestedDate('');
+      setNotice(`Request submitted for ${revisionTitle(result.proposedRevision)}.`); setDrafts({}); setRequestedDate('');
       proposalKey.current = undefined;
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'Request could not be submitted'); }
     finally { setBusy(undefined); }

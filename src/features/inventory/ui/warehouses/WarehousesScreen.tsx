@@ -872,9 +872,9 @@ function ReceiptDialog({
           <div className="space-y-2 text-sm text-slate-700">
             <p>Record this receipt? This increases on-hand at the warehouse.</p>
             <ul className="list-inside list-disc text-slate-600">
-              <li>Warehouse: {selectedWarehouse?.name ?? warehouseId}</li>
+              <li>Warehouse: {selectedWarehouse?.name ?? "Warehouse"}</li>
               <li>
-                Variant: {selectedProduct?.name ?? "Product"} · {selectedVariant?.label ?? variantId}
+                Variant: {selectedProduct?.name ?? "Product"} · {selectedVariant?.label ?? "Standard"}
                 {selectedVariant ? ` (${selectedVariant.sku})` : ""}
               </li>
               <li>Quantity: {parsedQty.ok ? parsedQty.value : quantity}</li>
@@ -894,7 +894,7 @@ function ReceiptResultView({ result }: { result: ReceiptResult }) {
   return (
     <div className="space-y-3 text-sm">
       <p className="text-slate-700">
-        Receipt <span className="font-mono text-xs">{result.receipt.id}</span> recorded. Quantity {result.receipt.quantity}.
+        Receipt recorded. Quantity {result.receipt.quantity}.
       </p>
       <p className="text-slate-700">
         Updated stock: on hand <span className="tabular-nums font-medium">{result.stock.onHand}</span>
@@ -917,7 +917,7 @@ function ReceiptResultView({ result }: { result: ReceiptResult }) {
                 <span>
                   {item.customerName} · coverable {item.coverable}
                 </span>
-                <Link className="df-button df-button--secondary" href={`/fulfillment/${item.orderId}`}>
+                <Link className="df-button df-open" href={`/fulfillment/${item.orderId}`}>
                   Open
                 </Link>
               </li>

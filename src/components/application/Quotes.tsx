@@ -19,6 +19,7 @@ import {
   Events,
   newId,
   quoteTitle,
+  revisionTitle,
   OpenLink,
   BackLink,
   type Context,
@@ -839,7 +840,7 @@ function QuoteDetail({
             "Delivery promise",
           ]}
           rows={[...q.history, q].map((r) => [
-            r.revision,
+            revisionTitle(r.revision),
             new Date(r.at).toLocaleString(),
             <StatusBadge status={r.evaluation.status} />,
             r.orderDiscountPct + "%",

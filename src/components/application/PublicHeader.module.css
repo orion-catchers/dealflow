@@ -53,8 +53,8 @@
   text-underline-offset: 6px;
 }
 .trigger[aria-expanded=true] svg { transform: rotate(180deg); }
-.primary { background: #087f80; color: white; padding: 13px 24px; }
-.primary:hover { background: #056466; color: white; text-decoration: none; }
+.primary { background: #087f80; color: white; padding: 13px 24px; box-shadow: 0 8px 18px rgba(8,127,128,.22); transition: transform .2s ease, box-shadow .2s ease, background .2s ease; }
+.primary:hover { background: #056466; color: white; text-decoration: none; transform: translateY(-3px); box-shadow: 0 16px 28px rgba(8,127,128,.32); }
 .panel {
   position: absolute;
   top: calc(100% + 48px);

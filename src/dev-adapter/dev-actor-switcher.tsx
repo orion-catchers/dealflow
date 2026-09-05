@@ -5,6 +5,7 @@
  * Ruchir's session auth is live; the component renders nothing in production.
  */
 import { useEffect, useState } from "react";
+import { GlassSelect } from "@/components/ui/select-control";
 import { fixtureUsers } from "@/fixtures/harsh-dev";
 import { getDevActor, setDevActor } from "@/lib/api/client";
 
@@ -15,8 +16,9 @@ export function DevActorSwitcher() {
   return (
     <div className="mb-4 flex items-center gap-2 rounded-md border border-yellow-300 bg-yellow-50 px-3 py-1.5 text-xs text-yellow-900">
       <span className="font-medium">DEV FIXTURE actor</span>
-      <select
-        className="rounded border border-yellow-300 bg-white px-1 py-0.5"
+      <GlassSelect
+        className="max-w-xs"
+        aria-label="Development fixture actor"
         value={actor}
         onChange={(e) => {
           setDevActor(e.target.value);
@@ -29,7 +31,7 @@ export function DevActorSwitcher() {
             {u.name} — {u.role}
           </option>
         ))}
-      </select>
+      </GlassSelect>
       <span className="text-yellow-700">not a production role switch; replaced by Ruchir&apos;s session auth</span>
     </div>
   );

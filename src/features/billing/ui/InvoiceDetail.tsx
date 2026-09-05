@@ -9,6 +9,13 @@ import { api, newRequestKey } from "@/lib/api/client";
 
 const METHODS: PaymentMethod[] = ["BANK_TRANSFER", "CARD", "CHEQUE", "CASH", "OTHER"];
 
+function invoiceListTitle(row: InvoiceRecord): string {
+  const names = [...new Set(row.lines.map((line) => line.description.split("·")[0]?.trim()).filter(Boolean))];
+  if (names.length === 1) return `${names[0]} · due ${row.dueDate}`;
+  if (names.length > 1) return `${names[0]} + ${names.length - 1} more · due ${row.dueDate}`;
+  return `${row.customerName} · due ${row.dueDate}`;
+}
+
 export function InvoiceDetail({ id }: { id: string }) {
   const invoice = useApi<InvoiceRecord>(`/api/invoices/${id}`);
   const integrations = useApi<{ flags: { stripe: boolean } }>("/api/integrations/status");
@@ -69,7 +76,7 @@ export function InvoiceDetail({ id }: { id: string }) {
   return (
     <div>
       <PageHeader
-        title={row ? `Invoice ${row.id}` : "Invoice"}
+        title={row ? invoiceListTitle(row) : "Invoice"}
         description={row?.customerName}
         actions={
           <div className="flex gap-2">

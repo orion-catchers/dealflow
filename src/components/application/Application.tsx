@@ -282,6 +282,7 @@ function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;on
   const [recoveryOk,setRecoveryOk]=useState(false);
   const landing=path==='/';
   return <div className={`auth-page ${landing?'auth-landing':''}`} data-public-panel-open={publicMenuOpen}>
+    <div className="auth-photo" aria-hidden="true"/>
     <PublicHeader key={path} landing={landing} onOpenChange={setPublicMenuOpen}/>
     {landing?<main className="auth-body landing-body" id="product" inert={publicMenuOpen}>
       <div className="auth-copy">

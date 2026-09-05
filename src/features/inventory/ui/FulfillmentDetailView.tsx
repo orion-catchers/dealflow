@@ -74,6 +74,27 @@ function fulfillmentHeading(order: FulfillmentDetail["order"]): string {
   return `${order.customerName} · delivery`;
 }
 
+function shipmentTitle(detail: FulfillmentDetail | undefined, shipmentId: string | undefined): string {
+  if (!detail || !shipmentId) return "—";
+  const shipment = detail.shipments.find((item) => item.id === shipmentId);
+  if (!shipment) return "Shipment";
+  const ordered = [...detail.shipments].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  const n = Math.max(1, ordered.findIndex((item) => item.id === shipment.id) + 1);
+  const warehouse = detail.stock.find((row) => row.warehouseId === shipment.warehouseId)?.warehouseName;
+  const products = [
+    ...new Set(
+      shipment.lines
+        .map((line) => detail.order.lines.find((orderLine) => orderLine.orderLineId === line.orderLineId)?.productName)
+        .filter((name): name is string => Boolean(name)),
+    ),
+  ];
+  const productBit =
+    products.length === 1 ? products[0] : products.length > 1 ? `${products[0]} + ${products.length - 1} more` : "";
+  const place = warehouse ?? "warehouse";
+  if (productBit) return `${productBit} · ${place} · shipment ${n}`;
+  return `${place} · shipment ${n}`;
+}
+
 type DialogKind = "accept" | "override" | "consolidate" | "ship" | "deliver" | "cancel" | null;
 
 export function FulfillmentDetailView({ orderId }: { orderId: string }) {
@@ -154,23 +175,23 @@ export function FulfillmentDetailView({ orderId }: { orderId: string }) {
     {
       key: "warehouse",
       header: "Warehouse",
-      render: (row) => data?.stock.find((s) => s.warehouseId === row.warehouseId)?.warehouseName ?? row.warehouseId,
+      render: (row) => data?.stock.find((s) => s.warehouseId === row.warehouseId)?.warehouseName ?? "Warehouse",
     },
     {
       key: "variant",
       header: "Variant",
-      render: (row) => data?.stock.find((s) => s.variantId === row.variantId)?.variantLabel ?? row.variantId,
+      render: (row) => data?.stock.find((s) => s.variantId === row.variantId)?.variantLabel ?? "Standard",
     },
     { key: "qty", header: "Qty", align: "right", render: (row) => row.quantity },
     { key: "status", header: "Status", render: (row) => <StatusBadge status={row.status} /> },
-    { key: "shipment", header: "Shipment", render: (row) => row.shipmentId ?? "—" },
+    { key: "shipment", header: "Shipment", render: (row) => shipmentTitle(data, row.shipmentId) },
   ];
 
   const backorderColumns: Column<Backorder>[] = [
     {
       key: "variant",
       header: "Variant",
-      render: (row) => data?.stock.find((s) => s.variantId === row.variantId)?.variantLabel ?? row.variantId,
+      render: (row) => data?.stock.find((s) => s.variantId === row.variantId)?.variantLabel ?? "Standard",
     },
     { key: "remaining", header: "Remaining", align: "right", render: (row) => row.remainingQuantity },
     { key: "status", header: "Status", render: (row) => <StatusBadge status={row.status} /> },
@@ -302,11 +323,11 @@ export function FulfillmentDetailView({ orderId }: { orderId: string }) {
           </p>
           <ul className="mb-3 list-disc space-y-1 pl-5 text-sm text-amber-950">
             {preview.allocations.map((a) => {
-              const wh = preview.warehouses.find((w) => w.warehouseId === a.warehouseId)?.warehouseName ?? a.warehouseId;
+              const wh = preview.warehouses.find((w) => w.warehouseId === a.warehouseId)?.warehouseName ?? "Warehouse";
               const line = data.order.lines.find((l) => l.orderLineId === a.orderLineId);
               return (
                 <li key={`${a.orderLineId}-${a.warehouseId}`}>
-                  {line?.productName ?? a.orderLineId}
+                  {line?.productName ?? "Item"}
                   {line?.variantLabel ? ` · ${line.variantLabel}` : ""}: {a.quantity} units from {wh}
                 </li>
               );
@@ -371,7 +392,7 @@ export function FulfillmentDetailView({ orderId }: { orderId: string }) {
                   <div key={b.orderLineId} className="flex flex-wrap items-center gap-2 text-sm">
                     <StatusBadge status="OPEN" label="Backorder" />
                     <span className="text-amber-800">
-                      {line?.productName ?? b.orderLineId}
+                      {line?.productName ?? "Item"}
                       {line?.variantLabel ? ` · ${line.variantLabel}` : ""} — {b.quantity} units
                     </span>
                   </div>
@@ -524,7 +545,7 @@ export function FulfillmentDetailView({ orderId }: { orderId: string }) {
         }
       >
         <p className="text-sm text-slate-700">
-          Mark shipment <span className="font-mono">{shipTarget?.id}</span> as shipped. On-hand and reserved stock are consumed
+          Mark {shipTarget ? shipmentTitle(data, shipTarget.id) : "this shipment"} as shipped. On-hand and reserved stock are consumed
           once.
         </p>
         {actionError && dialog === "ship" ? <p className="mt-3 text-sm text-rose-700">{actionError}</p> : null}
@@ -546,7 +567,7 @@ export function FulfillmentDetailView({ orderId }: { orderId: string }) {
         }
       >
         <p className="text-sm text-slate-700">
-          Mark shipment <span className="font-mono">{shipTarget?.id}</span> as delivered.
+          Mark {shipTarget ? shipmentTitle(data, shipTarget.id) : "this shipment"} as delivered.
         </p>
         {actionError && dialog === "deliver" ? <p className="mt-3 text-sm text-rose-700">{actionError}</p> : null}
       </Dialog>
@@ -590,12 +611,12 @@ function ShipmentCard({
   onShip: () => void;
   onDeliver: () => void;
 }) {
-  const warehouseName = detail.stock.find((s) => s.warehouseId === shipment.warehouseId)?.warehouseName ?? shipment.warehouseId;
+  const warehouseName = detail.stock.find((s) => s.warehouseId === shipment.warehouseId)?.warehouseName ?? "Warehouse";
   return (
     <Card>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="font-mono text-sm">{shipment.id}</p>
+          <p className="font-medium text-sm">{shipmentTitle(detail, shipment.id)}</p>
           <p className="text-sm text-slate-600">{warehouseName}</p>
         </div>
         <StatusBadge status={shipment.status} />
@@ -605,7 +626,7 @@ function ShipmentCard({
           const line = detail.order.lines.find((ol) => ol.orderLineId === l.orderLineId);
           return (
             <li key={`${l.orderLineId}-${l.variantId}`}>
-              {line?.productName ?? l.orderLineId}
+              {line?.productName ?? "Item"}
               {line?.variantLabel ? ` · ${line.variantLabel}` : ""} × {l.quantity}
             </li>
           );

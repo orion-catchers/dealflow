@@ -121,7 +121,7 @@ export function OverrideEditor({
                 <tr key={line.orderLineId} className="border-t border-slate-100">
                   <td className="px-2 py-2">
                     <div className="font-medium">{line.productName}</div>
-                    <div className="text-xs text-slate-500">{line.variantLabel ?? line.variantId}</div>
+                    <div className="text-xs text-slate-500">{line.variantLabel ?? "Standard"}</div>
                   </td>
                   <td className="px-2 py-2 text-right tabular-nums">{line.remaining}</td>
                   {warehouses.map((w) => {

@@ -72,7 +72,7 @@ export function QuotePipelineScreen() {
       header: "Quote",
       render: (quote) => (
         <Link className="font-medium text-slate-900 underline" href={`/quotes/${quote.id}`}>
-          {quote.id}
+          {`Quotation · version ${quote.currentRevisionNumber}`}
         </Link>
       ),
     },
@@ -224,11 +224,11 @@ export function HealthDashboardScreen() {
                       <span className="font-medium text-slate-900">
                         {flag.quoteId ? (
                           <Link className="underline" href={`/quotes/${flag.quoteId}`}>
-                            {flag.quoteId}
+                            Open quotation
                           </Link>
                         ) : (
                           <Link className="underline" href={`/fulfillment/${flag.orderId}`}>
-                            {flag.orderId}
+                            Open delivery
                           </Link>
                         )}
                       </span>

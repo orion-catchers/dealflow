@@ -6,6 +6,13 @@ import type { InvoiceRecord, InvoiceStatus } from "@/contracts/ruchir";
 import { DataTable, ErrorState, Money, PageHeader, Select, StatusBadge, type Column } from "@/dev-adapter/ui";
 import { useApi } from "@/features/catalog/ui/useApi";
 
+function invoiceListTitle(row: InvoiceRecord): string {
+  const names = [...new Set(row.lines.map((line) => line.description.split("·")[0]?.trim()).filter(Boolean))];
+  if (names.length === 1) return `${names[0]} · due ${row.dueDate}`;
+  if (names.length > 1) return `${names[0]} + ${names.length - 1} more · due ${row.dueDate}`;
+  return `${row.customerName} · due ${row.dueDate}`;
+}
+
 const STATUSES: Array<InvoiceStatus | "ALL"> = ["ALL", "UNPAID", "PARTIALLY_PAID", "PAID", "VOID"];
 
 export function InvoicesList() {
@@ -20,7 +27,7 @@ export function InvoicesList() {
         header: "Invoice",
         render: (row) => (
           <Link href={`/invoices/${row.id}`} className="font-medium text-blue-700 hover:underline">
-            {row.id}
+            {invoiceListTitle(row)}
           </Link>
         ),
       },

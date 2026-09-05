@@ -85,7 +85,6 @@ export function PriceListsManager() {
           >
             {pl.name}
           </button>
-          <div className="text-xs text-slate-500">{pl.id}</div>
         </div>
       ),
     },

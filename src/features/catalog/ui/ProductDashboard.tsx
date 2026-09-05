@@ -57,7 +57,6 @@ export function ProductDashboard() {
           <Link href={`/products/${p.id}`} className="font-medium text-blue-700 hover:underline">
             {p.name}
           </Link>
-          <div className="text-xs text-slate-500">{p.id}</div>
         </div>
       ),
     },

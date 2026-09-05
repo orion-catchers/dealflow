@@ -157,3 +157,78 @@ a.df-button--primary{color:#fff}
 .home-guides .panel{display:flex;flex-direction:column;min-height:200px}
 .home-guides .panel>p{flex:1}
 .home-guides .df-button{align-self:flex-start;margin-top:12px}
+.df-select{position:relative;width:100%}
+.df-select-trigger{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:40px;padding:9px 36px 9px 12px;text-align:left;color:var(--ink);font:inherit;cursor:pointer;border:1px solid rgba(146,171,178,.9);border-radius:8px;background:rgba(255,255,255,.94) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23667985' d='M1.2 1.4 6 6.2l4.8-4.8'/%3E%3C/svg%3E") no-repeat right 12px center;box-shadow:0 4px 14px rgba(23,46,59,.08);backdrop-filter:blur(8px)}
+.df-select-trigger:hover{background-color:#fff;border-color:#9bb4bc}
+.df-select-trigger[aria-expanded="true"]{border-color:var(--teal);box-shadow:0 0 0 3px rgba(70,180,182,.2)}
+.df-select-trigger:disabled{opacity:.6;cursor:not-allowed}
+.df-select-trigger>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.df-select-native{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;opacity:0;pointer-events:none}
+.df-select-menu{position:fixed;z-index:240;margin:0;padding:6px;list-style:none;overflow:auto;background:rgba(255,255,255,.96);backdrop-filter:blur(8px) saturate(120%);-webkit-backdrop-filter:blur(8px) saturate(120%);border:1px solid rgba(190,208,214,.95);border-radius:12px;box-shadow:0 18px 40px rgba(23,46,59,.2),0 2px 0 rgba(255,255,255,.9) inset}
+.df-select-menu button{width:100%;display:block;text-align:left;border:0;background:transparent;color:var(--ink);border-radius:8px;padding:9px 11px;font:inherit;font-size:13px}
+.df-select-menu button:hover,.df-select-menu button.is-active{background:rgba(8,126,128,.12)}
+.df-select-menu button.is-selected{background:rgba(8,126,128,.16);font-weight:600}
+.df-select-menu button:disabled{opacity:.45;cursor:not-allowed}
+.df-button,.primary-link{position:relative;transition:transform .2s ease,box-shadow .2s ease,background-color .2s ease,border-color .2s ease,filter .2s ease}
+.df-button{border-radius:10px;letter-spacing:.15px}
+.df-button--primary{color:#fff;background:linear-gradient(180deg,#1aa0a2 0%,#087e80 100%);border:1px solid rgba(255,255,255,.32);box-shadow:0 8px 18px rgba(8,126,128,.24),inset 0 1px 0 rgba(255,255,255,.32)}
+.df-button--secondary{color:var(--ink);background:rgba(255,255,255,.74);border:1px solid rgba(146,171,178,.72);box-shadow:0 4px 14px rgba(23,46,59,.06);backdrop-filter:blur(10px)}
+.df-button--danger{color:#fff;background:linear-gradient(180deg,#d94848,#b42318);border:1px solid rgba(255,255,255,.28);box-shadow:0 8px 18px rgba(180,35,24,.22)}
+.df-button--ghost{color:var(--ink);background:transparent;border:1px solid transparent;box-shadow:none}
+.df-open{display:inline-flex;align-items:center;gap:8px;min-height:32px;padding:0 14px 0 16px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.72px;text-transform:uppercase;color:#fff!important;text-decoration:none!important;background:linear-gradient(165deg,#2cb4b6 0%,#087e80 58%,#05686a 100%);border:1px solid rgba(255,255,255,.42);box-shadow:0 8px 18px rgba(8,126,128,.3),inset 0 1px 0 rgba(255,255,255,.42)}
+.df-open::after{content:"";width:5px;height:5px;border-right:1.6px solid #fff;border-bottom:1.6px solid #fff;transform:rotate(-45deg);margin-top:-1px}
+.df-input{min-height:40px;border-radius:10px;border:1px solid rgba(146,171,178,.82);background:rgba(255,255,255,.72);padding:8px 12px;color:var(--ink);font:inherit;box-shadow:0 4px 14px rgba(23,46,59,.05)}
+input.df-search{min-height:44px;width:100%;padding:10px 18px 10px 42px;border-radius:999px;border:1px solid rgba(146,171,178,.78);color:var(--ink);font:inherit;background-color:rgba(255,255,255,.62);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23667985' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='7' cy='7' r='5'/%3E%3Cpath d='m11.5 11.5 3 3'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:16px 50%;box-shadow:inset 0 1px 0 rgba(255,255,255,.85),0 10px 28px rgba(23,46,59,.06);backdrop-filter:blur(12px);transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease,background-color .2s ease}
+input.df-search:hover{transform:translateY(-1px);background-color:rgba(255,255,255,.84);box-shadow:0 14px 30px rgba(23,46,59,.1)}
+input.df-search:focus{outline:none;border-color:var(--teal);background-color:rgba(255,255,255,.9);box-shadow:0 0 0 3px rgba(70,180,182,.22),0 14px 32px rgba(23,46,59,.1);transform:translateY(-1px)}
+.auth-page{background-image:none}
+.auth-photo{position:absolute;inset:-4%;z-index:0;pointer-events:none;background:url('/bg-image.png') center/cover no-repeat;transition:transform .7s ease}
+.auth-page>:not(.auth-photo){position:relative;z-index:1}
+img,.auth-step-icon{transition:transform .25s ease,box-shadow .25s ease}
+img{border-radius:12px}
+.df-select-trigger{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease,background-color .2s ease}
+@media(hover:hover){
+  .df-button:hover:not(:disabled){transform:translateY(-3px)}
+  .df-button--primary:hover:not(:disabled){box-shadow:0 16px 28px rgba(8,126,128,.32),inset 0 1px 0 rgba(255,255,255,.4);filter:brightness(1.04)}
+  .df-button--secondary:hover:not(:disabled),.df-button--ghost:hover:not(:disabled){box-shadow:0 14px 28px rgba(23,46,59,.14);background:rgba(255,255,255,.94)}
+  .df-button--danger:hover:not(:disabled){box-shadow:0 16px 28px rgba(180,35,24,.3)}
+  .df-open:hover{transform:translateY(-3px);box-shadow:0 16px 30px rgba(8,126,128,.38),inset 0 1px 0 rgba(255,255,255,.5)}
+  .primary-link:hover{transform:translateY(-3px);text-decoration:none}
+  .auth-page:hover .auth-photo{transform:translate3d(0,-16px,0) scale(1.045)}
+  img:hover{transform:translateY(-6px);box-shadow:0 18px 36px rgba(23,46,59,.18)}
+  .auth-step:hover .auth-step-icon{transform:translateY(-5px)}
+  .df-select-trigger:hover:not(:disabled):not([aria-expanded="true"]){transform:translateY(-2px);box-shadow:0 12px 24px rgba(23,46,59,.1)}
+}
+@media(prefers-reduced-motion:reduce){
+  .df-button,.primary-link,.auth-photo,img,.auth-step-icon,.df-select-trigger,input.df-search{transition:none}
+  .df-button:hover:not(:disabled),.df-open:hover,.auth-page:hover .auth-photo,img:hover,.auth-step:hover .auth-step-icon,.df-select-trigger:hover:not(:disabled),input.df-search:hover,input.df-search:focus{transform:none}
+}
+.df-raised,.application .panel,.application .metric,.application .table-wrap,.application .deal-chip,.application .filters,.application .notice,.application .proposal,.application .recommendations>*,.application .portal-totals>div{
+  box-shadow:0 1px 2px rgba(23,46,59,.07),0 10px 22px rgba(23,46,59,.08),0 28px 48px rgba(23,46,59,.04),inset 0 1px 0 rgba(255,255,255,.92);
+  border-color:rgba(196,214,218,.95);
+}
+.application .panel,.application .metric,.application .deal-chip,.application .filters,.df-raised{
+  background:#fff;
+  border-radius:12px;
+}
+.application a.metric:hover{text-decoration:none}
+.application .filters{padding:12px 14px;gap:12px}
+.application .panel,.application .metric,.application .deal-chip,.application .table-wrap,.application .filters,.application .pipeline-board>section,.application .pipeline-deal,.df-raised,.df-card{
+  transition:transform .2s ease,box-shadow .2s ease;
+}
+.application .sidebar{box-shadow:10px 0 36px rgba(29,59,67,.1)}
+.application .topbar{box-shadow:0 8px 24px rgba(23,46,59,.08);border-bottom-color:rgba(196,214,218,.9)}
+.application .pipeline-board>section{background:linear-gradient(180deg,#f6f8f9 0%,#eef2f4 100%);box-shadow:inset 0 1px 0 #fff,0 12px 28px rgba(23,46,59,.1);border-color:#d7e2e5}
+.application .pipeline-deal{background:#fff;border:1px solid #e1eaed;border-radius:10px;box-shadow:0 8px 18px rgba(23,46,59,.08),inset 0 1px 0 #fff}
+.application .df-dialog{box-shadow:0 28px 64px rgba(23,46,59,.22),inset 0 1px 0 #fff}
+@media(hover:hover){
+  .application .panel:hover,.application .metric:hover,.application .deal-chip:hover,.application .pipeline-deal:hover,.df-raised:hover,.application .df-card:hover{
+    transform:translateY(-3px);
+    box-shadow:0 2px 4px rgba(23,46,59,.08),0 16px 32px rgba(23,46,59,.12),0 36px 56px rgba(23,46,59,.06),inset 0 1px 0 #fff;
+  }
+  .application .pipeline-board>section:hover{box-shadow:inset 0 1px 0 #fff,0 16px 34px rgba(23,46,59,.14)}
+}
+@media(prefers-reduced-motion:reduce){
+  .application .panel,.application .metric,.application .deal-chip,.application .table-wrap,.application .filters,.application .pipeline-board>section,.application .pipeline-deal,.df-raised,.df-card{transition:none}
+  .application .panel:hover,.application .metric:hover,.application .deal-chip:hover,.application .pipeline-deal:hover,.df-raised:hover,.application .df-card:hover{transform:none}
+}

@@ -39,7 +39,6 @@ export function CustomersMaster() {
       render: (c) => (
         <div>
           <div className="font-medium">{c.name}</div>
-          <div className="text-xs text-slate-500">{c.id}</div>
         </div>
       ),
     },

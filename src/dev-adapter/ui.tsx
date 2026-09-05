@@ -121,7 +121,7 @@ export function DataTable<Row>({
   rowKey: (row: Row, index: number) => string;
 }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white df-raised">
       <table className="min-w-full text-sm">
         <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-600">
           <tr>
@@ -246,35 +246,21 @@ export function Button({
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "danger" | "ghost";
 }) {
-  const base =
-    "inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50";
-  const styles = {
-    primary: "bg-blue-600 text-white hover:bg-blue-700",
-    secondary:
-      "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50",
-    danger: "bg-rose-600 text-white hover:bg-rose-700",
-    ghost: "text-slate-700 hover:bg-slate-100",
-  }[variant];
-  return <button className={`${base} ${styles} ${className}`} {...props} />;
+  const tone = variant === "ghost" ? "df-button df-button--ghost" : `df-button df-button--${variant}`;
+  return <button className={`${tone} ${className}`} {...props} />;
 }
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  const search = /search|find /i.test(`${props.placeholder ?? ""} ${props["aria-label"] ?? ""}`);
   return (
     <input
       {...props}
-      className={`w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none ${props.className ?? ""}`}
+      className={`w-full df-input ${search ? "df-search" : ""} ${props.className ?? ""}`}
     />
   );
 }
 
-export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <select
-      {...props}
-      className={`w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none ${props.className ?? ""}`}
-    />
-  );
-}
+export { GlassSelect as Select } from "@/components/ui/select-control";
 
 export function Card({
   title,
@@ -287,7 +273,7 @@ export function Card({
 }) {
   return (
     <div
-      className={`rounded-lg border border-slate-200 bg-white p-4 ${className}`}
+      className={`df-raised rounded-lg border border-slate-200 bg-white p-4 ${className}`}
     >
       {title ? (
         <h3 className="mb-2 text-sm font-semibold text-slate-700">{title}</h3>

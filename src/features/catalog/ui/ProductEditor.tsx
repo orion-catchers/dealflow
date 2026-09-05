@@ -47,7 +47,7 @@ export function ProductEditor({ productId }: { productId: string | null }) {
     <div>
       <PageHeader
         title={isNew ? "New product" : product ? product.name : "Product"}
-        description={isNew ? "General info first; variants and price rules become available after the first save." : product ? `${product.id} · updated ${new Date(product.updatedAt).toLocaleString()}` : undefined}
+        description={isNew ? "General info first; variants and price rules become available after the first save." : product ? `Updated ${new Date(product.updatedAt).toLocaleString()}` : undefined}
         actions={
           <>
             <StatusBadge status="DEV FIXTURE" label="DEV FIXTURE data" />
@@ -388,7 +388,6 @@ function VariantsSection({ product, variants, onChanged }: { product: Product; v
       render: (v) => (
         <div>
           <div className="font-medium">{v.label}</div>
-          <div className="text-xs text-slate-500">{v.id}</div>
         </div>
       ),
     },

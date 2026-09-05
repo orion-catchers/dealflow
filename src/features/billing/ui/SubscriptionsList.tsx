@@ -24,7 +24,7 @@ export function SubscriptionsList() {
         header: "Subscription",
         render: (row) => (
           <Link href={`/subscriptions/${row.id}`} className="font-medium text-blue-700 hover:underline">
-            {row.id}
+            {`${row.planName} · ${row.customerName}`}
           </Link>
         ),
       },

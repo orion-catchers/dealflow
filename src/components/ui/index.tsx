@@ -2,18 +2,19 @@
 
 import { useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes, type ReactNode } from 'react';
 import type { DataTableProps, DialogProps, MoneyProps, PageHeaderProps, StatusBadgeProps } from '../../contracts/krishna';
+import { GlassSelect } from './select-control';
 
 export function Button({ variant = 'primary', type = 'button', className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' }) {
   return <button {...props} type={type} className={`df-button df-button--${variant} ${className}`} />;
 }
-export function Input({ label, error, id, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string }) {
+export function Input({ label, error, id, className, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string }) {
   const generated = useId(); const fieldId = id ?? generated;
   const description = [props['aria-describedby'], error ? `${fieldId}-error` : null].filter(Boolean).join(' ') || undefined;
-  return <div className="df-field"><label htmlFor={fieldId}>{label}</label><input {...props} id={fieldId} aria-invalid={error ? true : props['aria-invalid']} aria-describedby={description} />{error && <span id={`${fieldId}-error`} className="df-field-error">{error}</span>}</div>;
+  const search = /search|find /i.test(`${label} ${props.placeholder ?? ''} ${props['aria-label'] ?? ''}`);
+  return <div className="df-field"><label htmlFor={fieldId}>{label}</label><input {...props} id={fieldId} className={[search ? 'df-search' : '', className].filter(Boolean).join(' ') || undefined} aria-invalid={error ? true : props['aria-invalid']} aria-describedby={description} />{error && <span id={`${fieldId}-error`} className="df-field-error">{error}</span>}</div>;
 }
 export function Select({ label, error, id, children, ...props }: SelectHTMLAttributes<HTMLSelectElement> & { label: string; error?: string }) {
-  const generated = useId(); const fieldId = id ?? generated;
-  return <div className="df-field"><label htmlFor={fieldId}>{label}</label><select {...props} id={fieldId} aria-invalid={error ? true : props['aria-invalid']} aria-describedby={[props['aria-describedby'], error ? `${fieldId}-error` : null].filter(Boolean).join(' ') || undefined}>{children}</select>{error && <span id={`${fieldId}-error`} className="df-field-error">{error}</span>}</div>;
+  return <GlassSelect label={label} error={error} id={id} {...props}>{children}</GlassSelect>;
 }
 export function Card({ children, title }: { children: ReactNode; title?: string }) {
   return <section className="df-card">{title && <h2>{title}</h2>}{children}</section>;

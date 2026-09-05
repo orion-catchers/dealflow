@@ -24,7 +24,7 @@ h2 { font-size: 17px; margin-bottom: 16px; }
 .df-field input, .df-field select { width: 100%; min-height: 40px; border: 1px solid var(--df-border); border-radius: 6px; padding: 8px 10px; background: var(--df-surface); color: var(--df-text); }
 .df-field [aria-invalid=true] { border-color: var(--df-danger); }
 .df-field-error { color: var(--df-danger); }
-.df-card { background: var(--df-surface); border: 1px solid var(--df-border); border-radius: var(--df-radius); padding: 20px; min-width: 0; }
+.df-card { background: var(--df-surface); border: 1px solid var(--df-border); border-radius: var(--df-radius); padding: 20px; min-width: 0; box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 12px 28px rgba(15,23,42,.08); }
 .df-page-header, .df-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .df-page-header { justify-content: space-between; margin-bottom: 24px; }
 .df-page-header p { color: var(--df-muted); margin-bottom: 0; }
@@ -37,7 +37,7 @@ h2 { font-size: 17px; margin-bottom: 16px; }
 .df-state { text-align: center; padding: 28px 16px; color: var(--df-muted); }
 .df-state p { margin: 8px 0 16px; }
 .df-state--error { color: var(--df-danger); }
-.df-table-scroll { overflow-x: auto; max-width: 100%; border: 1px solid var(--df-border); border-radius: 6px; }
+.df-table-scroll { overflow-x: auto; max-width: 100%; border: 1px solid var(--df-border); border-radius: 6px; box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 12px 28px rgba(15,23,42,.08); }
 .df-table { width: 100%; border-collapse: collapse; text-align: left; }
 .df-table th, .df-table td { padding: 12px 14px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
 .df-table th { background: #f8fafc; font-size: 12px; color: var(--df-muted); }
