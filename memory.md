@@ -497,3 +497,18 @@ by pre-existing `passwordResetToken` Prisma-client schema drift in
 `src/server/lib/auth/password-reset*.ts`; no new tier-related type errors were reported.
 Vitest could not load the repository config in this sandbox because esbuild received
 `Access is denied` while resolving the config path. No live database/browser E2E was run.
+
+## 2026-09-06T00:00:00+05:30 (Asia/Kolkata) - Owner: Krishna
+
+Replaced the untracked flattened synthetic source with one Prisma scalar fixture at
+`dealflow360_synthetic_dataset.json` and added `scripts/seed-synthetic-dataset.ts`.
+The fixture preserves 300 quotes, 613 revisions, 1,910 quote lines, 105 orders, and 110
+invoices; the loader creates its password hashes, handles the quote/revision insertion
+cycle, and supports an explicit `--reset` only when invoked by the operator. Package script:
+`pnpm synthetic:seed` (or `pnpm synthetic:seed -- --reset`).
+
+Checks: fixture parse and relationship spot checks passed; Prisma schema validation passed;
+all normalized enum values are valid; zero one-time lines carry recurring intervals; zero
+shipment lines lack reservations; zero payments lack a generated request key. Full typecheck
+continues to have only the known password-reset Prisma-client drift. Database insertion was not
+run because it requires an operator-provided database and `--reset` is destructive.
