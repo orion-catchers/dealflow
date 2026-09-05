@@ -510,7 +510,10 @@ async function confirmDeal(
   totals: ReturnType<typeof evaluateRevision>,
 ): Promise<void> {
   const customer = catalog.customers.get(deal.customer)!;
-  const portalUser = customer.portalUserSym ?? deal.rep;
+  const portalUser = customer.portalUserSym;
+  if (!portalUser) {
+    throw new Error(`${deal.customer} has no portal user to accept ${deal.sym}`);
+  }
 
   const acceptance = await db.customerAcceptance.create({
     data: {

@@ -77,6 +77,13 @@ export const ruchirFixtures = {
       status: "ACTIVE",
     },
     {
+      sym: "customer-meera",
+      email: "meera@gamma.example",
+      name: "Meera Joshi",
+      role: "CUSTOMER",
+      status: "ACTIVE",
+    },
+    {
       sym: "pending-vikram",
       email: "vikram@nexa.example",
       name: "Vikram Singh",
@@ -87,6 +94,7 @@ export const ruchirFixtures = {
   customerMemberships: [
     { user: "customer-neha", customer: "customer-acme" },
     { user: "customer-rohan", customer: "customer-beta" },
+    { user: "customer-meera", customer: "customer-gamma" },
   ],
   subscriptionPlans: [
     {

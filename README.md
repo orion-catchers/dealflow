@@ -34,6 +34,9 @@ All seed passwords are `password123`.
 | Finance / operations | farah@nexa.example | `finance-farah` |
 | Customer (Acme Studio) | neha@acme.example | `customer-neha` |
 | Customer (Beta Corp, isolation checks) | rohan@beta.example | `customer-rohan` |
+| Customer (Gamma Labs) | meera@gamma.example | `customer-meera` |
+| Sales rep (second rep, own deal history) | priya@nexa.example | `rep-priya` |
+| Pending internal signup (not yet activated) | vikram@nexa.example | `pending-vikram` |
 
 Fixture symbols are the stable IDs every lane uses in `src/fixtures/<lane>.ts`. The seed maps them to generated database IDs; domain code never branches on a symbol.
 

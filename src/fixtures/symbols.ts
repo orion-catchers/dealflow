@@ -6,6 +6,7 @@ export const CANONICAL_SYMBOLS = [
   "finance-farah",
   "customer-neha",
   "customer-rohan",
+  "customer-meera",
   "pending-vikram",
   "team-west",
   "cat-hardware",
