@@ -157,6 +157,21 @@ export class InMemoryQuoteRepository {
       .map((quote) => clone(quote));
   }
 
+  setStage(
+    quoteId: Id,
+    expectedRevision: number,
+    stage: QuoteStage,
+    activityAt: ISODate,
+  ): Quote {
+    const quote = this.getById(quoteId);
+    if (quote.currentRevisionNumber !== expectedRevision) {
+      throw new QuoteRepositoryError("Quote revision is stale.", "CONFLICT");
+    }
+    const updated = { ...quote, stage, lastBusinessActivityAt: activityAt };
+    this.quotes.set(quoteId, clone(updated));
+    return clone(updated);
+  }
+
   createRevision(input: CreateRevisionInput): Quote {
     const quote = this.getById(input.quoteId);
 
