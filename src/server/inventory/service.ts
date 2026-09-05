@@ -57,6 +57,7 @@ import {
   type UnitTotals,
 } from "./engine";
 import { getInventoryRepository, type FulfillmentRecord, type InventoryRepository, type InventoryStore } from "./repository";
+import { carrierConfigured, quoteCarrierShipment } from "@/server/integrations/carrier";
 
 const INTERNAL_ROLES: Role[] = ["ADMIN", "SALES_REP", "SALES_MANAGER", "FINANCE"];
 const MUTATION_ROLES: Role[] = ["FINANCE", "ADMIN"];
@@ -97,6 +98,26 @@ function sortByCreated<T extends { createdAt: string; id: string }>(items: T[]):
 
 export class FulfillmentService {
   constructor(private readonly repo: InventoryRepository) {}
+
+  private async withCarrierRates(warehouses: Warehouse[]): Promise<Warehouse[]> {
+    if (!carrierConfigured()) return warehouses;
+    return Promise.all(
+      warehouses.map(async (warehouse) => {
+        try {
+          const quote = await quoteCarrierShipment({ warehouseCode: warehouse.code, weightKg: 1 });
+          if (quote.source !== "LIVE") return warehouse;
+          return { ...warehouse, shippingCostPerShipment: quote.amount };
+        } catch {
+          return warehouse;
+        }
+      }),
+    );
+  }
+
+  private forCompany(actor: Actor, warehouses: Warehouse[]): Warehouse[] {
+    if (!actor.companyId) return warehouses;
+    return warehouses.filter((w) => !w.companyId || w.companyId === actor.companyId);
+  }
 
   // -------------------------------------------------------------------------
   // Initializer (called inside Atharva's confirmOrder transaction; no actor)
@@ -150,7 +171,7 @@ export class FulfillmentService {
   async getDetail(actor: Actor, orderId: string): Promise<FulfillmentDetail> {
     requireRole(actor, ...INTERNAL_ROLES);
     const state = await this.loadState(this.repo, orderId);
-    const warehouses = await this.repo.listWarehouses();
+    const warehouses = this.forCompany(actor, await this.withCarrierRates(await this.repo.listWarehouses()));
     const variantIds = state.order.lines.filter(isStockTrackedLine).map((l) => l.variantId as string);
     const levels = await this.repo.listStockLevels({ variantIds });
 
@@ -187,7 +208,7 @@ export class FulfillmentService {
   async preview(actor: Actor, orderId: string): Promise<SplitPreview> {
     requireRole(actor, ...INTERNAL_ROLES);
     const state = await this.loadState(this.repo, orderId);
-    const warehouses = await this.repo.listWarehouses();
+    const warehouses = this.forCompany(actor, await this.withCarrierRates(await this.repo.listWarehouses()));
     const levels = await this.repo.listStockLevels();
     return previewSplit(state.order, levels, warehouses, state);
   }
@@ -581,7 +602,7 @@ export class FulfillmentService {
 
   async listWarehouses(actor: Actor): Promise<Warehouse[]> {
     requireRole(actor, ...INTERNAL_ROLES);
-    return this.repo.listWarehouses();
+    return this.forCompany(actor, await this.repo.listWarehouses());
   }
 
   async createWarehouse(actor: Actor, input: WarehouseCreateInput): Promise<Warehouse> {
@@ -599,6 +620,7 @@ export class FulfillmentService {
         code: input.code,
         shippingCostPerShipment: input.shippingCostPerShipment,
         shippingCostPerKg: input.shippingCostPerKg,
+        companyId: actor.companyId,
         active: input.active ?? true,
       });
     });

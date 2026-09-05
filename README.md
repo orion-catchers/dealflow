@@ -53,7 +53,7 @@ Built by **Team Orion Catchers**. Demo tenant: **Nexa Office Solutions**.
 23. [Documentation index](#documentation-index)
 24. [Ownership and team](#ownership-and-team)
 25. [Known limitations](#known-limitations)
-26. [Roadmap (explicitly not shipped)](#roadmap-explicitly-not-shipped)
+26. [Roadmap (optional vendors)](#roadmap-optional-vendors-not-required-for-demo)
 
 ---
 
@@ -73,7 +73,7 @@ Use this section as a checklist. If an item fails, do not treat the system as pr
 | 8 | CSRF on mutations | POST with `Origin: http://evil.example` | **403 ORIGIN** |
 | 9 | Session is httpOnly | Login `Set-Cookie` | `dealflow_session` httpOnly, `SameSite=Strict`, not readable from JS |
 | 10 | CI is the source of truth | `.github/workflows/ci.yml` | validate → migrate → seed twice → typecheck → lint → test → build |
-| 11 | Demo credentials never in production | This README + `.env.example` | `password123` / `SESSION_SECRET=change-me` are local/demo only |
+| 11 | Demo credentials never in production | This README + `.env.example` | Seed passwords in [docs/env-keys.md](docs/env-keys.md); `SESSION_SECRET=change-me` is local-only |
 
 Canonical docs for deeper checks: [docs/architecture.md](docs/architecture.md), [docs/API.md](docs/API.md), [docs/SECURITY.md](docs/SECURITY.md), [docs/DATA_MODEL.md](docs/DATA_MODEL.md), [docs/deploy.md](docs/deploy.md), [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
@@ -97,12 +97,13 @@ It is **not** a CRM, ERP purchasing module, or card-acquiring gateway. Those bel
 
 ## Non-goals
 
-Do **not** grade the product against these. They are out of scope by design.
+Do **not** grade the product against hosted vendor accounts you have not configured.
 
-- Card capture, Stripe/Razorpay charges, or bank file generation (payments are **recorded**, not collected)
-- Multi-company / multi-currency conversion (demo currency is **INR**)
-- Email/SMS/Slack delivery of quotes (portal + in-app conversation)
-- SSO / SAML / OIDC (password + server session)
+- **No deploy required.** Local Docker + `.env` is the intended demo. Keys live in [docs/env-keys.md](docs/env-keys.md).
+- Card **collection** needs `STRIPE_SECRET_KEY`. Without it, payments are **recorded** in the books only (still correct for the core demo).
+- Outbound email needs Resend or `MAIL_WEBHOOK_URL`; otherwise non-production **logs** the message.
+- Google SSO needs client id/secret; password login always works.
+- Display currency is **INR**; `/api/fx` is a labeled Preview, not a second ledger.
 - Microservices, message queues, or a second database
 - Deleting products (archive only)
 - Letting the browser compute totals, tax, or approval outcomes
@@ -243,19 +244,19 @@ Native Postgres instead of Docker: point `DATABASE_URL` at your instance and ski
 
 ## Seed accounts
 
-All demo passwords: **`password123`**. Never use these in production.
+Passwords are **per user** (not `password123`). Full table: [docs/env-keys.md](docs/env-keys.md). Never use these in production.
 
-| Role | Email | Fixture symbol | Lands on |
+| Role | Email | Password | Lands on |
 |---|---|---|---|
-| Admin | `dev@nexa.example` | `admin-dev` | `/home` |
-| Sales rep | `arjun@nexa.example` | `rep-arjun` | `/home` |
-| Sales rep | `priya@nexa.example` | `rep-priya` | `/home` |
-| Sales manager | `sana@nexa.example` | `manager-sana` | `/home` |
-| Finance | `farah@nexa.example` | `finance-farah` | `/home` |
-| Customer (Acme) | `neha@acme.example` | `customer-neha` | `/portal` |
-| Customer (Beta) | `rohan@beta.example` | `customer-rohan` | `/portal` |
-| Customer (Gamma) | `meera@gamma.example` | `customer-meera` | `/portal` |
-| Pending rep | `vikram@nexa.example` | `pending-vikram` | **Cannot sign in** until activated |
+| Admin | `dev@nexa.example` | `admin-nexa-2026!` | `/home` |
+| Sales rep | `arjun@nexa.example` | `arjun-nexa-2026!` | `/home` |
+| Sales rep | `priya@nexa.example` | `priya-nexa-2026!` | `/home` |
+| Sales manager | `sana@nexa.example` | `sana-nexa-2026!` | `/home` |
+| Finance | `farah@nexa.example` | `farah-nexa-2026!` | `/home` |
+| Customer (Acme) | `neha@acme.example` | `neha-acme-2026!` | `/portal` |
+| Customer (Beta) | `rohan@beta.example` | `rohan-beta-2026!` | `/portal` |
+| Customer (Gamma) | `meera@gamma.example` | `meera-gamma-2026!` | `/portal` |
+| Pending rep | `vikram@nexa.example` | `vikram-nexa-2026!` | **Cannot sign in** until activated |
 
 Fixture symbols are stable team IDs. Prisma generates row IDs; `src/server/lib/db/map.ts` and `src/server/live/ids.ts` map symbols ↔ emails/SKUs/warehouse codes for live commands.
 
@@ -384,13 +385,22 @@ Full contract: [docs/API.md](docs/API.md).
 
 Copy `.env.example` → `.env`. Never commit `.env`.
 
+**Canonical list (required vs optional vendors):** [docs/env-keys.md](docs/env-keys.md). You do not need to deploy or buy Stripe/Resend/Google for the Nexa browser demo.
+
 | Name | Required | Notes |
 |---|---|---|
-| `DATABASE_URL` | Live yes | `postgresql://dealflow:dealflow@localhost:5432/dealflow?schema=public` |
-| `DEALFLOW_DB_PORT` | Compose | Host port mapped to container 5432; must match `DATABASE_URL` |
-| `SESSION_SECRET` | Auth hashing | `openssl rand -hex 32`. Default `change-me` is local-only |
+| `DATABASE_URL` | Live yes | Must match Docker host port (`DEALFLOW_DB_PORT`; **5434** on some machines) |
+| `DEALFLOW_DB_PORT` | Compose | Host port mapped to container 5432 |
+| `SESSION_SECRET` | Auth | `openssl rand -hex 32`. Default `change-me` is local-only |
+| `APP_URL` | Optional | OAuth redirect + email links; `http://localhost:3000` locally |
+| `RESEND_API_KEY` / `MAIL_FROM` / `MAIL_WEBHOOK_URL` | Optional | Email; otherwise log in non-production |
+| `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` / `STRIPE_WEBHOOK_SECRET` | Optional | Card checkout; 503 without secret |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional | SSO; user email must already exist |
+| `CRON_SECRET` / `JOBS_ACTOR_EMAIL` | Optional | `POST /api/jobs/run`; or run `npm run jobs` |
+| `DEALFLOW_FX_JSON` | Optional | Display FX Preview |
+| `CARRIER_QUOTE_URL` / `CARRIER_API_KEY` | Optional | Live courier HTTP; rate card still works |
 | `NODE_ENV` | Host | `production` rejects `x-dev-actor` and development adapter |
-| `DEALFLOW_ADAPTER` | Optional | `development` only with non-production Node |
+| `DEALFLOW_ADAPTER` | Optional | `development` only with non-production Node — **not** the live demo |
 
 Per-developer schema on a shared host:
 
@@ -506,7 +516,7 @@ See [docs/OPERATIONS.md](docs/OPERATIONS.md) for backup/restore, rollback, log t
 | [docs/deploy.md](docs/deploy.md) | Environments, migrate, host |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Runbooks, backup, incidents |
 | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Branches, migrations, review |
-| [docs/demo-walkthrough.md](docs/demo-walkthrough.md) | Flow A / Flow B demo script |
+| [docs/env-keys.md](docs/env-keys.md) | Required `.env` + optional vendor keys (no deploy) |
 | [docs/team-integration-handoff.md](docs/team-integration-handoff.md) | Krishna UI + adapter seams |
 | [docs/krishna-manual-qa.md](docs/krishna-manual-qa.md) | Manual UI checklist (fixture-oriented) |
 | [DealFlow360_Team_Execution_Blueprint-krishna.md](./DealFlow360_Team_Execution_Blueprint-krishna.md) | Original team plan |
@@ -535,17 +545,17 @@ Schema changes are **additive**. Never edit a merged migration. Ask Ruchir befor
 ## Known limitations
 
 - Live command idempotency for some actions still uses an in-process map; receipts/payments use durable `RequestKey` where wired. Restarting Node can change replay behavior for the in-memory map.
-- Due billing and health refresh are **manual buttons**, not cron.
-- Payments are books-only (no PSP).
+- Due billing and health refresh: staff buttons **and** `npm run jobs` / `POST /api/jobs/run`.
+- Card checkout is optional (`STRIPE_SECRET_KEY`). Books payments always work.
 - Demo walkthrough status cells may lag code; trust CI + this README’s verify table.
 - `package-lock.json` may exist beside `pnpm-lock.yaml`; **CI uses pnpm**.
 - Catch-all login cookie `maxAge` is 8 hours; `SESSION_MAX_AGE_SECONDS` in session helper is 7 days — treat 8 hours as the catch-all login TTL unless unified.
 
 ---
 
-## Roadmap (explicitly not shipped)
+## Roadmap (optional vendors, not required for demo)
 
-Live card gateway; transactional email; SSO; multi-currency; courier rates; learned recommendation weights; scheduled billing/health jobs.
+Paste keys from [docs/env-keys.md](docs/env-keys.md) when you want live email, Stripe cards, Google SSO, or a carrier HTTP overlay. Core fulfillment and reports already run locally. Hosted deploy is optional.
 
 ---
 

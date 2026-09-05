@@ -139,8 +139,6 @@ Engine functions are pure (inputs → outputs, no DB import). Services add role 
 request-key idempotency, transactions and audit. Repositories are interfaces with an
 in-memory fixture implementation now and a Prisma implementation once the schema lands.
 
-## Roadmap note (what we would build next)
+## Roadmap note (hosted extras)
 
-Live payment gateway; e-mail/Slack nudges; courier rate lookup for real shipping costs;
-learned co-purchase weights for recommendations; SSO; multi-company and currency
-conversion; scheduled (cron) due-billing and health refresh instead of manual buttons.
+Optional env-backed adapters now exist for email, Stripe, Google SSO, and a cron job runner. They **503** when keys are missing. Still out of scope as a full commercial suite: multi-company tenancy, a separate TaxRate table (rates stay on `Product.taxPct`), learned ML models (co-purchase counts update existing rules only), and a real carrier API.

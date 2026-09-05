@@ -29,7 +29,10 @@ const INTERNAL_ROLES: readonly Role[] = ["ADMIN", "SALES_REP", "SALES_MANAGER", 
 const RULES: readonly Rule[] = [
   { prefix: "/api/auth/login", access: "PUBLIC" },
   { prefix: "/api/auth/signup", access: "PUBLIC" },
+  { prefix: "/api/auth/sso", access: "PUBLIC" },
   { prefix: "/api/auth", access: "ANY" },
+  { prefix: "/api/jobs", access: "PUBLIC" },
+  { prefix: "/api/payments/stripe", access: "PUBLIC" },
 
   { prefix: "/api/admin", access: ["ADMIN"] },
   { prefix: "/api/portal", access: ["CUSTOMER"] },
@@ -51,7 +54,12 @@ const RULES: readonly Rule[] = [
   { prefix: "/api/billing", access: ["FINANCE", "ADMIN"] },
 
   { prefix: "/api/dashboard", access: ["SALES_MANAGER", "ADMIN"] },
-  { prefix: "/api/reports", access: ["SALES_MANAGER", "ADMIN"] },
+  { prefix: "/api/reports", access: ["SALES_MANAGER", "FINANCE", "ADMIN", "SALES_REP"] },
+  { prefix: "/api/fx", methods: ["GET"], access: "INTERNAL" },
+  { prefix: "/api/carrier", methods: ["GET"], access: "INTERNAL" },
+  { prefix: "/api/companies", methods: ["GET"], access: "INTERNAL" },
+  { prefix: "/api/integrations/public", access: "PUBLIC" },
+  { prefix: "/api/integrations", access: "INTERNAL" },
 
   { prefix: "/api/products", methods: ["GET"], access: "INTERNAL" },
   { prefix: "/api/products", access: ["ADMIN"] },

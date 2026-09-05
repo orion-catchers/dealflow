@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { FulfillmentListItem, FulfillmentStatus, StockListItem } from "@/contracts/harsh";
-import { Button, Card, DataTable, EmptyState, ErrorState, PageHeader, Select, StatusBadge, type Column } from "@/dev-adapter/ui";
+import type { FulfillmentListItem, FulfillmentStatus, ReceiptResult, StockListItem } from "@/contracts/harsh";
+import { Button, Card, DataTable, EmptyState, ErrorState, Input, PageHeader, Select, StatusBadge, type Column } from "@/dev-adapter/ui";
+import { api, ApiClientError, newRequestKey } from "@/lib/api/client";
 import { useApi } from "./useApi";
 
 const STATUSES: FulfillmentStatus[] = ["PENDING", "PARTIAL", "ALLOCATED", "SHIPPED", "DELIVERED", "CANCELLED"];
@@ -106,8 +107,8 @@ export function FulfillmentList() {
     <div>
       <PageHeader
         title="Fulfillment and Stock"
-        description="On-hand, reserved, and available quantities; ready orders and backorder states."
-        actions={<StatusBadge status="DEV FIXTURE" label="DEV FIXTURE data" />}
+        description="LIVE stock and orders. Open an order for the 6+3+1 Preview split. Record a receipt here, then Consolidate on the order."
+        actions={<StatusBadge status="LIVE" />}
       />
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -164,6 +165,8 @@ export function FulfillmentList() {
         <div className="space-y-4">
           {stock.error ? <ErrorState message={stock.error} onRetry={() => void stock.reload()} /> : null}
 
+          <StockReceiptForm stock={stock.data ?? []} onDone={() => void stock.reload()} />
+
           <div className="max-w-xs">
             <label className="mb-1 block text-xs font-medium text-slate-600">Warehouse</label>
             <Select value={warehouseFilter} onChange={(e) => setWarehouseFilter(e.target.value)} aria-label="Filter by warehouse">
@@ -190,5 +193,102 @@ export function FulfillmentList() {
         </div>
       )}
     </div>
+  );
+}
+
+function StockReceiptForm({ stock, onDone }: { stock: StockListItem[]; onDone: () => void }) {
+  const [rowKey, setRowKey] = useState("");
+  const [qty, setQty] = useState(1);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [eligible, setEligible] = useState<ReceiptResult["eligibleBackorders"]>([]);
+  const row = stock.find((s) => `${s.warehouseId}:${s.variantId}` === rowKey);
+
+  async function submit() {
+    if (!row) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await api<ReceiptResult>("/api/stock/receipts", {
+        method: "POST",
+        json: {
+          warehouseId: row.warehouseId,
+          variantId: row.variantId,
+          quantity: qty,
+          requestKey: newRequestKey("receipt"),
+        },
+      });
+      setEligible(result.eligibleBackorders);
+      const n = result.eligibleBackorders.length;
+      setMessage(
+        n
+          ? `Receipt saved. ${n} open backorder(s) can be consolidated — open the order and press Consolidate.`
+          : "Receipt saved. On-hand increased.",
+      );
+      onDone();
+    } catch (e) {
+      setEligible([]);
+      setError(e instanceof ApiClientError ? e.message : e instanceof Error ? e.message : "Receipt failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card title="Record stock receipt">
+      <p className="mb-3 text-sm text-slate-600">
+        Finance or Admin. Increases on-hand. Does not reserve until you Consolidate or Accept on the order.
+      </p>
+      <div className="mb-3 grid gap-3 sm:grid-cols-3">
+        <label className="block text-xs font-medium text-slate-600">
+          Warehouse / SKU
+          <Select
+            className="mt-1 w-full"
+            value={rowKey}
+            onChange={(e) => setRowKey(e.target.value)}
+            aria-label="Stock row for receipt"
+          >
+            <option value="">Choose a stock row</option>
+            {stock.map((s) => (
+              <option key={`${s.warehouseId}:${s.variantId}`} value={`${s.warehouseId}:${s.variantId}`}>
+                {s.warehouseName} · {s.productName} · {s.variantLabel} (avail {s.available})
+              </option>
+            ))}
+          </Select>
+        </label>
+        <label className="block text-xs font-medium text-slate-600">
+          Quantity
+          <Input
+            className="mt-1"
+            type="number"
+            min={1}
+            value={qty}
+            onChange={(e) => setQty(Number(e.target.value))}
+            aria-label="Receipt quantity"
+          />
+        </label>
+        <div className="flex items-end">
+          <Button type="button" disabled={!row || busy || qty < 1} onClick={() => void submit()}>
+            {busy ? "Saving…" : "Receive"}
+          </Button>
+        </div>
+      </div>
+      {error ? <ErrorState message={error} /> : null}
+      {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
+      {eligible.length > 0 ? (
+        <ul className="mt-2 list-disc pl-5 text-sm">
+          {eligible.map((item) => (
+            <li key={item.backorder.id}>
+              <Link href={`/fulfillment/${item.orderId}`} className="text-blue-700 hover:underline">
+                {item.orderId}
+              </Link>{" "}
+              · {item.customerName} · coverable {item.coverable}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </Card>
   );
 }

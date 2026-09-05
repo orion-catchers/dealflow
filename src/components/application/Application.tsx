@@ -1,6 +1,6 @@
 'use client';
 
-import {useCallback,useEffect,useState} from 'react';
+import {Suspense,useCallback,useEffect,useState} from 'react';
 import {usePathname,useRouter} from 'next/navigation';
 import {BarChart3,Boxes,CircleCheck,CreditCard,FileText,HeartPulse,LayoutDashboard,LogOut,Menu,Package,PanelLeft,PanelLeftClose,Repeat,Settings,Settings2,ShieldCheck,UsersRound} from 'lucide-react';
 import type {Actor,DataState,Role} from '../../contracts/application';
@@ -10,6 +10,9 @@ import Operations from './Operations';
 import Setup from './Setup';
 import CustomerPortal from './CustomerPortal';
 import PublicHeader from './PublicHeader';
+import {FulfillmentList} from '@/features/inventory/ui/FulfillmentList';
+import {FulfillmentDetailView} from '@/features/inventory/ui/FulfillmentDetailView';
+import {ReportsDashboard} from '@/features/reports/ui/ReportsDashboard';
 
 const navigation=[
   ['/home','Overview',LayoutDashboard],
@@ -65,6 +68,7 @@ function sessionToActor(data: unknown): Actor | null {
     role,
     active: nested.active !== false,
     customerId: typeof nested.customerId === 'string' ? nested.customerId : undefined,
+    companyId: typeof nested.companyId === 'string' ? nested.companyId : undefined,
   };
 }
 
@@ -165,7 +169,7 @@ export default function Application(){
       <main id="main">
         {message&&<div className="notice" role="status">{message}<button type="button" onClick={()=>setMessage('')} aria-label="Dismiss notification">×</button></div>}
         {error&&<div role="alert" className="error">{error}<Button onClick={()=>{setError('');reload().catch(reason=>setError(reason instanceof Error?reason.message:'Retry failed.'));}}>Retry</Button></div>}
-        {actor.role==='CUSTOMER'?<CustomerPortal path={pathname}/>:!data?null:pathname==='/home'?<Home ctx={ctx}/>:pathname.startsWith('/quotes')||pathname==='/pipeline'||pathname.startsWith('/approvals')?<Quotes ctx={ctx}/>:pathname.startsWith('/products')||pathname.startsWith('/settings')||pathname==='/policies'||pathname==='/price-lists'?<Setup ctx={ctx}/>:['/fulfillment','/subscriptions','/invoices','/health','/reports'].some(p=>pathname.startsWith(p))?<Operations ctx={ctx}/>:<><Heading title="Page not found" description="This route does not exist."/><Link href="/home">Return to overview</Link></>}
+        {actor.role==='CUSTOMER'?<CustomerPortal path={pathname}/>:!data?null:pathname==='/home'?<Home ctx={ctx}/>:pathname.startsWith('/quotes')||pathname==='/pipeline'||pathname.startsWith('/approvals')?<Quotes ctx={ctx}/>:pathname.startsWith('/products')||pathname.startsWith('/settings')||pathname==='/policies'||pathname==='/price-lists'?<Setup ctx={ctx}/>:pathname.startsWith('/fulfillment')?(pathname.split('/')[2]?<FulfillmentDetailView orderId={pathname.split('/')[2]}/>:<FulfillmentList/>):pathname.startsWith('/reports')?<Suspense fallback={<p className="hint">Loading reports…</p>}><ReportsDashboard/></Suspense>:['/subscriptions','/invoices','/health'].some(p=>pathname.startsWith(p))?<Operations ctx={ctx}/>:<><Heading title="Page not found" description="This route does not exist."/><Link href="/home">Return to overview</Link></>}
       </main>
     </div>
   </div>;
@@ -222,10 +226,23 @@ function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;on
           <Button type="submit" disabled={busy}>{busy?'Please wait…':path==='/signup'?'Request access':'Sign in'}</Button>
         </form>}
         <p className="auth-switch">{path==='/signup'?'Already have access?':'Need an account?'} <Link href={path==='/signup'?'/login':'/signup'}>{path==='/signup'?'Sign in':'Request access'}</Link></p>
+        {path!=='/signup'&&<GoogleSsoLink/>}
         <small className="auth-recovery">{recovery==='none'&&recoveryOk?<span>Password updated. Sign in with your new password.</span>:recovery==='none'&&<button type="button" onClick={()=>{setRecovery('request');setRecoveryOk(false);setRecoveryMsg('');}}>Forgot password?</button>}{recovery==='request'&&<form onSubmit={async event=>{event.preventDefault();setBusy(true);try{await api('auth/password-reset',{email});setRecovery('confirm');setRecoveryMsg('If that account exists, a reset request was recorded. Email delivery is not configured; use the token from the server log (development) or ask your administrator.');}catch(reason){setIssue(reason instanceof Error?reason.message:'Reset request failed.');}finally{setBusy(false);}}} aria-label="Password recovery"><Input label="Work email" type="email" value={email} onChange={event=>setEmail(event.target.value)} required autoComplete="username"/><Button type="submit" disabled={busy}>{busy?'Please wait…':'Send reset request'}</Button> <button type="button" onClick={()=>setRecovery('none')}>Cancel</button></form>}{recovery==='confirm'&&<div><div className="notice" role="status">{recoveryMsg}</div><form onSubmit={async event=>{event.preventDefault();setBusy(true);try{await api('auth/password-reset/confirm',{token:resetToken.trim(),newPassword:resetPassword});setRecovery('none');setResetToken('');setResetPassword('');setRecoveryOk(true);}catch(reason){setIssue(reason instanceof Error?reason.message:'Reset failed; check the token and try again.');}finally{setBusy(false);}}} aria-label="Set new password"><Input label="Reset token" value={resetToken} onChange={event=>setResetToken(event.target.value)} required/><Input label="New password" type="password" value={resetPassword} onChange={event=>setResetPassword(event.target.value)} required minLength={8} autoComplete="new-password"/><Button type="submit" disabled={busy}>{busy?'Please wait…':'Set new password'}</Button></form></div>}</small>
       </div>
     </main>}
   </div>;
+}
+
+function GoogleSsoLink(){
+  const [enabled,setEnabled]=useState(false);
+  useEffect(()=>{
+    fetch('/api/integrations/public',{cache:'no-store'}).then(async response=>{
+      const result=await response.json();
+      if(response.ok&&result.data?.googleSso)setEnabled(true);
+    }).catch(()=>{/* optional vendor */});
+  },[]);
+  if(!enabled)return null;
+  return <p className="auth-switch"><a href="/api/auth/sso/google">Sign in with Google</a></p>;
 }
 
 function Home({ctx}:{ctx:Context}){

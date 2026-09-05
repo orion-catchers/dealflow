@@ -29,6 +29,7 @@ export interface SessionUser {
   role: Role;
   status: AccountStatus;
   customerId?: string;
+  companyId?: string;
   active: boolean;
 }
 

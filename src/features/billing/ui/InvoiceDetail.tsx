@@ -11,6 +11,7 @@ const METHODS: PaymentMethod[] = ["BANK_TRANSFER", "CARD", "CHEQUE", "CASH", "OT
 
 export function InvoiceDetail({ id }: { id: string }) {
   const invoice = useApi<InvoiceRecord>(`/api/invoices/${id}`);
+  const integrations = useApi<{ flags: { stripe: boolean } }>("/api/integrations/status");
   const deliveryPath = invoice.data?.orderId ? `/api/fulfillment/${invoice.data.orderId}/delivery` : null;
   const delivery = useApi<OrderDeliveryRead>(deliveryPath);
   const mutation = useMutation();
@@ -47,6 +48,22 @@ export function InvoiceDetail({ id }: { id: string }) {
     }
   }
 
+  async function startCardCheckout() {
+    if (!row) return;
+    setNotice(null);
+    const result = await mutation.run(() =>
+      api<{ paymentIntentId?: string }>("/api/payments/checkout", {
+        method: "POST",
+        json: { invoiceId: id, amount: row.outstanding, currency: row.currency },
+      }),
+    );
+    if (result) {
+      setNotice(
+        `Preview: Stripe PaymentIntent ${result.paymentIntentId ?? ""} created. Invoice stays unpaid until the webhook records the card payment.`,
+      );
+    }
+  }
+
   const row = invoice.data;
 
   return (
@@ -59,6 +76,11 @@ export function InvoiceDetail({ id }: { id: string }) {
             <a href={`/api/invoices/${id}/pdf`} className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50">
               Download PDF
             </a>
+            {integrations.data?.flags.stripe && Number(row?.outstanding ?? 0) > 0 ? (
+              <Button type="button" variant="secondary" disabled={mutation.pending} onClick={() => void startCardCheckout()}>
+                Card checkout (Stripe)
+              </Button>
+            ) : null}
             <Button type="button" onClick={() => setOpen(true)}>
               Record payment
             </Button>

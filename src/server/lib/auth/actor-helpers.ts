@@ -29,6 +29,7 @@ type DbUser = {
   name: string;
   role: Actor["role"];
   status: AccountStatus;
+  companyId?: string;
   memberships: { customerId: string }[];
 };
 
@@ -46,6 +47,7 @@ export function userToActor(user: DbUser): Actor {
     id: actorIdForEmail(user.email, user.id),
     role: user.role,
     customerId: customerIdForUser(user),
+    companyId: user.companyId,
     active: user.status === "ACTIVE",
   };
 }
@@ -58,6 +60,7 @@ export function userToSessionUser(user: DbUser): SessionUser {
     role: user.role,
     status: user.status,
     customerId: customerIdForUser(user),
+    companyId: user.companyId,
     active: user.status === "ACTIVE",
   };
 }

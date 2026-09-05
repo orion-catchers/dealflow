@@ -1,9 +1,9 @@
 import type { BillingInterval, RecommendationRule, PricedCandidate } from './krishna';
 export type Role = 'ADMIN' | 'SALES_REP' | 'SALES_MANAGER' | 'FINANCE_OPS' | 'CUSTOMER';
-export interface Actor { id: string; name: string; email: string; role: Role; active: boolean; customerId?: string }
-export interface Customer { id: string; name: string; email: string; tier: string; currency: string; repId: string }
+export interface Actor { id: string; name: string; email: string; role: Role; active: boolean; customerId?: string; companyId?: string }
+export interface Customer { id: string; name: string; email: string; tier: string; currency: string; repId: string; companyId?: string }
 export interface Variant { id: string; name: string; extraPrice: string }
-export interface Product { id: string; name: string; category: string; unit: string; description: string; price: string; cost: string; taxPct: number; active: boolean; stockTracked: boolean; interval: BillingInterval; planId: string; variants: Variant[] }
+export interface Product { id: string; name: string; category: string; unit: string; description: string; price: string; cost: string; taxPct: number; active: boolean; stockTracked: boolean; interval: BillingInterval; planId: string; variants: Variant[]; companyId?: string }
 export interface PriceRule { id: string; productId: string; tier: string; currency: string; price: string }
 export interface Line { id: string; productId: string; variantId: string; description: string; quantity: number; discountPct: number; unitPrice: string; unitCost: string; taxPct: number; tax: string; net: string; total: string; profit: string; interval: BillingInterval; stockTracked: boolean }
 export interface Total { interval: BillingInterval; net: string; tax: string; total: string; profit: string; marginPct: number }
@@ -13,7 +13,7 @@ export interface Quote extends QuoteRevision { id: string; customerId: string; r
 export interface Event { id: string; at: string; actor: string; text: string; revision?: string }
 export interface Message { id: string; quoteId: string; revision: string; lineId: string | null; senderId: string; senderName: string; text: string; at: string; kind: 'QUESTION' | 'PROPOSAL' | 'RESPONSE'; requestedDate?: string }
 export interface Proposal { id: string; quoteId: string; fromRevision: string; proposedRevision: string; actorId: string; at: string; lineChanges: { lineId: string; quantity?: number; discountPct?: number; comment?: string }[]; requestedDate?: string; status: string }
-export interface Warehouse { id: string; name: string; shippingCost: string; active: boolean }
+export interface Warehouse { id: string; name: string; shippingCost: string; active: boolean; companyId?: string }
 export interface Stock { id: string; warehouseId: string; variantId: string; onHand: number; reserved: number; threshold: number }
 export interface Allocation { lineId: string; warehouseId: string; quantity: number }
 export interface FulfillmentPreview { orderId: string; allocations: Allocation[]; backorders: { lineId: string; quantity: number }[]; cost: string }

@@ -282,6 +282,7 @@ export async function loadDataState(): Promise<DataState> {
     email: u.email,
     role: toAppRole(u.role),
     active: u.status === "ACTIVE",
+    companyId: u.companyId,
     customerId: u.role === "CUSTOMER" ? (u.memberships[0] ? publicCustomerId({ id: u.memberships[0].customerId }) : undefined) : undefined,
   }));
 
@@ -292,6 +293,7 @@ export async function loadDataState(): Promise<DataState> {
     tier: c.discountTier === "STANDARD" ? "Bronze" : c.discountTier === "SILVER" ? "Silver" : "Gold",
     currency: currencyOf(c.currency),
     repId: publicUserId(c.assignedRep),
+    companyId: c.companyId,
   }));
 
   const appProducts: Product[] = products.map((p) => {
@@ -310,13 +312,14 @@ export async function loadDataState(): Promise<DataState> {
       stockTracked: p.stockTracked,
       interval: p.defaultPlanId ? toPlan(plans.find((pl) => pl.id === p.defaultPlanId) ?? { id: "", name: "", interval: "MONTHLY" }).interval : "ONE_TIME",
       planId: p.defaultPlanId ?? "",
+      companyId: p.companyId,
       variants: variants.map((v) => ({ id: v.id, name: v.label, extraPrice: v.extraPrice })),
     };
   });
 
   const appWarehouses: Warehouse[] = warehouses.map((w) => {
     const mapped = toWarehouse(w);
-    return { id: w.id, name: w.name, shippingCost: mapped.shippingCostPerShipment, active: w.active };
+    return { id: w.id, name: w.name, shippingCost: mapped.shippingCostPerShipment, active: w.active, companyId: w.companyId };
   });
 
   const appStock: Stock[] = stock.map((s) => ({

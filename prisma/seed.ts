@@ -52,6 +52,22 @@ async function main(): Promise<void> {
 
   await truncateAll(prisma);
 
+  const nexa = await prisma.company.create({
+    data: { id: "company-nexa", code: "NEXA", name: "Nexa", currency: "INR", active: true },
+  });
+  const contoso = await prisma.company.create({
+    data: { id: "company-contoso", code: "CONTOSO", name: "Contoso Demo", currency: "INR", active: true },
+  });
+
+  for (const tax of [
+    { id: "tax-0", code: "tax-0", name: "Zero (demo)", ratePct: 0 },
+    { id: "tax-5", code: "tax-5", name: "GST 5%", ratePct: 5 },
+    { id: "tax-12", code: "tax-12", name: "GST 12%", ratePct: 12 },
+    { id: "tax-18", code: "tax-18", name: "GST 18%", ratePct: 18 },
+  ]) {
+    await prisma.taxRate.create({ data: tax });
+  }
+
   for (const team of harshFixtures.salesTeams) {
     const row = await prisma.salesTeam.create({
       data: { name: team.name },
@@ -69,10 +85,22 @@ async function main(): Promise<void> {
         role: user.role,
         status: user.status,
         teamId: "team" in user && user.team ? resolver.resolve(user.team) : null,
+        companyId: nexa.id,
       },
     });
     resolver.register(user.sym, row.id);
   }
+
+  await prisma.user.create({
+    data: {
+      email: "admin@contoso.example",
+      passwordHash: await hashPassword("contoso-admin-2026!"),
+      name: "Contoso Admin",
+      role: "ADMIN",
+      status: "ACTIVE",
+      companyId: contoso.id,
+    },
+  });
 
   for (const plan of ruchirFixtures.subscriptionPlans) {
     const row = await prisma.subscriptionPlan.create({
@@ -101,6 +129,8 @@ async function main(): Promise<void> {
         categoryId: resolver.resolve(product.category),
         unit: product.unit,
         taxPct: product.taxPct,
+        taxRateId: `tax-${Math.round(Number(product.taxPct))}`,
+        companyId: nexa.id,
         basePrice: product.basePrice,
         baseCost: product.baseCost,
         stockTracked: product.stockTracked,
@@ -212,6 +242,7 @@ async function main(): Promise<void> {
         priceListId: resolver.resolve(customer.priceList),
         assignedRepId: resolver.resolve(customer.assignedRep),
         teamId: resolver.resolve(customer.team),
+        companyId: nexa.id,
       },
     });
     resolver.register(customer.sym, row.id);
@@ -232,6 +263,7 @@ async function main(): Promise<void> {
         code: warehouse.code,
         name: warehouse.name,
         shippingCost: warehouse.shippingCost,
+        companyId: nexa.id,
       },
     });
     resolver.register(warehouse.sym, row.id);

@@ -496,6 +496,12 @@ function QuoteDetail({
               >
                 Add line
               </Button>
+              <CatalogPriceHint
+                customerId={draft.customerId}
+                productId={product}
+                variantId={variant}
+                quantity={quantity}
+              />
             </div>
           </>
         )}
@@ -798,5 +804,53 @@ function QuoteDetail({
         </Section>
       )}
     </>
+  );
+}
+
+function CatalogPriceHint({
+  customerId,
+  productId,
+  variantId,
+  quantity,
+}: {
+  customerId: string;
+  productId: string;
+  variantId: string;
+  quantity: number;
+}) {
+  const [hint, setHint] = useState<{ unitPrice: string; basis: string } | null>(null);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    if (!customerId || !productId) {
+      setHint(null);
+      setErr("");
+      return;
+    }
+    let cancelled = false;
+    const body: Record<string, unknown> = { customerId, productId, quantity };
+    if (variantId) body.variantId = variantId;
+    api<{ unitPrice: string; priceSource: { basis: string } }>("catalog/resolve", body)
+      .then((r) => {
+        if (cancelled) return;
+        setErr("");
+        setHint({ unitPrice: r.unitPrice, basis: r.priceSource.basis });
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setHint(null);
+        setErr(e instanceof Error ? e.message : "Could not resolve catalog price");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [customerId, productId, variantId, quantity]);
+  if (!productId) return null;
+  if (err) return <p className="hint">{err}</p>;
+  if (!hint) return <p className="hint">Resolving catalog unit price…</p>;
+  return (
+    <p className="hint">
+      Catalog unit price for this customer: <Money amount={hint.unitPrice} currency="INR" /> ({hint.basis}
+      ). Gold Acme + ProBook Standard is 50,000.00. Line discount is applied after add.
+    </p>
   );
 }

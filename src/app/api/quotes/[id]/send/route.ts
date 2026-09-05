@@ -2,6 +2,7 @@ import { ApiFailure, handle } from "@/lib/api/respond";
 import { getAuthorizedActor } from "@/server/lib/auth/permissions";
 import { readJson } from "@/features/catalog/api";
 import { getLiveQuoteService } from "@/server/quotes/live-service";
+import { notifyQuoteSent } from "@/server/integrations/notifications";
 
 export async function POST(
   request: Request,
@@ -34,6 +35,12 @@ export async function POST(
       expectedRevision: raw.expectedRevision,
       customerTier: normalizedTier as "BRONZE" | "SILVER" | "GOLD" | undefined,
     };
-    return getLiveQuoteService().send(actor, id, body);
+    const result = await getLiveQuoteService().send(actor, id, body);
+    try {
+      await notifyQuoteSent(id);
+    } catch (reason) {
+      console.error("[quotes] send email was not delivered", reason);
+    }
+    return result;
   });
 }

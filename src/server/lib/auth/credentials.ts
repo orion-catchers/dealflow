@@ -42,6 +42,13 @@ export async function signupUser(raw: SignupInput): Promise<SessionUser> {
       const customer = await tx.customer.findUnique({ where: { id: input.customerId } });
       if (!customer) throw new ApiFailure("NOT_FOUND", "Customer not found");
     }
+    const home =
+      (input.customerId
+        ? (await tx.customer.findUnique({ where: { id: input.customerId } }))?.companyId
+        : undefined) ??
+      (await tx.company.findUnique({ where: { code: "NEXA" } }))?.id ??
+      (await tx.company.findFirst())?.id;
+    if (!home) throw new ApiFailure("INVALID_INPUT", "No company is configured");
 
     const created = await tx.user.create({
       data: {
@@ -50,6 +57,7 @@ export async function signupUser(raw: SignupInput): Promise<SessionUser> {
         name: input.name,
         role,
         status: "PENDING",
+        companyId: home,
       },
       include: { memberships: true },
     });

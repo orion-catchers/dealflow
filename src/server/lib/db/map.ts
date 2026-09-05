@@ -1,10 +1,9 @@
 ﻿/**
  * Map Ruchir's Prisma rows onto Harsh's lane contracts (and back).
  *
- * Schema drift is real: there is no TaxRate table, PriceList has no tier/active,
- * PriceRule is unitPrice-only, Warehouse has one shippingCost, Reservation uses
- * ACTIVE/RELEASED, Backorder uses resolvedAt, Product.taxPct sits on the product.
- * Adapters keep the public API as `src/contracts/harsh.ts`.
+ * Schema maps Prisma catalog tables onto Harsh contracts. TaxRate is a real
+ * table; Product.taxPct stays as the snapshot used by quote/billing engines.
+ * Company tenancy is on User, Customer, Product, and Warehouse.
  */
 import type {
   Backorder,
@@ -144,6 +143,7 @@ export function toCustomer(row: {
   assignedRep?: { id: string; email: string };
   priceListId: string;
   createdAt: Date;
+  companyId?: string;
 }): Customer {
   return {
     id: publicCustomerId(row),
@@ -154,6 +154,7 @@ export function toCustomer(row: {
     currency: currencyOf(row.currency),
     assignedRepId: row.assignedRep ? publicUserId(row.assignedRep) : row.assignedRepId,
     priceListId: row.priceListId,
+    companyId: row.companyId,
     active: true,
     createdAt: isoOf(row.createdAt),
   };
@@ -183,6 +184,8 @@ export function toProduct(row: {
   updatedAt: Date;
   category: { code: string };
   variants?: { shippingWeight: unknown }[];
+  taxRateId?: string;
+  companyId?: string;
 }): Product {
   const weights = (row.variants ?? []).map((v) => Number(v.shippingWeight)).filter((n) => Number.isFinite(n) && n > 0);
   const category = categoryFromCode(row.category.code);
@@ -195,7 +198,8 @@ export function toProduct(row: {
     description: row.description,
     basePrice: moneyOf(row.basePrice),
     baseCost: moneyOf(row.baseCost),
-    taxRateId: taxRateIdFromPct(row.taxPct),
+    taxRateId: row.taxRateId ?? taxRateIdFromPct(row.taxPct),
+    companyId: row.companyId,
     stockTracked: row.stockTracked,
     isSubscription,
     planId: row.defaultPlanId ?? undefined,
@@ -263,13 +267,14 @@ export function toPriceRule(row: {
   };
 }
 
-export function toWarehouse(row: { id: string; name: string; code: string; shippingCost: unknown; active: boolean }): Warehouse {
+export function toWarehouse(row: { id: string; name: string; code: string; shippingCost: unknown; active: boolean; companyId?: string }): Warehouse {
   return {
     id: row.id,
     name: row.name,
     code: row.code,
     shippingCostPerShipment: moneyOf(row.shippingCost),
     active: row.active,
+    companyId: row.companyId,
   };
 }
 

@@ -5,8 +5,10 @@ const INTERNAL = ["ADMIN", "SALES_REP", "SALES_MANAGER", "FINANCE"] as const;
 
 describe("accessFor", () => {
   it("keeps auth entry points public", () => {
-    expect(accessFor("/api/auth/login", "POST")).toBe("PUBLIC");
-    expect(accessFor("/api/auth/signup", "POST")).toBe("PUBLIC");
+    expect(accessFor("/api/auth/sso/google", "GET")).toBe("PUBLIC");
+    expect(accessFor("/api/jobs/run", "POST")).toBe("PUBLIC");
+    expect(accessFor("/api/payments/stripe/webhook", "POST")).toBe("PUBLIC");
+    expect(accessFor("/api/integrations/public", "GET")).toBe("PUBLIC");
   });
 
   it("requires any session for auth self endpoints", () => {
@@ -81,6 +83,10 @@ describe("role matrix (blueprint §3)", () => {
     expect(canAccess("ADMIN", "/api/admin/users/u1", "PATCH")).toBe(true);
     expect(canAccess("ADMIN", "/api/reports/export", "GET")).toBe(true);
     expect(canAccess("ADMIN", "/api/health/actions", "POST")).toBe(true);
+    expect(canAccess("ADMIN", "/api/integrations/status", "GET")).toBe(true);
+    expect(canAccess("CUSTOMER", "/api/integrations/status", "GET")).toBe(false);
+    expect(canAccess("FINANCE", "/api/carrier/quote", "GET")).toBe(true);
+    expect(canAccess("SALES_REP", "/api/companies", "GET")).toBe(true);
   });
 
   it("fulfillment reads are open to staff, writes are not", () => {

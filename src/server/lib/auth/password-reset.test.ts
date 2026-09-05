@@ -61,6 +61,7 @@ describe.skipIf(!dbAvailable)("password reset flow", () => {
         name: "Reset Active",
         role: "SALES_REP",
         status: "ACTIVE",
+        companyId: "company-nexa",
       },
     });
     createdUserIds.push(user.id);
@@ -137,6 +138,7 @@ describe.skipIf(!dbAvailable)("password reset flow", () => {
         name: "Reset Disabled",
         role: "SALES_REP",
         status: "DISABLED",
+        companyId: "company-nexa",
       },
     });
     createdUserIds.push(user.id);

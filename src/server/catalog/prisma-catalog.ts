@@ -19,7 +19,6 @@ import {
   toSalesTeam,
   toVariant,
   tierToDb,
-  virtualTaxRate,
 } from "@/server/lib/db/map";
 import type { CatalogRepository } from "./repository";
 
@@ -71,6 +70,28 @@ export class PrismaCatalogRepository implements CatalogRepository {
     return created.id;
   }
 
+  private async companyId(): Promise<string> {
+    const nexa = await this.db.company.findUnique({ where: { code: "NEXA" } });
+    if (nexa) return nexa.id;
+    const any = await this.db.company.findFirst();
+    if (!any) throw new Error("No Company row — run migrations and seed");
+    return any.id;
+  }
+
+  private async resolveTaxRate(taxRateId: string) {
+    const byId = await this.db.taxRate.findUnique({ where: { id: taxRateId } });
+    if (byId) return byId;
+    const byCode = await this.db.taxRate.findUnique({ where: { code: taxRateId } });
+    if (byCode) return byCode;
+    const pct = pctFromTaxRateId(taxRateId);
+    const code = taxRateIdFromPct(pct);
+    return this.db.taxRate.upsert({
+      where: { code },
+      create: { id: code, code, name: pct === 0 ? "Zero (demo)" : `GST ${pct}%`, ratePct: pct, active: true },
+      update: {},
+    });
+  }
+
   async listCustomers(): Promise<Customer[]> {
     const rows = await this.db.customer.findMany({ include: { assignedRep: true }, orderBy: { name: "asc" } });
     return rows.map(toCustomer);
@@ -96,6 +117,7 @@ export class PrismaCatalogRepository implements CatalogRepository {
         currency: c.currency,
         priceListId,
         assignedRepId,
+        companyId: c.companyId ?? (await this.companyId()),
       },
       include: { assignedRep: true },
     });
@@ -128,15 +150,24 @@ export class PrismaCatalogRepository implements CatalogRepository {
   }
 
   async listTaxRates(): Promise<TaxRate[]> {
-    const products = await this.db.product.findMany({ select: { taxPct: true } });
-    const pcts = new Set<number>([0, 18]);
-    for (const p of products) pcts.add(Math.round(Number(p.taxPct)));
-    return [...pcts].sort((a, b) => a - b).map((pct) => virtualTaxRate(taxRateIdFromPct(pct), pct, pct === 0 ? "Zero (demo)" : `GST ${pct}%`));
+    const rows = await this.db.taxRate.findMany({ orderBy: { ratePct: "asc" } });
+    return rows.map((t) => ({
+      id: t.id,
+      name: t.name,
+      ratePct: Number(t.ratePct),
+      active: t.active,
+    }));
   }
 
   async insertTaxRate(t: TaxRate): Promise<TaxRate> {
-    // No TaxRate table — virtual ids `tax-{pct}` are derived from Product.taxPct.
-    return t;
+    const pct = Math.round(t.ratePct);
+    const code = /^tax-\d+$/.test(t.id) ? t.id : `tax-${pct}`;
+    const row = await this.db.taxRate.upsert({
+      where: { code },
+      create: { id: code, code, name: t.name, ratePct: t.ratePct, active: t.active },
+      update: { name: t.name, ratePct: t.ratePct, active: t.active },
+    });
+    return { id: row.id, name: row.name, ratePct: Number(row.ratePct), active: row.active };
   }
 
   async listPlans(): Promise<PlanRef[]> {
@@ -158,6 +189,7 @@ export class PrismaCatalogRepository implements CatalogRepository {
 
   async insertProduct(p: Product): Promise<Product> {
     const categoryId = await this.ensureCategory(p.category);
+    const tax = await this.resolveTaxRate(p.taxRateId);
     const row = await this.db.product.create({
       data: {
         sku: p.id,
@@ -165,7 +197,9 @@ export class PrismaCatalogRepository implements CatalogRepository {
         categoryId,
         unit: p.unit,
         description: p.description,
-        taxPct: pctFromTaxRateId(p.taxRateId),
+        taxPct: tax.ratePct,
+        taxRateId: tax.id,
+        companyId: p.companyId ?? (await this.companyId()),
         basePrice: p.basePrice,
         baseCost: p.baseCost,
         stockTracked: p.stockTracked,
@@ -181,6 +215,7 @@ export class PrismaCatalogRepository implements CatalogRepository {
     const existing = await this.db.product.findUnique({ where: { id: p.id } });
     if (!existing) throw new Error(`Product ${p.id} not found`);
     const categoryId = await this.ensureCategory(p.category);
+    const tax = await this.resolveTaxRate(p.taxRateId);
     const row = await this.db.product.update({
       where: { id: p.id },
       data: {
@@ -188,7 +223,8 @@ export class PrismaCatalogRepository implements CatalogRepository {
         categoryId,
         unit: p.unit,
         description: p.description,
-        taxPct: pctFromTaxRateId(p.taxRateId),
+        taxPct: tax.ratePct,
+        taxRateId: tax.id,
         basePrice: p.basePrice,
         baseCost: p.baseCost,
         stockTracked: p.stockTracked,

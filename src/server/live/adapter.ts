@@ -17,6 +17,7 @@ function toAppActor(user: {
   status?: string;
   active?: boolean;
   customerId?: string;
+  companyId?: string;
 }): Actor {
   return {
     id: user.id,
@@ -25,6 +26,7 @@ function toAppActor(user: {
     role: toAppRole(user.role),
     active: user.active !== false && user.status !== "PENDING" && user.status !== "DISABLED",
     customerId: user.customerId,
+    companyId: user.companyId,
   };
 }
 

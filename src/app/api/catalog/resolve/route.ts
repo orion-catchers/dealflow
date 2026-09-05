@@ -1,6 +1,6 @@
 /**
  * Catalog boundary (blueprint §7): POST ResolvePriceInput → ResolvedPrice.
- * Consumed by Atharva's quote pricing and Krishna's builder. DEV FIXTURE data.
+ * Consumed by the quote builder (Acme 50,000 hint) and Atharva pricing.
  */
 import { handle } from "@/lib/api/respond";
 import { getAuthorizedActor } from "@/server/lib/auth/permissions";

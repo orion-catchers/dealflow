@@ -37,6 +37,7 @@ export interface Actor {
   id: string;
   role: Role;
   customerId?: string;
+  companyId?: string;
   active: boolean;
 }
 
@@ -64,6 +65,7 @@ export interface Customer {
   assignedRepId?: string;
   /** Optional price list override; when absent the tier/currency default applies. */
   priceListId?: string;
+  companyId?: string;
   active: boolean;
   createdAt: IsoTimestamp;
 }
@@ -81,6 +83,14 @@ export interface TaxRate {
   id: string;
   name: string;
   ratePct: Pct;
+  active: boolean;
+}
+
+export interface Company {
+  id: string;
+  code: string;
+  name: string;
+  currency: Currency;
   active: boolean;
 }
 
@@ -115,6 +125,7 @@ export interface Product {
   /** Base unit cost used for margin math. */
   baseCost: Money;
   taxRateId: string;
+  companyId?: string;
   /** True for physical goods handled by Engine 2; false for services/subscriptions. */
   stockTracked: boolean;
   /** Recurring products reference a plan (Ruchir's contract). */
@@ -218,6 +229,7 @@ export interface Warehouse {
   shippingCostPerShipment: Money;
   /** Optional per-kg cost added on top of per-shipment cost. */
   shippingCostPerKg?: Money;
+  companyId?: string;
   active: boolean;
 }
 

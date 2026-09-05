@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type {
   AllocationCommitResult,
@@ -267,7 +268,11 @@ export function FulfillmentDetailView({ orderId }: { orderId: string }) {
         description={`${data.order.customerName} · Promised ${data.order.promisedDate ?? "—"}`}
         actions={
           <>
+            <StatusBadge status="LIVE" />
             <StatusBadge status={data.status} />
+            <Link href="/fulfillment" className="text-sm text-blue-700 hover:underline">
+              All orders
+            </Link>
             <Button type="button" variant="secondary" onClick={() => void reload()}>
               Reload
             </Button>
@@ -313,9 +318,15 @@ export function FulfillmentDetailView({ orderId }: { orderId: string }) {
       </Card>
 
       {preview && !serviceOnly ? (
-        <Card title="Recommended split">
+        <Card title="Recommended split · Preview">
+          <p className="mb-2 text-sm text-slate-600">
+            Preview only. Does not reserve until Accept. Seeded Acme 10-laptop demo: Main 6, East 3, backorder 1; docks stay on Main.
+          </p>
           <p className="mb-3 text-sm text-slate-700">
             Strategy: <span className="font-medium">{strategyLabel(preview.strategy)}</span>
+            {acceptSummary.warehouses.length > 0
+              ? ` · ${acceptSummary.warehouses.join("; ")}; backorder ${acceptSummary.backorders}`
+              : null}
           </p>
           <div className="space-y-3">
             {preview.warehouses.map((w) => (

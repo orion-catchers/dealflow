@@ -323,7 +323,9 @@ Then:
 | `/price-lists` | Who gets which book and rules |
 | `/settings/customers` | Company cards |
 | `/settings/warehouses` | Receive stock, on-hand, reorder flags |
-| `/fulfillment` | Orders and the split |
+| `/fulfillment` | LIVE list + Preview split, Accept, consolidate, ship |
+| `/fulfillment/:id` | 6+3+1 Preview; Consolidate after receipt |
+| `/reports` | Canonical dashboard; XLSX uses the same filters as the table |
 | `/reports` | Scoreboard + export |
 
 Live database when `DATABASE_URL` is set. `DEALFLOW_ADAPTER=development` is the old fake JSON shop — not the demo you showed on localhost with Postgres.

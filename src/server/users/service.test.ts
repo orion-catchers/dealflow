@@ -59,6 +59,7 @@ describe.skipIf(!dbAvailable)("UserAdminService", () => {
         name: "Audit Test",
         role: "SALES_REP",
         status: "ACTIVE",
+        companyId: "company-nexa",
       },
     });
     const liveSession = await prisma.session.create({

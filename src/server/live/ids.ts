@@ -24,6 +24,7 @@ export function harshActor(actor: AppActor): HarshActor {
     id: actor.id,
     role: toHarshRole(actor.role),
     customerId: actor.customerId,
+    companyId: actor.companyId,
     active: actor.active,
   };
 }

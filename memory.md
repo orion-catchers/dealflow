@@ -409,6 +409,46 @@ Checks: `npx prisma generate`; `npx tsc --noEmit` clean. Browser login→workspa
 
 Status: LIVE adapter when `DATABASE_URL` is set. `DEALFLOW_ADAPTER=development` still uses the JSON store. Command replay for the shell is in-process (not Redis).
 
+## 2026-09-06T00:20:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Cross-lane remaining-work pass: optional email (Resend/webhook + dev log), cron jobs (`npm run jobs` / `POST /api/jobs/run`), Stripe checkout + webhook (503 without keys), Google SSO (503 without keys), FX helper `GET /api/fx`, courier per-kg rate card on live warehouses, recommendation co-purchase learning from confirmed quotes. Docs: `docs/demo-walkthrough.md`, `docs/status-checklist.md`.
+
+Files: `src/server/integrations/*`, `src/app/api/jobs/run/route.ts`, `src/app/api/fx/route.ts`, `src/app/api/payments/checkout/route.ts`, `src/app/api/payments/stripe/webhook/route.ts`, `src/app/api/auth/sso/google/**`, `src/server/inventory/engine/rate-card.ts`, `scripts/run-jobs.ts`.
+
+Checks: focused vitest on integrations + permissions (run locally). Stripe/Google/Resend not exercised with live vendor keys.
+
+Status: LIVE core engines unchanged. Optional providers fail closed with 503 `INTEGRATION_REQUIRED` when env is missing.
+
+## 2026-09-06T00:45:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Connected optional adapters into the staff shell: invoice Stripe checkout, admin integration flags, public Google SSO link, reports FX Preview plus canonical export links. No commit.
+
+Files: `src/components/application/{Operations,Setup,Application,CardCheckoutButton,IntegrationsPanel}.tsx`, `src/features/{billing/ui/InvoiceDetail,reports/ui/ReportsDashboard}.tsx`, `src/app/api/integrations/{status,public}/route.ts`, `src/server/integrations/edge-cases.test.ts`.
+
+Checks: `npm test` (full vitest) in this session.
+
+Status: LIVE Postgres path unchanged. Vendor keys still optional.
+
+## 2026-09-06T00:55:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Implemented remaining product gaps: TaxRate table, Company tenancy (Nexa + Contoso demo), item-item lift rec trainer, live carrier HTTP adapter, confirm-time stock cap (no reserve). Migration applied locally. No commit.
+
+Files: `prisma/schema.prisma`, `prisma/migrations/20260906010000_tax_company_recs_carrier/`, `src/server/inventory/{confirm-stock-cap,engine/confirm-stock-cap}.ts`, `src/server/integrations/{train-copurchase,carrier,learn-recommendations}.ts`, live confirm paths, catalog Prisma.
+
+Checks: `npx prisma migrate deploy`; `npx tsc --noEmit`; `npm test`.
+
+Status: Confirm still does not reserve. Available = on-hand − reserved. Carrier 503 without `CARRIER_QUOTE_URL`.
+
+## 2026-09-06T01:10:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Wired browser ticks in the staff shell (root layout never rendered App Router pages). Quote catalog hint (`POST /api/catalog/resolve`) for Acme 50,000; `/fulfillment` LIVE list + receipt; order Preview 6+3+1 + consolidate; `/reports` dashboard XLSX vs same filters. Documented required vs optional keys in `docs/env-keys.md` and README. No deploy, no vendor keys, no commit.
+
+Files: `src/components/application/{Application,Quotes}.tsx`, `src/features/inventory/ui/{FulfillmentList,FulfillmentDetailView}.tsx`, `src/features/reports/ui/ReportsDashboard.tsx`, `docs/env-keys.md`, `README.md`, `docs/{status-checklist,demo-walkthrough,harsh-lane-explained}.md`.
+
+Checks: `npx tsc --noEmit`; browser E2E of the four ticks not recorded in this pass (dev server may already be running).
+
+Status: LIVE UI for Harsh ticks without Stripe/Resend/Google.
+
 ---
 
 ## 5. Interface notes (cross-lane changes)

@@ -156,7 +156,8 @@ export class CatalogService {
       return own ? [own] : [];
     }
     this.requireInternal(actor);
-    return this.repo.listCustomers();
+    const all = await this.repo.listCustomers();
+    return actor.companyId ? all.filter((c) => !c.companyId || c.companyId === actor.companyId) : all;
   }
 
   async getCustomer(actor: Actor, id: string): Promise<Customer> {
@@ -177,6 +178,7 @@ export class CatalogService {
       currency: input.currency,
       assignedRepId: input.assignedRepId,
       priceListId: input.priceListId,
+      companyId: actor.companyId,
       active: input.active ?? true,
       createdAt: now(),
     };
@@ -229,7 +231,8 @@ export class CatalogService {
   async listProducts(actor: Actor, opts: { includeArchived?: boolean } = {}): Promise<Product[]> {
     this.requireInternal(actor);
     const all = await this.repo.listProducts();
-    return opts.includeArchived ? all : all.filter((p) => !p.archivedAt);
+    const visible = actor.companyId ? all.filter((p) => !p.companyId || p.companyId === actor.companyId) : all;
+    return opts.includeArchived ? visible : visible.filter((p) => !p.archivedAt);
   }
 
   async getProduct(actor: Actor, id: string): Promise<{ product: Product; variants: Variant[] }> {
@@ -254,6 +257,7 @@ export class CatalogService {
       basePrice: input.basePrice,
       baseCost: input.baseCost,
       taxRateId: input.taxRateId,
+      companyId: actor.companyId,
       stockTracked: input.stockTracked,
       isSubscription: input.isSubscription,
       planId: input.planId,

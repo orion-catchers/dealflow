@@ -11,6 +11,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   ApprovalStatusFilter,
+  Currency,
   ExportFormat,
   ProductCategory,
   ReportAggregates,
@@ -65,8 +66,8 @@ const STAGE_BAR_COLORS: Record<string, string> = {
 };
 
 const DEFAULT_FILTERS: ReportFilters = { period: "THIS_MONTH" };
-const REPORT_CURRENCY = "INR";
 const REPORT_TIME_ZONE = "Asia/Kolkata";
+const DISPLAY_CURRENCIES: Currency[] = ["INR", "USD", "EUR"];
 
 // ---------------------------------------------------------------------------
 // Filter <-> URL helpers (query param names match `src/features/reports/api.ts`)
@@ -193,10 +194,27 @@ export function ReportsDashboard() {
 
   const [draft, setDraft] = useState<ReportFilters>(applied);
   const [draftError, setDraftError] = useState<string | null>(null);
+  const [displayCurrency, setDisplayCurrency] = useState<Currency>("INR");
+  const [fxFactor, setFxFactor] = useState(1);
+  const [fxSource, setFxSource] = useState("DEFAULT");
   useEffect(() => {
     setDraft(applied);
     setDraftError(null);
   }, [applied]);
+  useEffect(() => {
+    if (displayCurrency === "INR") {
+      setFxFactor(1);
+      setFxSource("DEFAULT");
+      return;
+    }
+    void api<{ converted: string; source: string }>(`/api/fx?amount=1&from=INR&to=${displayCurrency}`)
+      .then((fx) => {
+        setFxFactor(Number(fx.converted) || 1);
+        setFxSource(fx.source);
+      })
+      .catch(() => setFxFactor(1));
+  }, [displayCurrency]);
+  const showMoney = (amount: string) => (Math.round(Number(amount) * fxFactor * 100) / 100).toFixed(2);
 
   // Dropdown data.
   const [options, setOptions] = useState<ReportFilterOptions | null>(null);
@@ -244,6 +262,7 @@ export function ReportsDashboard() {
       setExportState({ busy: format, error: null });
       try {
         const res = await fetch(`/api/reports/export?${appliedQuery}&format=${format}`, {
+          credentials: "include",
           headers: { "x-dev-actor": getDevActor() },
           cache: "no-store",
         });
@@ -323,7 +342,7 @@ export function ReportsDashboard() {
     { key: "rep", header: "Rep", render: (r) => r.repName },
     { key: "quotes", header: "Quotes", align: "right", render: (r) => fmtInt(r.quoteCount) },
     { key: "confirmed", header: "Confirmed", align: "right", render: (r) => fmtInt(r.confirmedCount) },
-    { key: "revenue", header: "Revenue", align: "right", render: (r) => <Money amount={r.confirmedOneTimeRevenue} currency={REPORT_CURRENCY} /> },
+    { key: "revenue", header: "Revenue", align: "right", render: (r) => <Money amount={showMoney(r.confirmedOneTimeRevenue)} currency={displayCurrency} /> },
     { key: "disc", header: "Avg discount", align: "right", render: (r) => fmtPct(r.averageDiscountPct) },
   ];
 
@@ -332,7 +351,7 @@ export function ReportsDashboard() {
     { key: "category", header: "Category", render: (p) => <span className="text-slate-600">{humanize(p.category)}</span> },
     { key: "quoted", header: "Units quoted", align: "right", render: (p) => fmtInt(p.unitsQuoted) },
     { key: "confirmed", header: "Units confirmed", align: "right", render: (p) => fmtInt(p.unitsConfirmed) },
-    { key: "revenue", header: "Net revenue", align: "right", render: (p) => <Money amount={p.netRevenue} currency={REPORT_CURRENCY} /> },
+    { key: "revenue", header: "Net revenue", align: "right", render: (p) => <Money amount={showMoney(p.netRevenue)} currency={displayCurrency} /> },
     { key: "disc", header: "Avg discount", align: "right", render: (p) => fmtPct(p.averageDiscountPct) },
   ];
 
@@ -357,10 +376,17 @@ export function ReportsDashboard() {
     <div>
       <PageHeader
         title="Reports"
-        description="Sales, approval and product metrics computed from stored quote and order records. Exports use the same filtered dataset as the dashboard."
+        description="Sales, approval and product metrics from stored quotes. XLSX/PDF use the same applied filters and row set as this screen."
         actions={
           <>
-            <StatusBadge status="DEV FIXTURE" label="DEV FIXTURE data" />
+            <StatusBadge status="LIVE" label={displayCurrency === "INR" ? "LIVE INR" : `Preview ${displayCurrency} (${fxSource})`} />
+            <Select value={displayCurrency} onChange={(e) => setDisplayCurrency(e.target.value as Currency)} aria-label="Display currency preview">
+              {DISPLAY_CURRENCIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </Select>
             <Button variant="secondary" disabled={!canExport} onClick={() => void handleExport("PDF")}>
               {exportState.busy === "PDF" ? "Exporting PDF…" : "Export PDF"}
             </Button>
@@ -506,13 +532,13 @@ export function ReportsDashboard() {
             <p className="text-2xl font-semibold tabular-nums text-slate-900">{sales ? fmtInt(sales.confirmedOrderCount) : "—"}</p>
           </Card>
           <Card title="Confirmed one-time revenue">
-            <p className="text-xl font-semibold text-slate-900">{sales ? <Money amount={sales.confirmedOneTimeRevenue} currency={REPORT_CURRENCY} /> : "—"}</p>
+            <p className="text-xl font-semibold text-slate-900">{sales ? <Money amount={showMoney(sales.confirmedOneTimeRevenue)} currency={displayCurrency} /> : "—"}</p>
           </Card>
           <Card title="Confirmed monthly recurring">
-            <p className="text-xl font-semibold text-slate-900">{sales ? <Money amount={sales.confirmedMonthlyRecurring} currency={REPORT_CURRENCY} /> : "—"}</p>
+            <p className="text-xl font-semibold text-slate-900">{sales ? <Money amount={showMoney(sales.confirmedMonthlyRecurring)} currency={displayCurrency} /> : "—"}</p>
           </Card>
           <Card title="Pipeline value">
-            <p className="text-xl font-semibold text-slate-900">{sales ? <Money amount={sales.pipelineValue} currency={REPORT_CURRENCY} /> : "—"}</p>
+            <p className="text-xl font-semibold text-slate-900">{sales ? <Money amount={showMoney(sales.pipelineValue)} currency={displayCurrency} /> : "—"}</p>
           </Card>
           <Card title="Avg weighted discount">
             <p className="text-2xl font-semibold tabular-nums text-slate-900">{sales ? fmtPct(sales.averageWeightedDiscountPct) : "—"}</p>
@@ -565,7 +591,7 @@ export function ReportsDashboard() {
                       />
                     </div>
                     <span className="whitespace-nowrap text-right tabular-nums text-slate-700">
-                      {fmtInt(s.count)} · <Money amount={s.value} currency={REPORT_CURRENCY} />
+                      {fmtInt(s.count)} · <Money amount={showMoney(s.value)} currency={displayCurrency} />
                     </span>
                   </li>
                 ))}

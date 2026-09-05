@@ -36,6 +36,7 @@ import {
   toVariant,
   toWarehouse,
 } from "@/server/lib/db/map";
+import { applyCourierRateCard } from "./engine/rate-card";
 import type {
   BackorderFilter,
   FulfillmentRecord,
@@ -82,7 +83,7 @@ export class PrismaInventoryStore implements InventoryStore {
 
   async listWarehouses(): Promise<Warehouse[]> {
     const rows = await this.db.warehouse.findMany({ orderBy: { code: "asc" } });
-    return rows.map(toWarehouse);
+    return rows.map((row) => applyCourierRateCard(toWarehouse(row)));
   }
 
   async getWarehouse(id: string): Promise<Warehouse | null> {
@@ -91,7 +92,7 @@ export class PrismaInventoryStore implements InventoryStore {
       (await this.db.warehouse.findUnique({ where: { id } })) ??
       (await this.db.warehouse.findUnique({ where: { code: id.toUpperCase() } })) ??
       (await this.db.warehouse.findUnique({ where: { code } }));
-    return row ? toWarehouse(row) : null;
+    return row ? applyCourierRateCard(toWarehouse(row)) : null;
   }
 
   async saveWarehouse(warehouse: Warehouse): Promise<Warehouse> {
@@ -104,8 +105,14 @@ export class PrismaInventoryStore implements InventoryStore {
     };
     const row = existing
       ? await this.db.warehouse.update({ where: { id: warehouse.id }, data })
-      : await this.db.warehouse.create({ data: { id: warehouse.id, ...data } });
-    return toWarehouse(row);
+      : await this.db.warehouse.create({
+          data: {
+            id: warehouse.id,
+            ...data,
+            companyId: warehouse.companyId ?? (await this.db.company.findUnique({ where: { code: "NEXA" } }))?.id ?? (await this.db.company.findFirstOrThrow()).id,
+          },
+        });
+    return applyCourierRateCard(toWarehouse(row));
   }
 
   async listStockLevels(filter?: StockLevelFilter): Promise<StockLevel[]> {

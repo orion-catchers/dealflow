@@ -1,14 +1,12 @@
 /**
- * Password recovery (auth lane; blueprint screen 01 — recovery handler owned by
- * Ruchir). Email delivery is not configured in this prototype, so the honest
- * path is: request records a single-use hashed token; in non-production the
- * token is printed to the server log for the requester to use; otherwise the
- * admin hands it over. Responses never reveal whether an account exists.
+ * Password recovery. Token is stored hashed. Email uses `sendMail` (Resend/webhook)
+ * or a server log in non-production. HTTP never reveals whether the email exists.
  */
 import { createHash, randomBytes } from "node:crypto";
 import { ApiFailure } from "@/lib/api/respond";
 import { parseInput } from "@/features/catalog/api";
 import { prisma } from "@/server/lib/db";
+import { sendMail } from "@/server/integrations/mail";
 import { hashPassword } from "./password";
 import {
   passwordResetConfirmSchema,
@@ -49,6 +47,16 @@ export async function requestPasswordReset(
       console.log(
         `[auth] password reset requested for ${user.email}; token (valid until ${expiresAt}): ${token}`,
       );
+    }
+    const origin = process.env.APP_URL ?? "http://localhost:3000";
+    try {
+      await sendMail({
+        to: user.email,
+        subject: "DealFlow360 password reset",
+        text: `Use this token on the sign-in recovery form within 30 minutes:\n${token}\n${origin}/login`,
+      });
+    } catch (reason) {
+      console.error("[auth] password reset email was not delivered", reason);
     }
   }
 

@@ -191,6 +191,22 @@ enum RequestResultKind {
   STOCK_RECEIPT
 }
 
+/// Selling organization. Staff, customers, catalog, and warehouses belong to one company.
+model Company {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  currency  String   @default("INR")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users      User[]
+  customers  Customer[]
+  products   Product[]
+  warehouses Warehouse[]
+}
+
 /// Internal actor or customer-portal login. Account status is the sole activation state, and customer access is granted only through memberships.
 model User {
   id           String        @id @default(cuid())
@@ -200,9 +216,11 @@ model User {
   role         Role
   status       AccountStatus @default(PENDING)
   teamId       String?
+  companyId    String
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
+  company               Company              @relation(fields: [companyId], references: [id])
   team                  SalesTeam?           @relation(fields: [teamId], references: [id])
   sessions              Session[]
   passwordResetTokens   PasswordResetToken[]
@@ -291,9 +309,11 @@ model Customer {
   priceListId   String
   assignedRepId String
   teamId        String?
+  companyId     String
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
+  company       Company              @relation(fields: [companyId], references: [id])
   priceList     PriceList            @relation(fields: [priceListId], references: [id])
   assignedRep   User                 @relation("CustomerRep", fields: [assignedRepId], references: [id])
   team          SalesTeam?           @relation(fields: [teamId], references: [id])
@@ -307,6 +327,7 @@ model Customer {
   @@index([name])
   @@index([assignedRepId])
   @@index([discountTier])
+  @@index([companyId])
 }
 
 /// Admin-managed catalog classification. Stable rows keep product and policy history addressable after a category is deactivated.
@@ -325,6 +346,19 @@ model Category {
   @@index([active, name])
 }
 
+/// Named GST (or other) rate selected on products. Quote lines still snapshot taxPct.
+model TaxRate {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  ratePct   Decimal  @db.Decimal(5, 2)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+}
+
 /// Catalog parent with a natural SKU and admin-managed category. Archiving preserves every historical financial and commercial reference.
 model Product {
   id            String    @id @default(cuid())
@@ -334,6 +368,8 @@ model Product {
   unit          String
   description   String    @default("")
   taxPct        Decimal   @db.Decimal(5, 2)
+  taxRateId     String
+  companyId     String
   basePrice     Decimal   @db.Decimal(14, 2)
   baseCost      Decimal   @db.Decimal(14, 2)
   stockTracked  Boolean
@@ -342,6 +378,8 @@ model Product {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  taxRate             TaxRate              @relation(fields: [taxRateId], references: [id])
+  company             Company              @relation(fields: [companyId], references: [id])
   category            Category             @relation(fields: [categoryId], references: [id])
   defaultPlan         SubscriptionPlan?    @relation("ProductDefaultPlan", fields: [defaultPlanId], references: [id])
   variants            Variant[]
@@ -353,6 +391,7 @@ model Product {
 
   @@index([categoryId, archivedAt])
   @@index([name])
+  @@index([companyId])
 }
 
 /// Sellable SKU. extraPrice is added to the resolved list price. cost is the margin input snapshotted onto lines at revision time.
@@ -727,10 +766,12 @@ model Warehouse {
   code         String   @unique
   name         String
   shippingCost Decimal  @db.Decimal(14, 2)
+  companyId    String
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  company      Company  @relation(fields: [companyId], references: [id])
   stock        Stock[]
   reservations Reservation[]
   receipts     StockReceipt[]
@@ -1030,6 +1071,7 @@ model RecommendationRule {
   baseProductId      String
   candidateProductId String
   copurchaseScore    Decimal    @db.Decimal(8, 4)
+  trainedLift        Decimal?   @db.Decimal(12, 6)
   promotionTag       String?
   minMarginPct       Decimal    @db.Decimal(5, 2)
   status             RuleStatus @default(ACTIVE)

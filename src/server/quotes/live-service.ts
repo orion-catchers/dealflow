@@ -27,6 +27,7 @@ import { ACTOR_ID_TO_EMAIL } from "@/server/lib/auth/actor-helpers";
 import { recordPrismaAudit } from "@/server/audit/prisma-repository";
 import { initializeBilling } from "@/server/billing/initialize";
 import { initializeFulfillment } from "@/server/inventory/initialize";
+import { assertConfirmStockCap } from "@/server/inventory/confirm-stock-cap";
 import { tierToDb } from "@/server/lib/db/map";
 import type { ConfirmedOrderForBilling } from "@/contracts/ruchir";
 import type { OrderForFulfillment } from "@/contracts/harsh";
@@ -1155,6 +1156,14 @@ export class LiveQuoteService {
       }
       if (quote.stage === "CONFIRMED")
         throw new ApiFailure("CONFLICT", "Quote is already confirmed.");
+      await assertConfirmStockCap(
+        tx,
+        revision.lines.map((line) => ({
+          variantId: line.variantId,
+          quantity: line.quantity,
+          stockTracked: line.stockTracked,
+        })),
+      );
       const claim = await tx.requestKey.create({
         data: { scope: "CONFIRM_ORDER", key: input.requestKey, actorId },
       });

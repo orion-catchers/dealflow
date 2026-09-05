@@ -118,6 +118,7 @@ describe.skipIf(!dbAvailable)("signup", () => {
         name: "Signup Test",
         role: "SALES_REP",
         status: "PENDING",
+        companyId: "company-nexa",
       },
     });
     expect(user.status).toBe("PENDING");
