@@ -23,12 +23,12 @@ jobs:
       DATABASE_URL: postgresql://dealflow:dealflow@localhost:5432/dealflow?schema=public
       SESSION_SECRET: ci-only-secret
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/setup@v1
         with:
-          node-version: 24
-          cache: pnpm
+          runtime: node@24
+          cache: true
+          install: false
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec prisma validate
       - run: pnpm db:deploy
