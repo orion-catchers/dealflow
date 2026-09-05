@@ -1,6 +1,6 @@
 'use client';
 
-import {useCallback,useEffect,useState} from 'react';
+import {useCallback,useEffect,useLayoutEffect,useState} from 'react';
 import {usePathname,useRouter} from 'next/navigation';
 import {ArrowUpRight,BarChart3,Boxes,CreditCard,FileText,HeartPulse,LayoutDashboard,LogOut,Menu,Package,PanelLeft,PanelLeftClose,Repeat,Settings,ShieldCheck} from 'lucide-react';
 import type {Actor,DataState,Role} from '../../contracts/application';
@@ -39,37 +39,94 @@ function sessionToActor(data: unknown): Actor | null {
   };
 }
 
+const sessionHold:{actor:Actor|null;mode:string;data:DataState|null}={actor:null,mode:'NOT CONNECTED',data:null};
+
+function restoreHeldSession(){
+  if(sessionHold.actor)return sessionHold;
+  if(typeof window==='undefined')return sessionHold;
+  try{
+    const raw=sessionStorage.getItem('dealflow-session');
+    if(!raw)return sessionHold;
+    const parsed=JSON.parse(raw) as {actor?:unknown;mode?:string};
+    const actor=sessionToActor(parsed.actor??parsed);
+    if(actor){
+      sessionHold.actor=actor;
+      if(typeof parsed.mode==='string')sessionHold.mode=parsed.mode;
+    }
+  }catch{/* session cache is optional */}
+  return sessionHold;
+}
+
 export default function Application(){
   const pathname=usePathname()??'/';
   const router=useRouter();
-  const [actor,setActor]=useState<Actor|null>(null);
-  const [data,setData]=useState<DataState|null>(null);
-  const [mode,setMode]=useState('NOT CONNECTED');
-  const [loading,setLoading]=useState(true);
+  const [actor,setActor]=useState<Actor|null>(sessionHold.actor);
+  const [data,setData]=useState<DataState|null>(sessionHold.data);
+  const [mode,setMode]=useState(sessionHold.mode);
+  const [sessionReady,setSessionReady]=useState(Boolean(sessionHold.actor)||['/','/login','/signup'].includes(pathname));
   const [error,setError]=useState('');
   const [message,setMessage]=useState('');
   const [menu,setMenu]=useState(false);
   const [collapsed,setCollapsed]=useState(false);
-  const publicPage=['/','/login','/signup'].includes(pathname);
+  const viewPath=(()=>{
+    if(!actor)return pathname;
+    if(actor.role==='CUSTOMER')return pathname.startsWith('/portal')?pathname:'/portal';
+    if(pathname.startsWith('/portal')||pathname==='/'||pathname==='/login'||pathname==='/signup')return '/home';
+    return pathname;
+  })();
+  const authRoute=['/','/login','/signup'].includes(pathname);
+  const publicPage=!actor&&(authRoute||sessionReady);
+
+  const remember=useCallback((next:Actor|null,nextMode?:string)=>{
+    sessionHold.actor=next;
+    if(nextMode)sessionHold.mode=nextMode;
+    if(!next)sessionHold.data=null;
+    setActor(next);
+    if(nextMode)setMode(nextMode);
+    try{
+      if(next)sessionStorage.setItem('dealflow-session',JSON.stringify({actor:next,mode:nextMode??sessionHold.mode}));
+      else sessionStorage.removeItem('dealflow-session');
+    }catch{/* session cache is optional */}
+  },[]);
 
   const reload=useCallback(async()=>{
-    if(actor&&actor.role!=='CUSTOMER')setData(await api<DataState>('workspace'));
+    if(actor&&actor.role!=='CUSTOMER'){
+      const next=await api<DataState>('workspace');
+      sessionHold.data=next;
+      setData(next);
+    }
   },[actor]);
+
+  useLayoutEffect(()=>{
+    const held=restoreHeldSession();
+    if(held.actor){
+      setActor(held.actor);
+      setMode(held.mode);
+      if(held.data)setData(held.data);
+    }
+  },[]);
 
   useEffect(()=>{
     let cancelled=false;
-    setLoading(true);
-    fetch('/api/auth/me',{cache:'no-store'}).then(async response=>{
+    fetch('/api/auth/me',{cache:'no-store',credentials:'same-origin'}).then(async response=>{
       const result=await response.json();
       if(cancelled)return;
-      if(response.ok){setActor(sessionToActor(result.data));setMode(result.mode??'LIVE');}
-      else if(response.status!==401)setError(result.error?.message??'The session could not be checked.');
+      if(response.ok){remember(sessionToActor(result.data),result.mode??'LIVE');}
+      else {
+        if(response.status===401)remember(null);
+        else if(response.status!==401)setError(result.error?.message??'The session could not be checked.');
+      }
     }).catch(reason=>{if(!cancelled)setError(reason instanceof Error?reason.message:'The session could not be checked.');})
-      .finally(()=>{if(!cancelled)setLoading(false);});
+      .finally(()=>{if(!cancelled)setSessionReady(true);});
     return()=>{cancelled=true;};
-  },[]);
+  },[remember]);
 
   useEffect(()=>{reload().catch(reason=>setError(reason instanceof Error?reason.message:'The workspace could not be loaded.'));},[reload]);
+  useEffect(()=>{
+    if(!sessionReady||!actor)return;
+    const next=actor.role==='CUSTOMER'?(pathname.startsWith('/portal')?null:'/portal'):(pathname.startsWith('/portal')||pathname==='/'||pathname==='/login'||pathname==='/signup'?'/home':null);
+    if(next&&next!==pathname)router.replace(next);
+  },[sessionReady,actor,pathname,router]);
   useEffect(()=>{setMenu(false);},[pathname]);
   useEffect(()=>{
     try{setCollapsed(window.localStorage.getItem('dealflow-sidebar')==='collapsed');}catch{/* local preference is optional */}
@@ -86,13 +143,20 @@ export default function Application(){
     return result;
   };
 
-  if(publicPage)return <Auth path={pathname} error={error} onLogin={(nextActor,nextMode)=>{setActor(nextActor);setMode(nextMode??'DEV FIXTURE');router.push(nextActor.role==='CUSTOMER'?'/portal':'/home');}}/>;
-  if(loading)return <main className="standalone" role="status">Loading your workspace…</main>;
-  if(!actor)return <main className="standalone"><h1>{error?'Service not connected':'Sign in to continue'}</h1><p>{error||'Your session has expired or you have not signed in.'}</p><Link href="/login">Open sign in</Link></main>;
-  if(actor.role==='CUSTOMER'&&!pathname.startsWith('/portal'))return <main className="standalone"><h1>Customer access only</h1><Link href="/portal">Open your customer portal</Link></main>;
-  if(actor.role!=='CUSTOMER'&&pathname.startsWith('/portal'))return <main className="standalone"><h1>Customer account required</h1><Link href="/home">Return to workspace</Link></main>;
+  if(publicPage){
+    return <Auth path={authRoute?pathname:'/login'} error={error} onLogin={async(nextActor,nextMode)=>{
+      if(nextActor.role!=='CUSTOMER'){
+        const next=await api<DataState>('workspace');
+        sessionHold.data=next;
+        setData(next);
+      }
+      remember(nextActor,nextMode??'LIVE');
+      router.replace(nextActor.role==='CUSTOMER'?'/portal':'/home');
+    }}/>;
+  }
+  if(!actor)return null;
 
-  const ctx:Context={d:data!,actor,path:pathname,reload,run,notice:setMessage};
+  const ctx:Context={d:data!,actor,path:viewPath,reload,run,notice:setMessage};
   const shellClass=`application ${actor.role==='CUSTOMER'?'customer-app ':''}${collapsed?'is-collapsed':''}`;
   return <div className={shellClass}>
     <a className="skip" href="#main">Skip to main content</a>
@@ -105,30 +169,29 @@ export default function Application(){
       </div>
       <p className="nav-caption">{actor.role==='CUSTOMER'?'YOUR BUSINESS':'WORKSPACE'}</p>
       <nav id="primary-navigation">
-        {actor.role==='CUSTOMER'?<Link className="active" href="/portal" aria-label="Your deals" title="Your deals"><FileText size={18}/><span className="nav-label">Your deals</span></Link>:navigation.filter(([url])=>actor.role!=='SALES_REP'||url!=='/settings/customers').map(([url,name,Icon])=><Link key={url} className={pathname.startsWith(url)?'active':''} href={url} aria-label={name} title={collapsed?name:undefined}><Icon size={18}/><span className="nav-label">{name}</span></Link>)}
+        {actor.role==='CUSTOMER'?<Link className="active" href="/portal" aria-label="Your deals"><FileText size={18}/><span className="nav-label">Your deals</span></Link>:navigation.filter(([url])=>actor.role!=='SALES_REP'||url!=='/settings/customers').map(([url,name,Icon])=><Link key={url} className={viewPath.startsWith(url)?'active':''} href={url} aria-label={name} title={collapsed?name:undefined}><Icon size={18}/><span className="nav-label">{name}</span></Link>)}
       </nav>
       <div className="sidebar-footer">
         <span className="avatar" aria-hidden="true">{actor.name.split(' ').map(s=>s[0]).join('')}</span>
         <div><strong>{actor.name}</strong><small>{actor.role.replaceAll('_',' ')}</small></div>
-        <button type="button" aria-label="Sign out" title="Sign out" onClick={async()=>{await api('auth/logout',{});location.href='/login';}}><LogOut size={18}/></button>
+        <button type="button" aria-label="Sign out" title="Sign out" onClick={async()=>{remember(null);router.replace('/login');try{await api('auth/logout',{});}catch{/* local sign-out already applied */}}}><LogOut size={18}/></button>
       </div>
     </aside>
     <div className="main-column">
       <header className="topbar">
         <button className="mobile-menu" type="button" aria-expanded={menu} aria-controls="primary-navigation" aria-label="Toggle navigation" onClick={()=>setMenu(!menu)}><Menu size={20}/></button>
-        <span>Sales operations <span className="muted">/ {pathname.split('/').filter(Boolean)[0]??'home'}</span></span>
         <div><StatusBadge status={mode}/><span className="top-date">{new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</span></div>
       </header>
       <main id="main">
         {message&&<div className="notice" role="status">{message}<button type="button" onClick={()=>setMessage('')} aria-label="Dismiss notification">×</button></div>}
         {error&&<div role="alert" className="error">{error}<Button onClick={()=>{setError('');reload().catch(reason=>setError(reason instanceof Error?reason.message:'Retry failed.'));}}>Retry</Button></div>}
-        {actor.role==='CUSTOMER'?<CustomerPortal path={pathname}/>:!data?<p className="inline-loading" role="status">Loading business records…</p>:pathname==='/home'?<Home ctx={ctx}/>:pathname.startsWith('/quotes')||pathname==='/pipeline'||pathname.startsWith('/approvals')?<Quotes ctx={ctx}/>:pathname.startsWith('/products')||pathname.startsWith('/settings')||pathname==='/policies'||pathname==='/price-lists'?<Setup ctx={ctx}/>:['/fulfillment','/subscriptions','/invoices','/health','/reports'].some(p=>pathname.startsWith(p))?<Operations ctx={ctx}/>:<><Heading title="Page not found" description="This route does not exist."/><Link href="/home">Return to overview</Link></>}
+        {actor.role==='CUSTOMER'?<CustomerPortal path={viewPath}/>:!data?null:viewPath==='/home'?<Home ctx={ctx}/>:viewPath.startsWith('/quotes')||viewPath==='/pipeline'||viewPath.startsWith('/approvals')?<Quotes ctx={ctx}/>:viewPath.startsWith('/products')||viewPath.startsWith('/settings')||viewPath==='/policies'||viewPath==='/price-lists'||viewPath.startsWith('/users')||viewPath.startsWith('/warehouses')||viewPath.startsWith('/customers')?<Setup ctx={ctx}/>:['/fulfillment','/subscriptions','/invoices','/health','/reports','/billing'].some(p=>viewPath.startsWith(p))?<Operations ctx={ctx}/>:<><Heading title="Page not found" description="This route does not exist."/><Link href="/home">Return to overview</Link></>}
       </main>
     </div>
   </div>;
 }
 
-function Auth({path,error,onLogin}:{path:string;error:string;onLogin:(actor:Actor,mode?:string)=>void}){
+function Auth({path,error,onLogin}:{path:string;error:string;onLogin:(actor:Actor,mode?:string)=>void|Promise<void>}){
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
   const [name,setName]=useState('');
@@ -157,7 +220,7 @@ function Auth({path,error,onLogin}:{path:string;error:string;onLogin:(actor:Acto
         <p className="dev-copy">DEV FIXTURE · Local seeded accounts</p>
         {done?<div className="notice" role="status">Account requested. Your administrator must activate access.<Link href="/login">Return to sign in</Link></div>:<form onSubmit={async event=>{
           event.preventDefault();setBusy(true);setIssue('');
-          try{if(path==='/signup'){await api('auth/signup',{name,email,password});setDone(true);}else{const result=await api<{actor?:Actor;mode?:string;id?:string;name?:string;email?:string;role?:Role;active?:boolean;customerId?:string}>('auth/login',{email,password});const actor=result.actor??sessionToActor(result);if(!actor)throw new Error('Sign in could not be completed.');onLogin(actor,result.mode??'LIVE');}}
+          try{if(path==='/signup'){await api('auth/signup',{name,email,password});setDone(true);}else{const result=await api<{actor?:Actor;mode?:string;id?:string;name?:string;email?:string;role?:Role;active?:boolean;customerId?:string}>('auth/login',{email,password});const actor=result.actor??sessionToActor(result);if(!actor)throw new Error('Sign in could not be completed.');await onLogin(actor,result.mode??'LIVE');}}
           catch(reason){setIssue(reason instanceof Error?reason.message:'Sign in could not be completed.');}
           finally{setBusy(false);}
         }}>

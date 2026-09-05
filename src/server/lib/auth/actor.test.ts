@@ -28,6 +28,7 @@ describe("getActor", () => {
 
   it("dev with x-dev-actor admin-dev", async () => {
     vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("DEALFLOW_ADAPTER", "development");
     const request = new Request("http://localhost/api/test", {
       headers: { "x-dev-actor": "admin-dev" },
     });

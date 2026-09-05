@@ -1,5 +1,2 @@
-import { PolicyEditorScreen } from "@/features/atharva/ui/AtharvaScreens";
+﻿export { default } from "../_workspace";
 
-export default function PoliciesPage() {
-  return <PolicyEditorScreen />;
-}

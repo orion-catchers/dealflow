@@ -1,7 +1,2 @@
-import { InvoicesList } from "@/features/billing/ui/InvoicesList";
+﻿export { default } from "../_workspace";
 
-export const metadata = { title: "Invoices · DealFlow360" };
-
-export default function InvoicesPage() {
-  return <InvoicesList />;
-}

@@ -1,7 +1,2 @@
-import { SubscriptionsList } from "@/features/billing/ui/SubscriptionsList";
+﻿export { default } from "../_workspace";
 
-export const metadata = { title: "Subscriptions · DealFlow360" };
-
-export default function SubscriptionsPage() {
-  return <SubscriptionsList />;
-}
