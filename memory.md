@@ -217,6 +217,12 @@ _No entries yet._
     Smoke: `/fulfillment` 200, `/fulfillment/order-acme-1001` 200, preview matches
     Main 6 laptops + 10 docks / East 3 laptops / 1 backorder. Accept/override not posted
     against shared in-memory state.
+17. **Warehouses & stock setup UI landed (subagent, Grok 4.6 Medium) — DEV FIXTURE.**
+    `src/app/(internal)/warehouses/page.tsx` + `src/features/inventory/ui/warehouses/{useApi,WarehousesScreen}.tsx`.
+    Warehouse CRUD (shipping costs used by split heuristic), stock table with LOW/OK
+    threshold filter, upsert stock row, Record Receipt (requestKey generated once at
+    dialog open; eligibleBackorders listed with links to fulfillment detail — consolidate
+    happens there). Recent receipts skipped: no list API. Smoke: `GET /warehouses` 200.
 
 **Status legend for Harsh's lane:** everything is **DEV FIXTURE** (in-memory repositories)
 until Ruchir's Prisma schema lands; then the repository adapters swap to Prisma.
