@@ -5,7 +5,16 @@ import ExcelJS from 'exceljs';
 export async function exportFile(actor:Actor,d:DataState,params:URLSearchParams,mode:string) {
   const invoiceId=params.get('invoice'),format=params.get('format')??'xlsx';
   let rows:(string|number)[][],title:string;
-  if(invoiceId){const i=d.invoices.find(i=>i.id===invoiceId&&(actor.role!=='CUSTOMER'||i.customerId===actor.customerId));if(!i)throw new AppError(404,'NOT_FOUND','Invoice unavailable');title=`Invoice ${i.id}`;rows=[['Description','Quantity','Net','Tax','Total'],...i.lines.map(l=>[l.description,l.quantity,l.net,l.tax,l.total]),['Total','','','',i.total],['Paid','','','',i.paid],['Credit','','','',i.credited],['Outstanding','','','',i.outstanding]];}
+  if(invoiceId){
+    const i=d.invoices.find(i=>i.id===invoiceId);
+    const ownsInvoice=!!i&&(
+      actor.role==='ADMIN'||actor.role==='SALES_MANAGER'||actor.role==='FINANCE_OPS'||
+      (actor.role==='CUSTOMER'&&i.customerId===actor.customerId)||
+      (actor.role==='SALES_REP'&&d.orders.some(o=>o.id===i.orderId&&o.customerId===i.customerId&&d.quotes.some(q=>q.id===o.quoteId&&q.repId===actor.id)))
+    );
+    if(!i||!ownsInvoice)throw new AppError(404,'NOT_FOUND','Invoice unavailable');
+    title=`Invoice ${i.id}`;rows=[['Description','Quantity','Net','Tax','Total'],...i.lines.map(l=>[l.description,l.quantity,l.net,l.tax,l.total]),['Total','','','',i.total],['Paid','','','',i.paid],['Credit','','','',i.credited],['Outstanding','','','',i.outstanding]];
+  }
   else {if(actor.role==='CUSTOMER')throw new AppError(403,'FORBIDDEN','Staff access required');title='Sales report';const from=params.get('from')??'',to=params.get('to')??'9999',rep=params.get('rep'),stage=params.get('stage');rows=[['Quote','Customer','Stage','Revision','Interval','Net','Tax','Total','Profit'],...d.quotes.filter(q=>(actor.role!=='SALES_REP'||q.repId===actor.id)&&q.at.slice(0,10)>=from&&q.at.slice(0,10)<=to&&(!rep||q.repId===rep)&&(!stage||q.stage===stage)).flatMap(q=>q.totals.map(t=>[q.id,d.customers.find(c=>c.id===q.customerId)?.name??'',q.stage,q.revision,t.interval,t.net,t.tax,t.total,t.profit]))];}
   const label=mode==='DEV FIXTURE'?'DEVELOPMENT FIXTURE DATA':'LIVE';
   let bytes:Uint8Array,mime:string;
