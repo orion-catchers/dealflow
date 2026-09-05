@@ -1,6 +1,12 @@
 <div align="center">
 
-# DealFlow360
+<h1 align="center" style="margin:0 0 12px;background:#9CAF88;color:#ffffff;font-family:'Segoe Script','Apple Chancery','Snell Roundhand',cursive;font-size:64px;font-weight:700;padding:28px 20px;border-radius:14px;">
+  DealFlow360
+</h1>
+
+<p align="center">
+  <img src="docs/assets/dealflow-title-sage.png" alt="DealFlow360" width="720"/>
+</p>
 
 **B2B quote-to-cash for connected sales operations**
 
