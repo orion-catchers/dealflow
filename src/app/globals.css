@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+/*
+  Krishna owns theme tokens (blueprint §6). These are minimal placeholder tokens so
+  Harsh's pages render legibly; Krishna's real theme replaces this file.
+*/
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --card: #ffffff;
+  --accent: #2563eb;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
