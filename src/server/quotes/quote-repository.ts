@@ -26,7 +26,7 @@ export interface CreateQuoteInput {
 export interface CreateRevisionInput {
   quoteId: Id;
   expectedRevision: number;
-  revisionId: Id;
+  revisionId?: Id;
   createdBy: Id;
   createdAt: ISODate;
   currency: QuoteRevision["currency"];
@@ -39,6 +39,10 @@ export interface CreateRevisionInput {
 export interface QuoteScope {
   customerId?: Id;
   salesRepId?: Id;
+}
+
+export interface ReplaceLinesInput extends CreateRevisionInput {
+  lines: QuoteRevision["lines"];
 }
 
 export class QuoteRepositoryError extends Error {
@@ -204,6 +208,39 @@ export class InMemoryQuoteRepository {
 
     this.quotes.set(updatedQuote.id, clone(updatedQuote));
     return clone(updatedQuote);
+  }
+
+  replaceLines(input: ReplaceLinesInput): Quote {
+    return this.createRevision(input);
+  }
+
+  addLine(
+    input: CreateRevisionInput,
+    line: QuoteRevision["lines"][number],
+  ): Quote {
+    const quote = this.getById(input.quoteId);
+    const currentRevision = quote.revisions[quote.revisions.length - 1];
+    return this.createRevision({
+      ...input,
+      lines: [...currentRevision.lines, clone(line)],
+    });
+  }
+
+  removeLine(input: CreateRevisionInput, lineId: Id): Quote {
+    const quote = this.getById(input.quoteId);
+    const currentRevision = quote.revisions[quote.revisions.length - 1];
+    const lines = currentRevision.lines.filter(
+      (line) => line.lineId !== lineId,
+    );
+
+    if (lines.length === currentRevision.lines.length) {
+      throw new QuoteRepositoryError(
+        `Line ${lineId} was not found.`,
+        "NOT_FOUND",
+      );
+    }
+
+    return this.createRevision({ ...input, lines });
   }
 
   getRevision(quoteId: Id, revisionId: Id): QuoteRevision {
