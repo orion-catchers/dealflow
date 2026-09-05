@@ -24,6 +24,7 @@ import { ACTOR_ID_TO_EMAIL } from "@/server/lib/auth/actor-helpers";
 import { recordPrismaAudit } from "@/server/audit/prisma-repository";
 import { initializeBilling } from "@/server/billing/initialize";
 import { initializeFulfillment } from "@/server/inventory/initialize";
+import { assertConfirmStockCap } from "@/server/inventory/confirm-stock-cap";
 import type { ConfirmedOrderForBilling } from "@/contracts/ruchir";
 import type { OrderForFulfillment } from "@/contracts/harsh";
 
@@ -72,6 +73,11 @@ export interface ApprovalMutationInput {
 export interface ConfirmOrderInput {
   expectedRevision: ExpectedRevision;
   requestKey: string;
+}
+
+export interface SendQuoteInput {
+  expectedRevision: ExpectedRevision;
+  customerTier?: "BRONZE" | "SILVER" | "GOLD";
 }
 
 export interface ConfirmOrderResult {
@@ -358,6 +364,15 @@ function approvalRoleForActor(actor: Actor): Role {
   return actor.role as Role;
 }
 
+async function updateDealLifecycle(
+  tx: Tx,
+  dealId: string | null,
+  data: { status?: QuoteStage; lastActivityAt: Date },
+) {
+  if (!dealId) return;
+  await tx.deal.update({ where: { id: dealId }, data });
+}
+
 export class LiveQuoteService {
   constructor(private readonly db: Db = prisma) {}
 
@@ -486,7 +501,9 @@ export class LiveQuoteService {
         throw new ApiFailure("CONFLICT", "Only draft or negotiating quotes can be submitted.");
       }
       const stage = quote.currentRevision!.approvalStatus === "NOT_REQUIRED" ? "APPROVED" : "PENDING_APPROVAL";
-      await tx.quote.update({ where: { id: quote.id }, data: { stage, lastActivityAt: new Date() } });
+      const lastActivityAt = new Date();
+      await tx.quote.update({ where: { id: quote.id }, data: { stage, lastActivityAt } });
+      await updateDealLifecycle(tx, quote.dealId, { status: stage, lastActivityAt });
       await recordPrismaAudit(tx, {
         entityType: "Quote",
         entityId: quote.id,
@@ -499,14 +516,20 @@ export class LiveQuoteService {
     });
   }
 
-  async send(actor: Actor, quoteId: string, expectedRevision: ExpectedRevision): Promise<Quote> {
+  async send(actor: Actor, quoteId: string, input: SendQuoteInput): Promise<Quote> {
     requireRole(actor, "ADMIN", "SALES_REP", "SALES_MANAGER");
     const actorId = await this.resolveActorUserId(actor, this.db);
     return this.db.$transaction(async (tx) => {
       const quote = await this.lockVisibleQuote(actor, quoteId, tx);
-      this.assertExpectedRevision(quote, expectedRevision);
+      this.assertExpectedRevision(quote, input.expectedRevision);
       if (quote.stage !== "APPROVED") throw new ApiFailure("CONFLICT", "Only approved quotes can be sent.");
-      await tx.quote.update({ where: { id: quote.id }, data: { stage: "UNDER_NEGOTIATION", lastActivityAt: new Date() } });
+      if (input.customerTier) {
+        const discountTier: DiscountTier = input.customerTier === "BRONZE" ? "STANDARD" : input.customerTier;
+        await tx.customer.update({ where: { id: quote.customerId }, data: { discountTier } });
+      }
+      const lastActivityAt = new Date();
+      await tx.quote.update({ where: { id: quote.id }, data: { stage: "UNDER_NEGOTIATION", lastActivityAt } });
+      await updateDealLifecycle(tx, quote.dealId, { status: "UNDER_NEGOTIATION", lastActivityAt });
       await recordPrismaAudit(tx, {
         entityType: "Quote",
         entityId: quote.id,
@@ -538,7 +561,9 @@ export class LiveQuoteService {
       const acceptance = await tx.customerAcceptance.create({
         data: { revisionId: revision.id, actorId },
       });
-      await tx.quote.update({ where: { id: quote.id }, data: { lastActivityAt: new Date() } });
+      const lastActivityAt = new Date();
+      await tx.quote.update({ where: { id: quote.id }, data: { lastActivityAt } });
+      await updateDealLifecycle(tx, quote.dealId, { lastActivityAt });
       await recordPrismaAudit(tx, {
         entityType: "CustomerAcceptance",
         entityId: acceptance.id,
@@ -703,17 +728,23 @@ export class LiveQuoteService {
         const remaining = revision.approvalSteps.some((step) => step.stepIndex !== pending.stepIndex && step.status === "PENDING");
         if (!remaining) {
           await tx.dealRevision.update({ where: { id: revision.id }, data: { approvalStatus: "APPROVED" } });
-          await tx.quote.update({ where: { id: revision.quote.id }, data: { stage: "APPROVED", lastActivityAt: new Date() } });
+          const lastActivityAt = new Date();
+          await tx.quote.update({ where: { id: revision.quote.id }, data: { stage: "APPROVED", lastActivityAt } });
+          await updateDealLifecycle(tx, revision.quote.dealId, { status: "APPROVED", lastActivityAt });
         }
       } else if (input.decision === "REJECT") {
         await tx.dealRevision.update({ where: { id: revision.id }, data: { approvalStatus: "REJECTED" } });
-        await tx.quote.update({ where: { id: revision.quote.id }, data: { stage: "REJECTED", lastActivityAt: new Date() } });
+        const lastActivityAt = new Date();
+        await tx.quote.update({ where: { id: revision.quote.id }, data: { stage: "REJECTED", lastActivityAt } });
+        await updateDealLifecycle(tx, revision.quote.dealId, { status: "REJECTED", lastActivityAt });
         await tx.dealApprovalStep.updateMany({
           where: { revisionId: revision.id, status: "PENDING" },
           data: { status: "BLOCKED" },
         });
       } else {
-        await tx.quote.update({ where: { id: revision.quote.id }, data: { stage: "UNDER_NEGOTIATION", lastActivityAt: new Date() } });
+        const lastActivityAt = new Date();
+        await tx.quote.update({ where: { id: revision.quote.id }, data: { stage: "UNDER_NEGOTIATION", lastActivityAt } });
+        await updateDealLifecycle(tx, revision.quote.dealId, { status: "UNDER_NEGOTIATION", lastActivityAt });
       }
       await recordPrismaAudit(tx, {
         entityType: "DealRevision",
@@ -790,6 +821,11 @@ export class LiveQuoteService {
         throw new ApiFailure("CONFLICT", "The current revision is not approved for confirmation.");
       }
       if (quote.stage === "CONFIRMED") throw new ApiFailure("CONFLICT", "Quote is already confirmed.");
+      await assertConfirmStockCap(tx, revision.lines.map((line) => ({
+        variantId: line.variantId,
+        quantity: line.quantity,
+        stockTracked: line.stockTracked,
+      })));
       const claim = await tx.requestKey.create({
         data: { scope: "CONFIRM_ORDER", key: input.requestKey, actorId },
       });
@@ -830,7 +866,9 @@ export class LiveQuoteService {
           customer: { select: { name: true } },
         },
       });
-      await tx.quote.update({ where: { id: quote.id }, data: { stage: "CONFIRMED", lastActivityAt: new Date() } });
+      const lastActivityAt = new Date();
+      await tx.quote.update({ where: { id: quote.id }, data: { stage: "CONFIRMED", lastActivityAt } });
+      await updateDealLifecycle(tx, quote.dealId, { status: "CONFIRMED", lastActivityAt });
       const billingInput: ConfirmedOrderForBilling = {
         orderId: order.id,
         customerId: order.customerId,
@@ -1122,6 +1160,10 @@ export class LiveQuoteService {
         stage: quoteStageForEvaluation(evaluation.status, input.stage),
         lastActivityAt: new Date(),
       },
+    });
+    await updateDealLifecycle(tx, quote.dealId, {
+      status: quoteStageForEvaluation(evaluation.status, input.stage),
+      lastActivityAt: new Date(),
     });
     await recordPrismaAudit(tx, {
       entityType: "DealRevision",
