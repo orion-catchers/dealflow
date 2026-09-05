@@ -6,6 +6,7 @@ import type {
 } from "@/contracts/atharva";
 import type { Actor as SessionActor } from "@/contracts/harsh";
 import type { QuoteStage } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { ApiFailure } from "@/lib/api/respond";
 import { prisma, type Db } from "@/server/lib/db";
 import { requireRole } from "@/server/lib/auth/dev-actor";
@@ -31,15 +32,16 @@ export class LiveHealthService {
 
   async list(actor: SessionActor): Promise<HealthEvaluation> {
     requireRole(actor, ...READ_ROLES);
-    return this.view();
+    return this.view(actor);
   }
 
   async refresh(actor: SessionActor): Promise<HealthEvaluation> {
     requireRole(actor, ...READ_ROLES);
-    const input = await this.liveInput();
+    const input = await this.liveInput(actor);
     const candidates = findHealthCandidates(input);
     const now = new Date(input.now);
-    const existing = await this.db.healthFlag.findMany();
+    const scope = await this.flagScope(actor);
+    const existing = await this.db.healthFlag.findMany({ where: scope });
     const active = new Set(candidates.map((candidate) => candidate.fingerprint));
 
     for (const flag of existing) {
@@ -81,7 +83,7 @@ export class LiveHealthService {
       action: "HEALTH_REFRESHED",
       metadata: { candidateCount: candidates.length },
     });
-    return this.view();
+    return this.view(actor);
   }
 
   async createTask(input: {
@@ -95,7 +97,9 @@ export class LiveHealthService {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate)) {
       throw new ApiFailure("INVALID_INPUT", "A valid assignee and date are required.");
     }
-    const flag = await this.db.healthFlag.findUnique({ where: { id: input.flagId } });
+    const flag = await this.db.healthFlag.findFirst({
+      where: { id: input.flagId, ...(await this.flagScope(input.actor)) },
+    });
     if (!flag || flag.resolvedAt) throw new ApiFailure("NOT_FOUND", "Active health flag was not found.");
     const dealId = flag.quoteId ?? flag.orderId;
     if (!dealId) throw new ApiFailure("INVALID_INPUT", "Health flag has no linked deal.");
@@ -133,11 +137,12 @@ export class LiveHealthService {
     return this.toTask(task);
   }
 
-  private async view(): Promise<HealthEvaluation> {
+  private async view(actor: SessionActor): Promise<HealthEvaluation> {
+    const scope = await this.flagScope(actor);
     const [settingsRow, flags, tasks] = await Promise.all([
       this.settings(),
-      this.db.healthFlag.findMany({ orderBy: { detectedAt: "desc" } }),
-      this.db.task.findMany({ orderBy: { createdAt: "desc" } }),
+      this.db.healthFlag.findMany({ where: scope, orderBy: { detectedAt: "desc" } }),
+      this.db.task.findMany({ where: await this.dealScope(actor), orderBy: { createdAt: "desc" } }),
     ]);
     return {
       flags: flags.map((flag) => this.toFlag(flag)),
@@ -159,10 +164,12 @@ export class LiveHealthService {
     };
   }
 
-  private async liveInput(): Promise<HealthEvaluationInput> {
+  private async liveInput(actor: SessionActor): Promise<HealthEvaluationInput> {
     const settings = await this.settings();
     const now = new Date().toISOString();
+    const quoteWhere = await this.quoteScope(actor);
     const quotes = await this.db.quote.findMany({
+      where: quoteWhere,
       include: {
         currentRevision: { include: { lines: true } },
         revisions: { include: { lines: true }, orderBy: { revisionNumber: "desc" }, take: 1 },
@@ -189,6 +196,7 @@ export class LiveHealthService {
     });
 
     const orders = await this.db.order.findMany({
+      where: { sourceRevision: { quote: quoteWhere } },
       include: { invoices: true, lines: { include: { product: true, variant: true } }, customer: true },
     });
     const store = new PrismaInventoryStore(this.db);
@@ -215,6 +223,32 @@ export class LiveHealthService {
     }
 
     return { quotes: quoteInputs, orders: orderInputs, settings, now };
+  }
+
+  private async quoteScope(actor: SessionActor): Promise<Prisma.QuoteWhereInput> {
+    if (actor.role === "SALES_REP") {
+      const id = await prismaUserIdForActor(actor);
+      if (!id) throw new ApiFailure("UNAUTHENTICATED", "Actor is not a database user.");
+      return { repId: id };
+    }
+    if (actor.role === "SALES_MANAGER") {
+      const id = await prismaUserIdForActor(actor);
+      if (!id) throw new ApiFailure("UNAUTHENTICATED", "Actor is not a database user.");
+      const user = await this.db.user.findUnique({ where: { id }, select: { teamId: true } });
+      if (!user?.teamId) throw new ApiFailure("FORBIDDEN", "Sales manager has no assigned team.");
+      return { teamId: user.teamId };
+    }
+    return {};
+  }
+
+  private async dealScope(actor: SessionActor): Promise<Prisma.HealthFlagWhereInput & Prisma.TaskWhereInput> {
+    const quote = await this.quoteScope(actor);
+    if (Object.keys(quote).length === 0) return {};
+    return { OR: [{ quote }, { order: { sourceRevision: { quote } } }] };
+  }
+
+  private async flagScope(actor: SessionActor): Promise<Prisma.HealthFlagWhereInput> {
+    return this.dealScope(actor);
   }
 
   private toFlag(flag: {

@@ -567,12 +567,31 @@ export class LiveQuoteService {
       this.assertExpectedRevision(quote, input.expectedRevision);
       if (quote.stage === "CONFIRMED" || quote.stage === "REJECTED") throw new ApiFailure("CONFLICT", "This quote cannot receive a proposal.");
       const current = quote.currentRevision!;
-      const existing = await tx.portalMessage.findFirst({
-        where: { quoteId, authorId: actorId, body: input.body.trim(), baseRevisionId: current.id },
+      const fingerprint = JSON.stringify({
+        quoteId,
+        expectedRevision: input.expectedRevision,
+        body: input.body.trim(),
+        lineChanges: input.lineChanges,
+        requestedDeliveryDate: input.requestedDeliveryDate ?? null,
+      });
+      const prior = await tx.auditEvent.findFirst({
+        where: {
+          actorId,
+          action: "CUSTOMER_PROPOSAL",
+          metadata: { path: ["requestKey"], equals: input.requestKey },
+        },
         orderBy: { createdAt: "desc" },
       });
-      if (existing && existing.spawnedRevisionId) {
-        return { proposalId: existing.id, proposedRevisionId: existing.spawnedRevisionId, replayed: true };
+      if (prior) {
+        const meta = jsonObject(prior.metadata);
+        if (meta.fingerprint !== fingerprint || meta.quoteId !== quoteId) {
+          throw new ApiFailure("CONFLICT", "Request key belongs to another proposal.");
+        }
+        return {
+          proposalId: String(meta.proposalId ?? ""),
+          proposedRevisionId: String(meta.proposedRevisionId ?? current.id),
+          replayed: true,
+        };
       }
       const numeric = input.lineChanges.filter((line) => line.quantity !== undefined || line.discountPct !== undefined);
       const nextLines = current.lines.map((line) => {
@@ -612,7 +631,14 @@ export class LiveQuoteService {
         revisionId: revision.id,
         actorId,
         action: "CUSTOMER_PROPOSAL",
-        metadata: { quoteId, requestKey: input.requestKey, baseRevisionId: current.id },
+        metadata: {
+          quoteId,
+          requestKey: input.requestKey,
+          fingerprint,
+          proposalId: message.id,
+          proposedRevisionId: revision.id,
+          baseRevisionId: current.id,
+        },
       });
       return { proposalId: message.id, proposedRevisionId: revision.id, replayed: false };
     });
@@ -1161,7 +1187,8 @@ export class LiveQuoteService {
     if (actor.role === "SALES_MANAGER") {
       const id = await this.resolveActorUserId(actor, db);
       const user = await db.user.findUnique({ where: { id }, select: { teamId: true } });
-      return user?.teamId ? { teamId: user.teamId } : {};
+      if (!user?.teamId) throw new ApiFailure("FORBIDDEN", "Sales manager has no assigned team.");
+      return { teamId: user.teamId };
     }
     return {};
   }
