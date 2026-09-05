@@ -4,7 +4,7 @@ Status: NOT CONNECTED to live services; DEV FIXTURE browser harness verified. In
 
 ## Reusable frontend boundary
 
-`src/contracts/krishna.ts` preserves blueprint PageHeader, StatusBadge, Money, Dialog and DataTable concepts. DataTable adds `rowKey(row)` so owners need not use array indexes. Component implementations bind Slot generics to ReactNode. `RemoteData` separates loading, failed requests and successful data with explicit integration status.
+`src/contracts/krishna.ts` preserves blueprint PageHeader, StatusBadge, Money, Dialog and DataTable concepts. DataTable adds `rowKey(row)` so owners need not use array indexes. Component implementations bind Slot generics to ReactNode. `RemoteData` separates loading, failed requests and successful data with explicit integration status. It also defines quote-builder snapshots, proposal/confirmation results, portal negotiation history, and order/invoice allowlists.
 
 Import Button, Input, Select, Card, PageHeader, StatusBadge, Money, DataTable, Dialog, Tabs, Timeline, EmptyState, ErrorState and LoadingState from `src/components/ui`. Import AppShell, CustomerShell and ShellProvider from `src/components/shell`. Load `src/styles/workspace.css` once in the root layout when Ruchir's scaffold lands. Tokens use Krishna's chosen compact slate/white/teal direction. CSS is ordinary CSS, compatible with the agreed Tailwind scaffold; no competing CSS framework was installed.
 
@@ -12,7 +12,9 @@ Wrap AppShell(children) or CustomerShell(children) in ShellProvider with the ver
 
 Accessible fields require labels; tabs support arrows/Home/End; native modal supports Escape, trapped focus and focus return; tables scroll within a keyboard-focusable region. Money preserves canonical decimal precision using BigInt for grouping, supports negative amounts, and displays Unavailable for invalid or unrounded input instead of inventing totals. Theme adoption should be additive when teammate routes arrive.
 
-`tests/ui-preview.tsx` is the reusable DEV FIXTURE showcase, consuming `src/fixtures/krishna.ts`. Never import it into a production route. A temporary React/esbuild validation harness outside the repo serves it at localhost:4173; it is not the Next.js application. Production files do not import fixtures. No backend route or application package was introduced.
+`src/features/recommendations/service.ts` adds preview loading (propagates failures) and current-revision Add-to-quote forwarding with an idempotency key; `RecommendationPanel.tsx` renders ranked impact, Add and local Dismiss behavior. `src/features/portal/mutations.ts` validates customer actor, revision and proposed terms, preserves delivery dates as proposals, filters empty line changes and forwards to Atharva's revision/confirmation ports. `PortalNegotiation.tsx` renders current/proposed terms, conversation history, proposal submission and confirmation gating. `src/features/portal/read-records.ts` adds customer-scoped order/invoice reads with explicit nested allowlists. No portal mutation writes persistence or order tables locally.
+
+`src/features/builder/QuoteBuilder.tsx`, `src/features/entry/AuthForm.tsx`, and `src/features/home/SalesHome.tsx` provide the remaining Krishna-owned presentation boundaries. The builder renders canonical totals, recurring groups, margin and recommendation actions; it does not calculate authoritative financial values. `tests/ui-preview.tsx` remains the reusable DEV FIXTURE showcase, and `tests/interaction-preview.tsx` exercises builder Add and portal proposal flows with explicit fake ports. Neither harness file may be imported into a production route. A temporary React/esbuild validation harness outside the repo serves them at localhost:4173; it is not the Next.js application. Production files do not import fixtures. No backend route or application package was introduced.
 
 ## Producer review needed
 
@@ -37,9 +39,9 @@ Proposal/confirmation types describe Atharva's boundary only. No write service i
 - [x] Krishna confirmed the commitment rule below; documented in AGENTS.md.
 - [ ] Ruchir supplies scaffold/package choices (ownership explicitly retained).
 - [ ] Agree producer adapter bindings and data models; typed development examples exist in src/fixtures/krishna.ts, seed assembly still needs coordination.
-- [ ] Wire recommendation previews and Add to actual canonical quote mutation; rule configuration API and drawer.
-- [ ] Implement proposal persistence/history and canonical reevaluation, date review and confirmation.
-- [ ] Implement entry/login, home, builder and customer quote/order/invoice screens.
+- [x] Wire recommendation preview loading, Add forwarding and local Dismiss through canonical ports; rule configuration API and drawer remain pending.
+- [x] Implement proposal validation/history display and canonical reevaluation/confirmation ports; persistence and producer integration remain pending.
+- [x] Implement reusable entry/auth, home, builder and customer quote/order/invoice presentation boundaries; route wiring remains pending.
 - [ ] Typecheck/build; live role flows; actual network allowlist inspection; stale, pending and duplicate confirmation checks.
 
 ## Confirmed shared commitment rule
@@ -48,9 +50,9 @@ Before final customer acceptance, allow read-only warehouse split suggestions an
 
 ## Verification for this increment
 
-- `node --experimental-strip-types --test tests/krishna.test.mjs`: 12/12 pass under Node 22.18.0. Covers qualification including unhealthy promoted fallback, discount repricing, dedup/dismissal, deterministic ordering, invalid inputs, membership guards and nested response allowlisting.
-- External harness strict TypeScript check: `node node_modules/typescript/bin/tsc -p tsconfig.json`, with ES2022, strict, noEmit, react-jsx and React types mapped to the harness. Passed against source files and tests/ui-preview.tsx; this does not establish Next.js application build compatibility. `node check-money.mjs` passed four precision/validation assertions including above-safe-integer and negative fractional amounts.
-- External esbuild bundle compiled; browser verified desktop and 390x844 customer layout, contained wide-table overflow, role-filtered navigation, refresh callback, keyboard tabs, modal Escape/focus return, error/retry, and logout failure display. Browser error/warning log: empty.
+- `node --experimental-strip-types --test tests/krishna.test.mjs`: 17/17 pass under Node 22.18.0. Covers qualification including unhealthy promoted fallback, discount repricing, dedup/dismissal, deterministic ordering, invalid inputs, current-revision/idempotency forwarding, proposal validation, membership guards, nested quote/order/invoice response allowlisting and propagated repository errors.
+- External harness strict TypeScript check: `node node_modules/typescript/bin/tsc -p tsconfig.json`, with ES2022, strict, noEmit, react-jsx and React types mapped to the harness. Passed against all source files and both preview files; this does not establish Next.js application build compatibility. `node check-money.mjs` passed four precision/validation assertions including above-safe-integer and negative fractional amounts.
+- External esbuild bundle compiled; browser verified desktop and 390x844 customer layout, contained wide-table overflow, role-filtered navigation, refresh callback, keyboard tabs, modal Escape/focus return, error/retry, failed logout display, recommendation Add producing revision-2 and ₹4,43,000, portal proposal message/history, proposed revision-2 and disabled confirmation while PENDING APPROVAL. A clean browser tab had no warning/error logs after rebuild.
 - No actual portal HTTP API exists: network-field leakage, live session isolation, canonical Add updating quotes, approval/stale/duplicate confirmation and transactional behavior are not verified. No end-to-end completion claim.
 
 Validation-only harness used TypeScript 5.9.2, React/React DOM 19.1.1, @types/react 19.1.10, @types/react-dom 19.1.9 and esbuild 0.25.9 outside the repository. These do not select or pin the team's production versions.

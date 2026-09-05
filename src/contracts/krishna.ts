@@ -96,3 +96,72 @@ export interface CanonicalQuotePort<QuoteResult, ProposalResult, ConfirmationRes
   /** Producer owns transactional approval/revision checks and repeat-safe order creation. */
   confirmOrder(request: RevisionRequest, actor: PortalActor): Promise<ConfirmationResult>;
 }
+
+export type RecommendationPreviewRequest = {
+  quoteId: string; expectedRevision: string; customerId: string; dismissedProductIds: readonly string[];
+};
+export interface RecommendationPreviewPort {
+  /** Producer resolves customer pricing, discounts, compatibility and margin. */
+  preview(request: RecommendationPreviewRequest): Promise<RecommendationInput>;
+}
+
+export interface ProposalResult {
+  quote: PortalQuote;
+  proposalId: string;
+  proposedRevision: string;
+  approvalStatus: string;
+  messages: PortalMessage[];
+}
+export interface ConfirmationResult {
+  orderId: string;
+  quoteId: string;
+  revision: string;
+  created: boolean;
+  fulfillmentStatus: string;
+}
+export interface PortalMessage {
+  id: string; sender: 'CUSTOMER' | 'SALES_REP' | 'SALES_MANAGER' | 'FINANCE_OPS';
+  createdAt: string; body: string; lineId: string | null; kind: 'QUESTION' | 'PROPOSAL' | 'RESPONSE';
+}
+export interface PortalNegotiationView {
+  current: PortalQuote;
+  proposed: PortalQuote | null;
+  messages: PortalMessage[];
+  approvalStatus: string;
+  acceptance: { revision: string; acceptedAt: string } | null;
+}
+export interface PortalNegotiationPort {
+  proposeRevision(request: ProposalRequest, actor: PortalActor): Promise<ProposalResult>;
+  confirmOrder(request: RevisionRequest, actor: PortalActor): Promise<ConfirmationResult>;
+}
+export type PortalProposalInput = Omit<ProposalRequest, 'requestKey'> & { requestKey?: string };
+export type PortalConfirmationInput = Omit<RevisionRequest, 'requestKey'> & { requestKey?: string };
+
+export interface PortalOrderLine { id: string; description: string; quantity: number; status: string }
+export interface PortalOrder {
+  id: string; quoteId: string; revision: string; status: string; promisedDeliveryDate: string | null;
+  lines: PortalOrderLine[];
+}
+export interface PortalInvoiceLine { id: string; description: string; quantity: number; total: DecimalString }
+export interface PortalInvoice {
+  id: string; status: string; currency: string; dueDate: string; subtotal: DecimalString;
+  tax: DecimalString; total: DecimalString; outstanding: DecimalString; lines: PortalInvoiceLine[];
+}
+export interface PortalOrderReadRepository {
+  findOrderForCustomer(orderId: string, customerId: string): Promise<(PortalOrder & { customerId: string }) | null>;
+}
+export interface PortalInvoiceReadRepository {
+  findInvoiceForCustomer(invoiceId: string, customerId: string): Promise<(PortalInvoice & { customerId: string }) | null>;
+}
+
+export interface QuoteBuilderLine {
+  id: string; productId: string; variantId: string; description: string; quantity: number;
+  discountPct: number; interval: BillingInterval; unitPrice: DecimalString;
+}
+export interface QuoteBuilderSnapshot {
+  quoteId: string; revision: string; customerId: string; customerName: string; currency: string;
+  lines: QuoteBuilderLine[];
+  totals: { interval: BillingInterval; subtotal: DecimalString; tax: DecimalString; total: DecimalString }[];
+  margin: { amount: DecimalString; percentage: number } | null;
+  approvalStatus: string; connection: ConnectionStatus;
+}

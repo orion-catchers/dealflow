@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { rankRecommendations } from '../src/features/recommendations/rank.ts';
 import { readPortalQuote } from '../src/features/portal/read-quote.ts';
+import { addRecommendation, dismissRecommendation, loadRecommendations } from '../src/features/recommendations/service.ts';
+import { confirmPortalQuote, PortalValidationError, submitPortalProposal } from '../src/features/portal/mutations.ts';
+import { readPortalInvoice, readPortalOrder } from '../src/features/portal/read-records.ts';
 
 // DEV FIXTURE: canonical preview outputs, not a substitute pricing engine.
 const rule = (patch = {}) => ({ id: 'dock-rule', baseProductId: 'laptop', candidateProductId: 'dock', coPurchaseScore: 10, promotionLabel: null, minimumMarginPct: 20, active: true, ...patch });
@@ -48,6 +51,17 @@ test('invalid and duplicate configuration cannot silently qualify', () => {
   assert.deepEqual(rankRecommendations(input({ rules: [rule({ minimumMarginPct: -1 })] })), []);
   assert.throws(() => rankRecommendations(input({ rules: [rule(), rule()] })), /Duplicate/);
 });
+test('recommendation add requires and forwards the current revision and idempotency key', async () => {
+  let received;
+  const result = await addRecommendation({ addLine: async request => { received = request; return { revision: 'revision-2' }; } }, { quoteId: 'quote-a', expectedRevision: 'revision-1', productId: 'dock', variantId: 'dock-standard', quantity: 1 }, 'recommendation-retry-1');
+  assert.deepEqual(received, { quoteId: 'quote-a', expectedRevision: 'revision-1', productId: 'dock', variantId: 'dock-standard', quantity: 1, requestKey: 'recommendation-retry-1' });
+  assert.deepEqual(result, { revision: 'revision-2' });
+});
+test('recommendation preview failures propagate with no fixture fallback and dismissals are unique', async () => {
+  await assert.rejects(loadRecommendations({ preview: async () => { throw new Error('pricing unavailable'); } }, { quoteId: 'quote-a', expectedRevision: 'revision-1', customerId: 'customer-acme', dismissedProductIds: [] }), /pricing unavailable/);
+  assert.deepEqual(dismissRecommendation(['dock', 'mouse'], 'dock'), ['dock', 'mouse']);
+  assert.deepEqual(dismissRecommendation([], 'dock'), ['dock']);
+});
 
 const actor = { id: 'customer-neha', role: 'CUSTOMER', active: true, customerId: 'customer-acme' };
 const quote = {
@@ -79,4 +93,38 @@ test('invalid sessions are denied before invoking repository', async () => {
 test('missing quote and repository failure stay failures with no fixture fallback', async () => {
   await assert.rejects(readPortalQuote(actor, 'missing', { findQuoteForCustomer: async () => null }), { status: 404 });
   await assert.rejects(readPortalQuote(actor, 'quote-a', { findQuoteForCustomer: async () => { throw new Error('Database unavailable'); } }), /Database unavailable/);
+});
+
+const portalActor = { id: 'customer-neha', role: 'CUSTOMER', active: true, customerId: 'customer-acme' };
+test('customer proposal filters empty lines, validates terms and preserves date as a proposal', async () => {
+  let received;
+  const response = { proposalId: 'proposal-1', proposedRevision: 'revision-2', approvalStatus: 'PENDING_APPROVAL', quote: {}, messages: [] };
+  const result = await submitPortalProposal({ proposeRevision: async request => { received = request; return response; } }, portalActor, { quoteId: 'quote-a', expectedRevision: 'revision-1', lineChanges: [{ lineId: 'line-1' }, { lineId: 'line-1', comment: 'Need delivery clarity', quantity: 3, discountPct: 16 }], requestedDeliveryDate: '2026-10-01' });
+  assert.equal(result.proposalId, 'proposal-1');
+  assert.equal(received.quoteId, 'quote-a'); assert.equal(received.expectedRevision, 'revision-1'); assert.equal(received.requestedDeliveryDate, '2026-10-01');
+  assert.deepEqual(received.lineChanges, [{ lineId: 'line-1', comment: 'Need delivery clarity', quantity: 3, discountPct: 16 }]);
+  assert.match(received.requestKey, /^portal-proposal-/);
+  await assert.rejects(submitPortalProposal({ proposeRevision: async () => response }, portalActor, { quoteId: 'quote-a', expectedRevision: 'revision-1', lineChanges: [] }), { name: 'PortalValidationError', status: 422 });
+  await assert.rejects(submitPortalProposal({ proposeRevision: async () => response }, portalActor, { quoteId: 'quote-a', expectedRevision: 'revision-1', lineChanges: [{ lineId: 'line-1', quantity: 0 }] }), { name: 'PortalValidationError', status: 422 });
+  await assert.doesNotReject(submitPortalProposal({ proposeRevision: async request => { assert.equal(request.lineChanges.length, 0); return response; } }, portalActor, { quoteId: 'quote-a', expectedRevision: 'revision-1', lineChanges: [], requestedDeliveryDate: '2026-10-01' }));
+  await assert.rejects(submitPortalProposal({ proposeRevision: async () => response }, { ...portalActor, role: 'ADMIN' }, { quoteId: 'quote-a', expectedRevision: 'revision-1', lineChanges: [], requestedDeliveryDate: '2026-10-01' }), { name: 'PortalValidationError', status: 422 });
+});
+test('customer confirmation forwards exact revision and stable caller-owned key can be used for replay', async () => {
+  let received; let calls = 0;
+  const result = await confirmPortalQuote({ confirmOrder: async request => { received = request; calls++; return { orderId: 'order-1', quoteId: request.quoteId, revision: request.expectedRevision, created: calls === 1, fulfillmentStatus: 'PENDING' }; } }, portalActor, { quoteId: 'quote-a', expectedRevision: 'revision-1', requestKey: 'confirm-retry-1' });
+  assert.deepEqual(result, { orderId: 'order-1', quoteId: 'quote-a', revision: 'revision-1', created: true, fulfillmentStatus: 'PENDING' });
+  assert.equal(received.quoteId, 'quote-a'); assert.equal(received.expectedRevision, 'revision-1'); assert.equal(received.requestKey, 'confirm-retry-1');
+  await assert.rejects(confirmPortalQuote({ confirmOrder: async () => { throw new Error('stale revision'); } }, portalActor, { quoteId: '', expectedRevision: 'revision-1' }), { name: 'PortalValidationError', status: 422 });
+});
+
+const unsafeOrder = { id: 'order-a', customerId: 'customer-acme', quoteId: 'quote-a', revision: 'revision-1', status: 'PENDING', promisedDeliveryDate: '2026-10-10', internalMargin: '999', internalNotes: 'PRIVATE', lines: [{ id: 'order-line-1', description: 'Laptop', quantity: 2, status: 'BACKORDERED', cost: '40000', margin: 20 }] };
+const unsafeInvoice = { id: 'invoice-a', customerId: 'customer-acme', status: 'PARTIALLY_PAID', currency: 'INR', dueDate: '2026-10-31', subtotal: '100000.00', tax: '18000.00', total: '118000.00', outstanding: '59000.00', internalCost: '80000.00', lines: [{ id: 'invoice-line-1', description: 'Laptop', quantity: 2, total: '118000.00', cost: '80000.00', margin: 32 }] };
+test('portal order and invoice reads scope by customer and allowlist nested financial records', async () => {
+  const order = await readPortalOrder(portalActor, 'order-a', { findOrderForCustomer: async (id, customerId) => { assert.equal(id, 'order-a'); assert.equal(customerId, 'customer-acme'); return unsafeOrder; } });
+  const invoice = await readPortalInvoice(portalActor, 'invoice-a', { findInvoiceForCustomer: async (id, customerId) => { assert.equal(id, 'invoice-a'); assert.equal(customerId, 'customer-acme'); return unsafeInvoice; } });
+  const payload = JSON.stringify({ order, invoice });
+  for (const field of ['internalMargin', 'internalNotes', 'internalCost', 'cost', 'margin', 'customerId', 'PRIVATE']) assert.equal(payload.includes(field), false);
+  assert.equal(order.lines[0].status, 'BACKORDERED'); assert.equal(invoice.outstanding, '59000.00');
+  await assert.rejects(readPortalOrder({ ...portalActor, customerId: 'customer-beta' }, 'order-a', { findOrderForCustomer: async () => unsafeOrder }), { status: 404 });
+  await assert.rejects(readPortalInvoice(portalActor, 'missing', { findInvoiceForCustomer: async () => null }), { status: 404 });
 });
