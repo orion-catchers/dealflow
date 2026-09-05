@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+test-results/
 
 # next.js
 /.next/
@@ -46,3 +47,6 @@ next-env.d.ts
 
 # local implementation notes
 ATHARVA_IMPLEMENTATION_PROMPT.md
+
+# Krishna local fixture persistence
+.dealflow-development/

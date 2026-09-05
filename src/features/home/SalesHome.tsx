@@ -1,0 +1,12 @@
+import type { ReactNode } from 'react';
+import { Card, DataTable, EmptyState, Money, PageHeader, StatusBadge } from '../../components/ui';
+
+export interface SalesHomeSummary {
+  openQuotes: number; pendingApprovals: number; atRiskDeals: number;
+  recentEvents: { id: string; title: string; detail: string; timestamp: string }[];
+  nextActions: { id: string; title: string; href: string; status: string }[];
+  currency: string; pipelineValue: string;
+}
+export function SalesHome({ summary, connection = 'NOT CONNECTED', actions }: { summary: SalesHomeSummary; connection?: 'LIVE' | 'DEV FIXTURE' | 'NOT CONNECTED'; actions?: ReactNode }) {
+  return <div><PageHeader title="Sales home" description="A current view of the deals that need action." actions={<><StatusBadge status={connection} />{actions}</>} /><div className="df-summary-grid"><Card title="Open quotes"><strong className="df-summary-number">{summary.openQuotes}</strong><a href="/quotes">View quotations</a></Card><Card title="Pending approvals"><strong className="df-summary-number">{summary.pendingApprovals}</strong><a href="/approvals">View approvals</a></Card><Card title="At-risk deals"><strong className="df-summary-number df-summary-number--risk">{summary.atRiskDeals}</strong><a href="/health">Review deal health</a></Card><Card title="Pipeline value"><strong className="df-summary-money"><Money amount={summary.pipelineValue} currency={summary.currency} /></strong><a href="/pipeline">Open pipeline</a></Card></div><div className="df-home-grid"><Card title="Next actions">{summary.nextActions.length ? <DataTable columns={[{ id: 'action', heading: 'Action', render: action => <a href={action.href}>{action.title}</a> }, { id: 'status', heading: 'Status', render: action => <StatusBadge status={action.status} /> }]} rows={summary.nextActions} rowKey={action => action.id} loading={false} emptyMessage="No actions" /> : <EmptyState title="No next actions" description="Your assigned deals are up to date." />}</Card><Card title="Recent activity">{summary.recentEvents.length ? <ul className="df-events">{summary.recentEvents.map(event => <li key={event.id}><strong>{event.title}</strong><span>{event.detail}</span><time dateTime={event.timestamp}>{event.timestamp}</time></li>)}</ul> : <EmptyState title="No recent activity" />}</Card></div><div className="df-home-cta"><a className="df-button df-button--primary" href="/quotes/new">New quote</a></div></div>;
+}
