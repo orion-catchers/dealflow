@@ -440,6 +440,7 @@ export interface CancelAllocationInput {
 /** Row on Screen 07 (Fulfillment and Stock List). */
 export interface FulfillmentListItem {
   orderId: string;
+  label: string;
   customerName: string;
   confirmedAt: IsoTimestamp;
   promisedDate?: IsoDate;

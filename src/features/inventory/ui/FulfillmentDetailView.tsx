@@ -67,6 +67,13 @@ function savedMessage(replayed: boolean): string {
   return replayed ? "Already applied (replayed) — no duplicate reservation" : "Saved";
 }
 
+function fulfillmentHeading(order: FulfillmentDetail["order"]): string {
+  const names = [...new Set(order.lines.map((line) => line.productName).filter(Boolean))];
+  if (names.length === 1) return `${names[0]} · delivery`;
+  if (names.length > 1) return `${names[0]} + ${names.length - 1} more · delivery`;
+  return `${order.customerName} · delivery`;
+}
+
 type DialogKind = "accept" | "override" | "consolidate" | "ship" | "deliver" | "cancel" | null;
 
 export function FulfillmentDetailView({ orderId }: { orderId: string }) {
@@ -264,7 +271,7 @@ export function FulfillmentDetailView({ orderId }: { orderId: string }) {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={data.order.orderId}
+        title={fulfillmentHeading(data.order)}
         description={`${data.order.customerName} · Promised ${data.order.promisedDate ?? "—"}`}
         actions={
           <>

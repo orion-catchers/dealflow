@@ -4,7 +4,7 @@ import {Suspense,useCallback,useEffect,useState} from 'react';
 import {usePathname,useRouter} from 'next/navigation';
 import {BarChart3,Boxes,CircleCheck,CreditCard,FileText,HeartPulse,LayoutDashboard,LogOut,Menu,Package,PanelLeft,PanelLeftClose,Repeat,Settings,Settings2,ShieldCheck,UsersRound} from 'lucide-react';
 import type {Actor,DataState,Role} from '../../contracts/application';
-import {api,Button,Heading,Input,Link,Money,Section,StatusBadge,Table,newId,type Context} from './shared';
+import {api,Button,Heading,Input,Link,Money,Section,StatusBadge,Table,newId,quoteTitle,OpenLink,type Context} from './shared';
 import Quotes from './Quotes';
 import Operations from './Operations';
 import Setup from './Setup';
@@ -343,7 +343,7 @@ function Home({ctx}:{ctx:Context}){
   return <>
     <Heading title={`Good to see you, ${actor.name.split(' ')[0]}`} description="A clear view of your pipeline and the work that needs you next."><Link className="primary-link" href="/quotes/new">New quotation</Link></Heading>
     <div className="metrics">{metrics.map(([name,value,url])=><Link className="metric" href={String(url)} key={name}><span>{name}</span><strong>{value}</strong><small>View details</small></Link>)}</div>
-    <Section title="Your recent quotations" actions={<Link href="/quotes">View all</Link>}><Table head={['Quotation','Customer','Status','One-time total','Next step']} rows={d.quotes.slice(0,5).map(q=>[<Link key={q.id} href={'/quotes/'+q.id}>{q.id}<small>{q.name}</small></Link>,d.customers.find(c=>c.id===q.customerId)?.name,<StatusBadge status={q.stage}/>,<Money amount={q.totals.find(t=>t.interval==='ONE_TIME')?.total??'0.00'} currency={q.currency}/>,q.stage==='CONFIRMED'?'Allocate stock':q.evaluation.status==='PENDING'?'Review approval':q.sent?'Await customer acceptance':'Review and send'])}/></Section>
-    <div className="two-columns"><Section title="Commitments at a glance"><p>Warehouse and billing previews do not commit your business. Confirm the current, approved terms with your customer first.</p><Link href="/fulfillment">Review fulfillment</Link></Section><Section title="Team follow-ups">{d.tasks.filter(t=>t.status==='OPEN').length?d.tasks.filter(t=>t.status==='OPEN').map(t=><p key={t.id}><Link href={'/quotes/'+t.quoteId}>{t.text}</Link> · {t.dueDate}</p>):<p>No open follow-ups. Deal health will help you spot the next action.</p>}<Link href="/health">Open deal health</Link></Section></div>
+    <Section title="Your recent quotations" actions={<Link href="/quotes">View all</Link>}><Table head={['Quotation','Customer','Status','One-time total','Next step','']} rows={d.quotes.slice(0,5).map(q=>[quoteTitle(q),d.customers.find(c=>c.id===q.customerId)?.name,<StatusBadge status={q.stage}/>,<Money amount={q.totals.find(t=>t.interval==='ONE_TIME')?.total??'0.00'} currency={q.currency}/>,q.stage==='CONFIRMED'?'Allocate stock':q.evaluation.status==='PENDING'?'Review approval':q.sent?'Await customer acceptance':'Review and send',<OpenLink key={q.id} href={'/quotes/'+q.id}/>])}/></Section>
+    <div className="two-columns"><Section title="Commitments at a glance"><p>Warehouse and billing previews do not commit your business. Confirm the current, approved terms with your customer first.</p><Link href="/fulfillment">Review fulfillment</Link></Section><Section title="Team follow-ups">{d.tasks.filter(t=>t.status==='OPEN').length?d.tasks.filter(t=>t.status==='OPEN').map(t=>{const q=d.quotes.find(item=>item.id===t.quoteId);return <p key={t.id}>{t.text} · {t.dueDate} {q?<OpenLink href={'/quotes/'+t.quoteId} variant="secondary">Open</OpenLink>:null}</p>;}):<p>No open follow-ups. Deal health will help you spot the next action.</p>}<Link href="/health">Open deal health</Link></Section></div>
   </>;
 }

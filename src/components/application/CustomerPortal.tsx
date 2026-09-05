@@ -1,31 +1,10 @@
 'use client';
 import {useEffect,useState} from 'react';
 import type {portalData} from '../../features/portal/server';
-import {api,Button,Input,Link,StatusBadge,Money,Heading,Section,Table,FormAction,Events,newId} from './shared';
+import {api,Button,Input,Link,StatusBadge,Money,Heading,Section,Table,FormAction,Events,newId,quoteTitle,orderTitle,invoiceTitle} from './shared';
 import {readPortalCache,rememberPortal} from './portal-cache';
 type Portal=ReturnType<typeof portalData>;
 type PortalQuoteRow=Portal['quotes'][number];
-
-function productLabel(description:string){
-  return description.split('·')[0]?.trim() || description;
-}
-
-function quoteTitle(q:PortalQuoteRow){
-  const names=[...new Set(q.lines.map(l=>productLabel(l.description)).filter(Boolean))];
-  const version=`Version ${q.revision}`;
-  if(!names.length) return `Quotation · ${version}`;
-  if(names.length===1) return `${names[0]} · ${version}`;
-  return `${names[0]} + ${names.length-1} more · ${version}`;
-}
-
-function orderTitle(order:Portal['orders'][number],quotes:PortalQuoteRow[]){
-  const quote=quotes.find(q=>q.id===order.quoteId);
-  return quote?`${quoteTitle(quote).replace(/ · Version .+$/,'')} · delivery`:`Delivery ${order.status.replaceAll('_',' ').toLowerCase()}`;
-}
-
-function invoiceTitle(invoice:Portal['invoices'][number]){
-  return `Invoice due ${invoice.dueDate}`;
-}
 
 export default function CustomerPortal({path}:{path:string}){
   const [data,setData]=useState<Portal|null>(readPortalCache<Portal>());
@@ -47,7 +26,7 @@ export default function CustomerPortal({path}:{path:string}){
   const invoice=data.invoices.find(item=>item.id===id);
   const order=data.orders.find(item=>item.id===id);
   if(id&&!q&&!invoice&&!order)return <><Heading title="Record unavailable" description="This record is not available to your account."/><Link href="/portal">Back to your deals</Link></>;
-  const headingTitle=q?quoteTitle(q):invoice?invoiceTitle(invoice):order?orderTitle(order,data.quotes):'Your deals';
+  const headingTitle=q?quoteTitle(q):invoice?invoiceTitle(invoice):order?orderTitle(order,data.quotes.find(item=>item.id===order.quoteId)):'Your deals';
   const headingDescription=q?`Current version ${q.revision}. Review terms, ask a question, or accept when approval is complete.`:'Review quotations, follow deliveries, and open invoices.';
   return <>
     <Heading title={headingTitle} description={headingDescription}>{id&&<Link href="/portal" className="df-button df-button--secondary">All your records</Link>}</Heading>
@@ -74,7 +53,7 @@ function PortalHome({data}:{data:Portal}){
       <Table
         head={['Order','Status','Delivery promise','']}
         rows={data.orders.map(o=>[
-          orderTitle(o,data.quotes),
+          orderTitle(o,data.quotes.find(item=>item.id===o.quoteId)),
           <StatusBadge status={o.status}/>,
           o.promisedDate??'Not yet agreed',
           <Link href={'/portal/orders/'+o.id} className="df-button df-button--secondary">Open</Link>,

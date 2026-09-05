@@ -915,10 +915,10 @@ function ReceiptResultView({ result }: { result: ReceiptResult }) {
             {result.eligibleBackorders.map((item) => (
               <li key={item.backorder.id} className="flex flex-wrap items-baseline justify-between gap-2">
                 <span>
-                  {item.orderId} · {item.customerName} · coverable {item.coverable}
+                  {item.customerName} · coverable {item.coverable}
                 </span>
-                <Link className="text-blue-800 underline" href={`/fulfillment/${item.orderId}`}>
-                  Open fulfillment
+                <Link className="df-button df-button--secondary" href={`/fulfillment/${item.orderId}`}>
+                  Open
                 </Link>
               </li>
             ))}

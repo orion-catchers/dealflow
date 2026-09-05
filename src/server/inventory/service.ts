@@ -63,6 +63,13 @@ const INTERNAL_ROLES: Role[] = ["ADMIN", "SALES_REP", "SALES_MANAGER", "FINANCE"
 const MUTATION_ROLES: Role[] = ["FINANCE", "ADMIN"];
 const CONFIG_ROLES: Role[] = ["ADMIN"];
 
+function fulfillmentListLabel(order: OrderForFulfillment): string {
+  const names = [...new Set(order.lines.map((line) => line.productName).filter(Boolean))];
+  if (names.length === 1) return `${names[0]} · delivery`;
+  if (names.length > 1) return `${names[0]} + ${names.length - 1} more · delivery`;
+  return `${order.customerName} · delivery`;
+}
+
 export type WarehouseCreateInput = Omit<Warehouse, "id" | "active"> & { id?: string; active?: boolean };
 export type WarehouseUpdateInput = Partial<Omit<Warehouse, "id">>;
 
@@ -147,6 +154,7 @@ export class FulfillmentService {
       const state = await this.loadState(this.repo, rec.order.orderId);
       items.push({
         orderId: rec.order.orderId,
+        label: fulfillmentListLabel(rec.order),
         customerName: rec.order.customerName,
         confirmedAt: rec.order.confirmedAt,
         promisedDate: rec.order.promisedDate,

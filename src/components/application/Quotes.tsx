@@ -18,6 +18,8 @@ import {
   FormAction,
   Events,
   newId,
+  quoteTitle,
+  OpenLink,
   type Context,
 } from "./shared";
 export default function Quotes({ ctx }: { ctx: Context }) {
@@ -78,7 +80,7 @@ export default function Quotes({ ctx }: { ctx: Context }) {
     (q) =>
       (!approval || q.evaluation.status !== "NOT_REQUIRED") &&
       (!status || (approval ? q.evaluation.status : q.stage) === status) &&
-      `${q.id} ${q.name} ${d.customers.find((c) => c.id === q.customerId)?.name}`
+      `${quoteTitle(q)} ${d.customers.find((c) => c.id === q.customerId)?.name}`
         .toLowerCase()
         .includes(search.toLowerCase()),
   );
@@ -139,15 +141,8 @@ export default function Quotes({ ctx }: { ctx: Context }) {
               {rows
                 .filter((q) => q.stage === stage)
                 .map((q) => (
-                  <Link
-                    href={"/quotes/" + q.id}
-                    className="pipeline-deal"
-                    key={q.id}
-                  >
-                    <strong>{q.name}</strong>
-                    <small>
-                      {q.id} · {q.revision}
-                    </small>
+                  <article className="pipeline-deal" key={q.id}>
+                    <strong>{quoteTitle(q)}</strong>
                     <span>
                       {d.customers.find((c) => c.id === q.customerId)?.name}
                     </span>
@@ -157,7 +152,8 @@ export default function Quotes({ ctx }: { ctx: Context }) {
                         {t.interval}
                       </small>
                     ))}
-                  </Link>
+                    <OpenLink href={"/quotes/" + q.id} />
+                  </article>
                 ))}
             </section>
           ))}
@@ -166,20 +162,16 @@ export default function Quotes({ ctx }: { ctx: Context }) {
         <Section title={approval ? "Requests" : "All quotations"}>
           <Table
             head={[
-              "Reference / deal",
+              "Quotation",
               "Customer",
-              "Revision",
               "Status",
               approval ? "Assigned next" : "Charges",
               "Updated",
+              "",
             ]}
             rows={rows.map((q) => [
-              <Link href={(approval ? "/approvals/" : "/quotes/") + q.id}>
-                {q.id}
-                <small>{q.name}</small>
-              </Link>,
+              quoteTitle(q),
               d.customers.find((c) => c.id === q.customerId)?.name,
-              q.revision,
               <StatusBadge status={approval ? q.evaluation.status : q.stage} />,
               approval
                 ? (q.evaluation.chain[q.evaluation.step] ?? "Review complete")
@@ -190,6 +182,7 @@ export default function Quotes({ ctx }: { ctx: Context }) {
                     </small>
                   )),
               new Date(q.at).toLocaleDateString(),
+              <OpenLink href={(approval ? "/approvals/" : "/quotes/") + q.id} />,
             ])}
           />
         </Section>
@@ -253,8 +246,8 @@ function QuoteDetail({
   return (
     <>
       <Heading
-        title={q.name}
-        description={`${q.id} · ${q.revision} · ${d.customers.find((c) => c.id === q.customerId)?.name}`}
+        title={quoteTitle(q)}
+        description={`${d.customers.find((c) => c.id === q.customerId)?.name ?? "Customer"} · current version ${q.revision}`}
       >
         <StatusBadge status={q.stage} />
         <Link href={approval ? "/approvals" : "/quotes"}>Back to list</Link>
@@ -270,7 +263,7 @@ function QuoteDetail({
             : "Delivery date not promised"}
         </span>
         {q.orderId && (
-          <Link href={"/fulfillment/" + q.orderId}>Order {q.orderId} →</Link>
+          <OpenLink href={"/fulfillment/" + q.orderId} variant="secondary">Open order</OpenLink>
         )}
       </div>
       {error && (

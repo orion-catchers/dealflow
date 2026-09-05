@@ -60,13 +60,9 @@ export function FulfillmentList() {
 
   const orderColumns: Column<FulfillmentListItem>[] = [
     {
-      key: "orderId",
+      key: "order",
       header: "Order",
-      render: (row) => (
-        <Link href={`/fulfillment/${row.orderId}`} className="font-medium text-blue-700 hover:underline">
-          {row.orderId}
-        </Link>
-      ),
+      render: (row) => row.label,
     },
     { key: "customer", header: "Customer", render: (row) => row.customerName },
     { key: "confirmed", header: "Confirmed", render: (row) => fmtDate(row.confirmedAt) },
@@ -85,6 +81,15 @@ export function FulfillmentList() {
       ),
     },
     { key: "shipments", header: "Shipments", align: "right", render: (row) => row.shipmentCount },
+    {
+      key: "open",
+      header: "",
+      render: (row) => (
+        <Link href={`/fulfillment/${row.orderId}`} className="df-button df-button--primary">
+          Open
+        </Link>
+      ),
+    },
   ];
 
   const stockColumns: Column<StockListItem>[] = [
@@ -281,10 +286,10 @@ function StockReceiptForm({ stock, onDone }: { stock: StockListItem[]; onDone: (
         <ul className="mt-2 list-disc pl-5 text-sm">
           {eligible.map((item) => (
             <li key={item.backorder.id}>
-              <Link href={`/fulfillment/${item.orderId}`} className="text-blue-700 hover:underline">
-                {item.orderId}
+              <Link href={`/fulfillment/${item.orderId}`} className="df-button df-button--secondary">
+                Open
               </Link>{" "}
-              · {item.customerName} · coverable {item.coverable}
+              {item.customerName} · coverable {item.coverable}
             </li>
           ))}
         </ul>
