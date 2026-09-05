@@ -394,3 +394,22 @@ Status: LIVE for dedicated Atharva HTTP (`/api/quotes/*`, policies, health, dash
 - Harsh lane complete at DEV FIXTURE. Next for Harsh once schema lands: Prisma adapters
   for `CatalogRepository`, `InventoryRepository`, `ReportRepository` (`set*Repository`
   already exists).
+
+## 2026-09-05T20:05:00+05:30 (Asia/Kolkata) - Owner: Krishna
+
+Completed the customer-tier send-flow increment. The quotation send dialog now requires
+Bronze, Silver, or Gold and sends the selection with `expectedRevision`; the development
+adapter persists it on the assigned customer, and the live Prisma send transaction updates
+the customer before recording `QUOTE_SENT`. The live path maps public `BRONZE` to Prisma's
+existing `STANDARD` enum value. The customer setup tab already supports later tier edits/upgrades
+with the same choices; customer-facing portal projections remain unchanged and do not expose tier.
+
+Files: `src/components/application/Quotes.tsx`, `src/development/adapter.ts`,
+`src/app/api/quotes/[id]/send/route.ts`, `src/server/quotes/live-service.ts`.
+
+Checks: focused ESLint completed with 0 errors (one pre-existing unused-import warning in
+`live-service.ts`); `git diff --check` passed. Repository-wide `tsc --noEmit` remains blocked
+by pre-existing `passwordResetToken` Prisma-client schema drift in
+`src/server/lib/auth/password-reset*.ts`; no new tier-related type errors were reported.
+Vitest could not load the repository config in this sandbox because esbuild received
+`Access is denied` while resolving the config path. No live database/browser E2E was run.

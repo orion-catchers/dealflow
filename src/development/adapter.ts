@@ -1,74 +1,1170 @@
 /** DEVELOPMENT ONLY. All teammate operations are contract simulations. */
-import { randomUUID,randomBytes,createHash } from 'node:crypto';
-import type { Actor, ApplicationAdapter, DataState, TransactionPort, Quote, Line, Order, Invoice, Allocation, Product } from '../contracts/application';
-import { AppError, requireValue,revisionCheck } from '../server/errors';
-import { forms } from '../contracts/forms';
-import { access,freshStore,passwordHash,passwordMatches,type DevelopmentStore } from './store';
-import { candidatePreview,date,dec,event,makeLine,money,newRevision,plusPeriod,reprice } from './pricing';
-const id=(prefix:string)=>`${prefix}-${randomUUID().slice(0,8)}`;
-const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
-function invoice(s:DataState,o:Order,lines:Line[],subscriptionId?:string,period?:string) {const sum=(k:'net'|'tax'|'total')=>money(lines.reduce((n,l)=>n.plus(l[k]),dec(0)));const i:Invoice={id:id('INV'),orderId:o.id,customerId:o.customerId,currency:o.currency,dueDate:plusPeriod(date(),'MONTHLY'),subscriptionId,period,lines:lines.map(l=>({id:l.id,description:l.description,quantity:l.quantity,unitPrice:l.unitPrice,discountPct:l.discountPct,net:l.net,tax:l.tax,total:l.total})),net:sum('net'),tax:sum('tax'),total:sum('total'),paid:'0.00',credited:'0.00',outstanding:sum('total'),status:'UNPAID',events:[]};s.invoices.push(i);return i;}
-function transaction(s:DevelopmentStore):TransactionPort {const d=s.data;return {
-  quote:key=>d.quotes.find(q=>q.id===key),customerQuote:(key,customerId)=>d.quotes.find(q=>q.id===key&&q.customerId===customerId&&q.sent),product:key=>d.products.find(p=>p.id===key),rules:()=>d.rules,saveRules:r=>{d.rules=structuredClone(r);},appendProposal:p=>{d.proposals.push(p);},appendMessage:m=>{d.messages.push(m);},
-  replay<T>(scope:string,key:string,fingerprint:string,perform:()=>T):T {const full=`${scope}:${key}`;const prior=s.requests[full];if(prior){if(prior.fingerprint!==fingerprint)throw new AppError(409,'KEY_REUSE','This operation key was used with different terms');return structuredClone(prior.result) as T;}const result=JSON.parse(JSON.stringify(perform())) as T;s.requests[full]={fingerprint,result:structuredClone(result)};return result;},
-  canonical:{priceCandidate:(q,p,r)=>p.active?candidatePreview(d,q,p,r):{ruleId:r,productId:p.id,variantId:p.variants[0].id,name:p.name,active:false,compatible:false,quoteId:q.id,revision:q.revision,currency:q.currency,quantity:1,interval:p.interval,candidateMarginPct:0,incrementalProfit:'0.00',marginChangePoints:null},
-    addLine(q,productId,variantId,quantity,actor){newRevision(q,actor,'Added a quotation line');q.lines.push(makeLine(d,q,productId,variantId,quantity));reprice(d,q);q.stage=q.sent?'UNDER_NEGOTIATION':'DRAFT';return q;},
-    revise(q,changes,actor){newRevision(q,actor,'Customer counterproposal received');for(const change of changes){const l=q.lines.find(l=>l.id===change.lineId)!;if(change.quantity!==undefined)l.quantity=change.quantity;if(change.discountPct!==undefined)l.discountPct=change.discountPct;}reprice(d,q);q.stage='UNDER_NEGOTIATION';return q;},
-    confirm(q,actor){const existing=d.orders.find(o=>o.quoteId===q.id&&o.revision===q.revision);if(existing)return existing;requireValue(['APPROVED','NOT_REQUIRED'].includes(q.evaluation.status)&&!q.dateReviewPending,'Approval or date review required');const o:Order={id:id('O'),quoteId:q.id,revision:q.revision,customerId:q.customerId,currency:q.currency,lines:structuredClone(q.lines),totals:structuredClone(q.totals),status:'PENDING',promisedDate:q.promisedDate,allocations:[],backorders:[],events:[event(actor,'Customer accepted this revision',q.revision)]};d.orders.push(o);q.stage='CONFIRMED';q.orderId=o.id;q.acceptedAt=new Date().toISOString();q.events.push(event(actor,'Customer accepted; order created',q.revision));const one=q.lines.filter(l=>l.interval==='ONE_TIME');if(one.length)invoice(d,o,one);for(const l of q.lines.filter(l=>l.interval!=='ONE_TIME'))d.subscriptions.push({id:id('SUB'),orderId:o.id,customerId:o.customerId,productId:l.productId,planId:d.products.find(p=>p.id===l.productId)!.planId,quantity:l.quantity,unitPrice:money(dec(l.net).div(l.quantity)),status:'ACTIVE',periodStart:date(),periodEnd:plusPeriod(date(),l.interval),nextBill:date(),events:[]});return o;}
-  }
-};}
-function roles(actor:Actor,...allowed:Actor['role'][]){if(!actor.active||!allowed.includes(actor.role))throw new AppError(403,'FORBIDDEN','Your role cannot perform this action');}
-function getQuote(d:DataState,actor:Actor,key:string){const q=d.quotes.find(q=>q.id===key);if(!q||(actor.role==='SALES_REP'&&q.repId!==actor.id))throw new AppError(404,'NOT_FOUND','Quotation unavailable');return q;}
-export function splitPreview(d:DataState,o:Order):{allocations:Allocation[];backorders:{lineId:string;quantity:number}[];cost:string} {
-  const working=d.stock.map(s=>({...s,available:s.onHand-s.reserved+o.allocations.filter(a=>a.warehouseId===s.warehouseId&&o.lines.find(l=>l.id===a.lineId)?.variantId===s.variantId).reduce((n,a)=>n+a.quantity,0)}));const allocations:Allocation[]=[],backorders:{lineId:string;quantity:number}[]=[];
-  for(const l of o.lines.filter(l=>l.stockTracked)){let remaining=l.quantity;for(const stock of working.filter(s=>s.variantId===l.variantId&&d.warehouses.some(w=>w.id===s.warehouseId&&w.active)).sort((a,b)=>b.available-a.available)){const quantity=Math.min(remaining,stock.available);if(quantity>0){allocations.push({lineId:l.id,warehouseId:stock.warehouseId,quantity});stock.available-=quantity;remaining-=quantity;}}if(remaining>0)backorders.push({lineId:l.id,quantity:remaining});}
-  return {allocations,backorders,cost:money(d.warehouses.filter(w=>allocations.some(a=>a.warehouseId===w.id)).reduce((n,w)=>n.plus(w.shippingCost),dec(0)))};
+import { randomUUID, randomBytes, createHash } from "node:crypto";
+import type {
+  Actor,
+  ApplicationAdapter,
+  DataState,
+  TransactionPort,
+  Quote,
+  Line,
+  Order,
+  Invoice,
+  Allocation,
+  Product,
+} from "../contracts/application";
+import { AppError, requireValue, revisionCheck } from "../server/errors";
+import { forms } from "../contracts/forms";
+import {
+  access,
+  freshStore,
+  passwordHash,
+  passwordMatches,
+  type DevelopmentStore,
+} from "./store";
+import {
+  candidatePreview,
+  date,
+  dec,
+  event,
+  makeLine,
+  money,
+  newRevision,
+  plusPeriod,
+  reprice,
+} from "./pricing";
+const id = (prefix: string) => `${prefix}-${randomUUID().slice(0, 8)}`;
+const hash = (s: string) => createHash("sha256").update(s).digest("hex");
+function invoice(
+  s: DataState,
+  o: Order,
+  lines: Line[],
+  subscriptionId?: string,
+  period?: string,
+) {
+  const sum = (k: "net" | "tax" | "total") =>
+    money(lines.reduce((n, l) => n.plus(l[k]), dec(0)));
+  const i: Invoice = {
+    id: id("INV"),
+    orderId: o.id,
+    customerId: o.customerId,
+    currency: o.currency,
+    dueDate: plusPeriod(date(), "MONTHLY"),
+    subscriptionId,
+    period,
+    lines: lines.map((l) => ({
+      id: l.id,
+      description: l.description,
+      quantity: l.quantity,
+      unitPrice: l.unitPrice,
+      discountPct: l.discountPct,
+      net: l.net,
+      tax: l.tax,
+      total: l.total,
+    })),
+    net: sum("net"),
+    tax: sum("tax"),
+    total: sum("total"),
+    paid: "0.00",
+    credited: "0.00",
+    outstanding: sum("total"),
+    status: "UNPAID",
+    events: [],
+  };
+  s.invoices.push(i);
+  return i;
 }
-function allocate(d:DataState,o:Order,actor:Actor,requested?:Allocation[]){requireValue(!['SHIPPED','DELIVERED','CANCELLED'].includes(o.status),'Only unshipped orders may be allocated');const allocations=requested??splitPreview(d,o).allocations;
-  for(const old of o.allocations){const line=o.lines.find(l=>l.id===old.lineId)!;const stock=d.stock.find(s=>s.warehouseId===old.warehouseId&&s.variantId===line.variantId)!;stock.reserved-=old.quantity;}
-  for(const a of allocations){const line=o.lines.find(l=>l.id===a.lineId);requireValue(line?.stockTracked&&Number.isFinite(a.quantity)&&a.quantity>0,'Invalid allocation line');const stock=d.stock.find(s=>s.warehouseId===a.warehouseId&&s.variantId===line.variantId);requireValue(stock&&stock.onHand-stock.reserved>=a.quantity,'Stock changed or allocation exceeds availability');requireValue(d.warehouses.some(w=>w.id===a.warehouseId&&w.active),'Warehouse unavailable');stock.reserved+=a.quantity;}
-  o.backorders=o.lines.filter(l=>l.stockTracked).flatMap(l=>{const allocated=allocations.filter(a=>a.lineId===l.id).reduce((n,a)=>n+a.quantity,0);requireValue(allocated<=l.quantity,'Allocated quantity exceeds order');return allocated<l.quantity?[{lineId:l.id,quantity:l.quantity-allocated}]:[];});o.allocations=allocations;o.status=o.backorders.length?'PARTIAL':'ALLOCATED';o.events.push(event(actor,'Allocation accepted; stock reserved'));
+function transaction(s: DevelopmentStore): TransactionPort {
+  const d = s.data;
+  return {
+    quote: (key) => d.quotes.find((q) => q.id === key),
+    customerQuote: (key, customerId) =>
+      d.quotes.find(
+        (q) => q.id === key && q.customerId === customerId && q.sent,
+      ),
+    product: (key) => d.products.find((p) => p.id === key),
+    rules: () => d.rules,
+    saveRules: (r) => {
+      d.rules = structuredClone(r);
+    },
+    appendProposal: (p) => {
+      d.proposals.push(p);
+    },
+    appendMessage: (m) => {
+      d.messages.push(m);
+    },
+    replay<T>(
+      scope: string,
+      key: string,
+      fingerprint: string,
+      perform: () => T,
+    ): T {
+      const full = `${scope}:${key}`;
+      const prior = s.requests[full];
+      if (prior) {
+        if (prior.fingerprint !== fingerprint)
+          throw new AppError(
+            409,
+            "KEY_REUSE",
+            "This operation key was used with different terms",
+          );
+        return structuredClone(prior.result) as T;
+      }
+      const result = JSON.parse(JSON.stringify(perform())) as T;
+      s.requests[full] = { fingerprint, result: structuredClone(result) };
+      return result;
+    },
+    canonical: {
+      priceCandidate: (q, p, r) =>
+        p.active
+          ? candidatePreview(d, q, p, r)
+          : {
+              ruleId: r,
+              productId: p.id,
+              variantId: p.variants[0].id,
+              name: p.name,
+              active: false,
+              compatible: false,
+              quoteId: q.id,
+              revision: q.revision,
+              currency: q.currency,
+              quantity: 1,
+              interval: p.interval,
+              candidateMarginPct: 0,
+              incrementalProfit: "0.00",
+              marginChangePoints: null,
+            },
+      addLine(q, productId, variantId, quantity, actor) {
+        newRevision(q, actor, "Added a quotation line");
+        q.lines.push(makeLine(d, q, productId, variantId, quantity));
+        reprice(d, q);
+        q.stage = q.sent ? "UNDER_NEGOTIATION" : "DRAFT";
+        return q;
+      },
+      revise(q, changes, actor) {
+        newRevision(q, actor, "Customer counterproposal received");
+        for (const change of changes) {
+          const l = q.lines.find((l) => l.id === change.lineId)!;
+          if (change.quantity !== undefined) l.quantity = change.quantity;
+          if (change.discountPct !== undefined)
+            l.discountPct = change.discountPct;
+        }
+        reprice(d, q);
+        q.stage = "UNDER_NEGOTIATION";
+        return q;
+      },
+      confirm(q, actor) {
+        const existing = d.orders.find(
+          (o) => o.quoteId === q.id && o.revision === q.revision,
+        );
+        if (existing) return existing;
+        requireValue(
+          ["APPROVED", "NOT_REQUIRED"].includes(q.evaluation.status) &&
+            !q.dateReviewPending,
+          "Approval or date review required",
+        );
+        const o: Order = {
+          id: id("O"),
+          quoteId: q.id,
+          revision: q.revision,
+          customerId: q.customerId,
+          currency: q.currency,
+          lines: structuredClone(q.lines),
+          totals: structuredClone(q.totals),
+          status: "PENDING",
+          promisedDate: q.promisedDate,
+          allocations: [],
+          backorders: [],
+          events: [event(actor, "Customer accepted this revision", q.revision)],
+        };
+        d.orders.push(o);
+        q.stage = "CONFIRMED";
+        q.orderId = o.id;
+        q.acceptedAt = new Date().toISOString();
+        q.events.push(
+          event(actor, "Customer accepted; order created", q.revision),
+        );
+        const one = q.lines.filter((l) => l.interval === "ONE_TIME");
+        if (one.length) invoice(d, o, one);
+        for (const l of q.lines.filter((l) => l.interval !== "ONE_TIME"))
+          d.subscriptions.push({
+            id: id("SUB"),
+            orderId: o.id,
+            customerId: o.customerId,
+            productId: l.productId,
+            planId: d.products.find((p) => p.id === l.productId)!.planId,
+            quantity: l.quantity,
+            unitPrice: money(dec(l.net).div(l.quantity)),
+            status: "ACTIVE",
+            periodStart: date(),
+            periodEnd: plusPeriod(date(), l.interval),
+            nextBill: date(),
+            events: [],
+          });
+        return o;
+      },
+    },
+  };
 }
-function quoteMargin(q:{totals:Quote['totals']}){const net=q.totals.reduce((n,t)=>n.plus(t.net),dec(0)),profit=q.totals.reduce((n,t)=>n.plus(t.profit),dec(0));return net.gt(0)?profit.div(net).mul(100).toNumber():null;}
-function refreshHealth(d:DataState,actor:Actor){roles(actor,'ADMIN','SALES_MANAGER');for(const q of d.quotes){const oldStalled=d.flags.find(f=>f.quoteId===q.id&&f.type==='STALLED');const stalled=q.sent&&q.stage!=='CONFIRMED'&&(Date.now()-Date.parse(q.at))/86400000>=d.healthSettings.stalledDays;if(stalled&&!oldStalled)d.flags.push({id:id('flag'),quoteId:q.id,type:'STALLED',reason:`No revision for ${d.healthSettings.stalledDays} days`,status:'OPEN',detectedAt:new Date().toISOString()});if(oldStalled)oldStalled.status=stalled?'OPEN':'RESOLVED';const current=quoteMargin(q),prior=q.history.map(h=>quoteMargin(h)).filter((m):m is number=>m!==null);const oldAnomaly=d.flags.find(f=>f.quoteId===q.id&&f.type==='ANOMALY');const anomaly=current!==null&&prior.length>=d.healthSettings.minimumHistory&&current<prior.reduce((n,m)=>n+m,0)/prior.length-d.healthSettings.anomalyPoints;if(anomaly&&!oldAnomaly)d.flags.push({id:id('flag'),quoteId:q.id,type:'ANOMALY',reason:`Current margin is ${d.healthSettings.anomalyPoints} points below its saved revision average`,status:'OPEN',detectedAt:new Date().toISOString()});if(oldAnomaly)oldAnomaly.status=anomaly?'OPEN':'RESOLVED';}for(const o of d.orders){const delivery=!!o.promisedDate&&o.promisedDate<=date()&&!['DELIVERED','CANCELLED'].includes(o.status);const old=d.flags.find(f=>f.quoteId===o.quoteId&&f.type==='DELIVERY');if(delivery&&!old)d.flags.push({id:id('flag'),quoteId:o.quoteId,type:'DELIVERY',reason:'Delivery promise needs attention; payment does not imply delivery',status:'OPEN',detectedAt:new Date().toISOString()});if(old)old.status=delivery?'OPEN':'RESOLVED';}return {refreshed:true};}
-function command(store:DevelopmentStore,actor:Actor,action:string,b:Record<string,unknown>):unknown {
-  const d=store.data,tx=transaction(store),key=String(b.id??''),text=String(b.text??'').trim();
-  if(action==='refreshHealth')return refreshHealth(d,actor);
-  if(action==='reset'){roles(actor,'ADMIN');const fresh=freshStore();store.data=fresh.data;store.credentials=fresh.credentials;store.requests={};return {reset:true};}
-  if(action==='saveRecord') {const collection=String(b.collection),form=forms[collection];requireValue(form,'Unknown collection');roles(actor,...(collection==='users'?['ADMIN'] as const:collection==='plans'?['ADMIN','FINANCE_OPS'] as const:['ADMIN'] as const));const r=b.record as Record<string,unknown>;requireValue(r&&typeof r==='object','Record required');const result:Record<string,unknown>={id:key||id(collection)};for(const field of form.fields){const value=r[field.key];if(field.required)requireValue(value!==undefined&&value!==null&&String(value).trim()!=='',`${field.label} required`);if(field.type==='number'){const n=Number(value);requireValue(Number.isFinite(n)&&n>=(field.min??-Infinity)&&n<=(field.max??Infinity),`Invalid ${field.label}`);result[field.key]=['price','cost','shippingCost'].includes(field.key)?money(n):n;}else if(field.type==='checkbox')result[field.key]=value===true;else{if(field.options&&value)requireValue(field.options.includes(String(value)),`Invalid ${field.label}`);result[field.key]=String(value??'').trim();}}
-    const list=d[collection as 'products'] as unknown as Record<string,unknown>[];const index=list.findIndex(x=>x.id===result.id);if(collection==='products'){const old=index>=0?list[index] as unknown as Product:undefined;result.variants=old?.variants??[{id:`${result.id}-standard`,name:'Standard',extraPrice:'0.00'}];if(result.interval!=='ONE_TIME')requireValue(d.plans.some(p=>p.id===result.planId),'Recurring product requires a plan');}if(collection==='users'){requireValue(index>=0,'Users request accounts through signup');if(result.role==='CUSTOMER')requireValue(d.customers.some(c=>c.id===result.customerId),'Customer membership required');if(key===actor.id)requireValue(result.active&&result.role==='ADMIN','Cannot remove your own admin access');}if(index<0)list.push(result);else list[index]=result;return result;
-  }
-  if(action==='variant'){roles(actor,'ADMIN');const p=d.products.find(p=>p.id===key);requireValue(p,'Product missing');requireValue(text,'Variant name required');requireValue(Number(b.extraPrice)>=0,'Extra price must be nonnegative');p.variants.push({id:id('variant'),name:text,extraPrice:money(String(b.extraPrice))});return p;}
-  if(action==='stockReceipt'){roles(actor,'ADMIN','FINANCE_OPS');const quantity=Number(b.quantity);requireValue(Number.isFinite(quantity)&&quantity>0,'Receipt quantity must be positive');let stock=d.stock.find(s=>s.variantId===b.variantId&&s.warehouseId===b.warehouseId);requireValue(d.warehouses.some(w=>w.id===b.warehouseId)&&d.products.some(p=>p.stockTracked&&p.variants.some(v=>v.id===b.variantId)),'Choose warehouse and physical variant');if(!stock){stock={id:id('stock'),warehouseId:String(b.warehouseId),variantId:String(b.variantId),onHand:0,reserved:0,threshold:5};d.stock.push(stock);}stock.onHand+=quantity;return stock;}
-  if(action==='stockThreshold'){roles(actor,'ADMIN','FINANCE_OPS');const stock=d.stock.find(s=>s.id===key);requireValue(stock&&Number(b.threshold)>=0,'Invalid threshold');stock.threshold=Number(b.threshold);return stock;}
-  if(action==='policy'){roles(actor,'ADMIN','SALES_MANAGER');const p=b.policy as DataState['policy'];requireValue(p&&Object.values(p.tierLimits).concat(Object.values(p.categoryLimits),[p.financeExcess,p.financeWeighted]).every(n=>Number.isFinite(n)&&n>=0&&n<=100),'Policy percentages must be 0–100');requireValue(dec(p.budget).gte(0),'Budget must be nonnegative');d.policy=p;return p;}
-  if(action==='healthSettings'){roles(actor,'ADMIN','SALES_MANAGER');const settings=b.settings as DataState['healthSettings'];requireValue(settings&&settings.stalledDays>=1&&settings.anomalyPoints>=0&&settings.minimumHistory>=1,'Invalid health settings');d.healthSettings=settings;return settings;}
-  if(action==='newQuote'){roles(actor,'ADMIN','SALES_REP');const c=d.customers.find(c=>c.id===b.customerId);requireValue(c,'Select a customer');const q:Quote={id:id('Q'),name:text||'New quotation',customerId:c.id,repId:actor.role==='SALES_REP'?actor.id:c.repId,currency:c.currency,revision:'r1',stage:'DRAFT',sent:false,lines:[],totals:[],orderDiscountPct:0,promisedDate:null,history:[],events:[event(actor,'Draft created')],evaluation:{status:'NOT_REQUIRED',chain:[],step:0,reasons:[],worstExcess:0},at:new Date().toISOString(),requestedDate:null,dateReviewPending:false};d.quotes.push(q);return q;}
-  if(['saveQuote','addLine','submitQuote','sendQuote','decision','reply','reviewDate'].includes(action)){roles(actor,'ADMIN','SALES_REP','SALES_MANAGER','FINANCE_OPS');const q=getQuote(d,actor,key);revisionCheck(q.revision,b.expectedRevision);
-    if(action==='reply'){requireValue(text,'Message required');d.messages.push({id:id('MSG'),quoteId:key,revision:q.revision,lineId:null,senderId:actor.id,senderName:actor.name,text,kind:'RESPONSE',at:new Date().toISOString()});return q;}
-    if(action==='decision'){requireValue(q.evaluation.status==='PENDING','No pending approval');requireValue(actor.role===q.evaluation.chain[q.evaluation.step],'Only the assigned approval level may act');requireValue(actor.id!==q.repId&&text,'Approval reason required; reps cannot approve their own quote');const decision=String(b.decision);requireValue(['approve','reject','return'].includes(decision),'Invalid decision');if(decision==='approve'){q.evaluation.step++;if(q.evaluation.step===q.evaluation.chain.length){q.evaluation.status='APPROVED';q.stage='APPROVED';}}else {q.evaluation.status=decision==='reject'?'REJECTED':'SUPERSEDED';q.stage=decision==='reject'?'REJECTED':'DRAFT';}q.events.push(event(actor,`${decision}: ${text}`,q.revision));return q;}
-    roles(actor,'ADMIN','SALES_REP');requireValue(q.stage!=='CONFIRMED','Confirmed quotation is locked');
-    if(action==='addLine')return tx.canonical.addLine(q,String(b.productId),String(b.variantId),Number(b.quantity),actor);
-    if(action==='saveQuote'){newRevision(q,actor,'Terms revised');const customer=d.customers.find(c=>c.id===b.customerId);requireValue(customer,'Customer required');q.customerId=customer.id;q.name=String(b.name??q.name);q.currency=customer.currency;q.orderDiscountPct=Number(b.orderDiscountPct);requireValue(Number.isFinite(q.orderDiscountPct)&&q.orderDiscountPct>=0&&q.orderDiscountPct<=100,'Order discount must be 0–100%');q.promisedDate=b.promisedDate?String(b.promisedDate):null;const changes=b.lines as {id:string;quantity:number;discountPct:number}[];requireValue(Array.isArray(changes),'Lines required');q.lines=q.lines.filter(l=>changes.some(c=>c.id===l.id));for(const l of q.lines){const c=changes.find(c=>c.id===l.id)!;l.quantity=Number(c.quantity);l.discountPct=Number(c.discountPct);}reprice(d,q);q.stage=q.sent?'UNDER_NEGOTIATION':'DRAFT';return q;}
-    if(action==='reviewDate'){requireValue(q.dateReviewPending,'No delivery request pending');newRevision(q,actor,'Delivery request reviewed');if(b.accept===true)q.promisedDate=q.requestedDate;q.dateReviewPending=false;reprice(d,q);q.stage='UNDER_NEGOTIATION';d.messages.push({id:id('MSG'),quoteId:key,revision:q.revision,lineId:null,senderId:actor.id,senderName:actor.name,text:b.accept===true?`Delivery promise revised to ${q.promisedDate}`:'Requested date declined; existing promise retained',kind:'RESPONSE',at:new Date().toISOString()});return q;}
-    requireValue(q.lines.length&&q.totals.some(t=>dec(t.net).gt(0)),'Add nonzero quotation lines');if(action==='submitQuote'){reprice(d,q);q.stage=q.evaluation.status==='PENDING'?'PENDING_APPROVAL':'APPROVED';}else {q.sent=true;if(q.stage==='DRAFT')q.stage='SENT';}q.events.push(event(actor,action==='sendQuote'?'Quotation sent to customer':'Submitted for policy review',q.revision));return q;
-  }
-  if(['allocate','ship','deliver','cancelOrder'].includes(action)){roles(actor,'ADMIN','FINANCE_OPS');const o=d.orders.find(o=>o.id===key);requireValue(o,'Order missing');if(action==='allocate'){allocate(d,o,actor,b.allocations as Allocation[]|undefined);return o;}if(action==='ship'){requireValue(o.status==='ALLOCATED','Allocate all stock before shipping this simulated order');for(const a of o.allocations){const l=o.lines.find(l=>l.id===a.lineId)!;const stock=d.stock.find(s=>s.warehouseId===a.warehouseId&&s.variantId===l.variantId)!;stock.onHand-=a.quantity;stock.reserved-=a.quantity;}o.status='SHIPPED';}if(action==='deliver'){requireValue(o.status==='SHIPPED','Ship before marking delivered');o.status='DELIVERED';}if(action==='cancelOrder'){requireValue(!['SHIPPED','DELIVERED','CANCELLED'].includes(o.status),'Only unshipped orders may be cancelled');for(const a of o.allocations){const l=o.lines.find(l=>l.id===a.lineId)!;d.stock.find(s=>s.warehouseId===a.warehouseId&&s.variantId===l.variantId)!.reserved-=a.quantity;}o.allocations=[];o.backorders=[];o.status='CANCELLED';}o.events.push(event(actor,action));return o;}
-  if(action==='payment'){roles(actor,'ADMIN','FINANCE_OPS');const i=d.invoices.find(i=>i.id===key);requireValue(i,'Invoice missing');const amount=dec(String(b.amount));requireValue(amount.isFinite()&&amount.gt(0)&&amount.lte(i.outstanding),'Payment must be positive and no more than the balance');requireValue(b.method&&b.reference&&b.date,'Method, date and reference required');d.payments.push({id:id('PAY'),invoiceId:key,amount:money(amount),method:String(b.method),reference:String(b.reference),date:String(b.date)});i.paid=money(dec(i.paid).plus(amount));i.outstanding=money(dec(i.outstanding).minus(amount));i.status=dec(i.outstanding).eq(0)?'PAID':'PARTIALLY_PAID';i.events.push(event(actor,`Payment recorded: INR ${money(amount)}`));return i;}
-  if(action==='runBilling'){roles(actor,'ADMIN','FINANCE_OPS');let created=0;for(const sub of d.subscriptions.filter(s=>['ACTIVE','CANCEL_AT_PERIOD_END'].includes(s.status)&&s.nextBill<=date())){if(d.invoices.some(i=>i.subscriptionId===sub.id&&i.period===sub.periodStart)){if(sub.periodEnd>date())continue;sub.periodStart=sub.periodEnd;if(sub.pendingPlanId){sub.planId=sub.pendingPlanId;sub.unitPrice=d.plans.find(p=>p.id===sub.planId)!.price;sub.pendingPlanId=undefined;}sub.periodEnd=plusPeriod(sub.periodStart,d.plans.find(p=>p.id===sub.planId)!.interval);}if(sub.status==='CANCEL_AT_PERIOD_END'){sub.status='CANCELLED';continue;}const o=d.orders.find(o=>o.id===sub.orderId)!;const l=structuredClone(o.lines.find(l=>l.productId===sub.productId)!);l.quantity=sub.quantity;l.unitPrice=sub.unitPrice;l.discountPct=0;l.net=money(dec(sub.unitPrice).mul(sub.quantity));l.tax=money(dec(l.net).mul(l.taxPct).div(100));l.total=money(dec(l.net).plus(l.tax));invoice(d,o,[l],sub.id,sub.periodStart);sub.nextBill=sub.periodEnd;sub.events.push(event(actor,'Recurring invoice generated'));created++;}return {created};}
-  if(action==='subscription'){roles(actor,'ADMIN','FINANCE_OPS');const sub=d.subscriptions.find(s=>s.id===key);requireValue(sub,'Subscription missing');const mode=String(b.operation),plan=d.plans.find(p=>p.id===sub.planId)!;requireValue(sub.status!=='CANCELLED','Cancelled subscriptions are locked');if(mode==='pause'){requireValue(sub.status==='ACTIVE','Only active subscriptions can pause');sub.status='PAUSED';}else if(mode==='resume'){requireValue(sub.status==='PAUSED','Only paused subscriptions can resume');sub.status='ACTIVE';sub.periodStart=date();sub.periodEnd=plusPeriod(date(),plan.interval);sub.nextBill=date();}else if(mode==='change'||mode==='cancel'){const next=d.plans.find(p=>p.id===b.planId)??plan;const quantity=mode==='cancel'?0:Number(b.quantity);requireValue(mode==='cancel'||(Number.isFinite(quantity)&&quantity>0),'Quantity must be positive');const effective=String(b.effectiveDate??date());requireValue(effective>=date()&&effective>=sub.periodStart&&effective<=sub.periodEnd,'Effective date must be within the current period and not backdated');if(next.interval!==plan.interval){sub.pendingPlanId=next.id;}else {const days=(Date.parse(sub.periodEnd)-Date.parse(sub.periodStart))/86400000,remaining=(Date.parse(sub.periodEnd)-Date.parse(effective))/86400000;const delta=dec(next.id===plan.id?sub.unitPrice:next.price).mul(quantity).minus(dec(sub.unitPrice).mul(sub.quantity)).mul(remaining).div(days);const billed=d.invoices.find(i=>i.subscriptionId===sub.id&&i.period===sub.periodStart);if(billed&&plan.prorate&&(mode!=='cancel'||plan.cancellation==='IMMEDIATE_CREDIT')){const taxDelta=delta.mul(dec(1).plus(dec(billed.lines[0]?.tax??0).div(billed.net||1)));if(delta.lt(0)){const credit=DecimalMin(taxDelta.abs(),dec(billed.total).minus(billed.credited));billed.credited=money(dec(billed.credited).plus(credit));billed.outstanding=money(DecimalMax(dec(0),dec(billed.total).minus(billed.paid).minus(billed.credited)));if(dec(billed.outstanding).eq(0))billed.status='PAID';billed.events.push(event(actor,`Credit note applied: INR ${money(credit)}`));}else if(delta.gt(0)){const order=d.orders.find(o=>o.id===sub.orderId)!;const line=structuredClone(order.lines.find(l=>l.productId===sub.productId)!);line.description='Prorated subscription adjustment';line.quantity=1;line.unitPrice=money(delta);line.net=money(delta);line.tax=money(taxDelta.minus(delta));line.total=money(taxDelta);invoice(d,order,[line],sub.id,`adjustment-${id('period')}`);}}if(mode==='cancel')sub.status=plan.cancellation==='PERIOD_END'?'CANCEL_AT_PERIOD_END':'CANCELLED';else {sub.quantity=quantity;sub.planId=next.id;sub.unitPrice=next.id===plan.id?sub.unitPrice:next.price;}}}else throw new AppError(422,'VALIDATION','Unknown subscription action');sub.events.push(event(actor,`${mode}: ${text||'Subscription updated'}`));return sub;}
-  if(action==='refreshHealth'){roles(actor,'ADMIN','SALES_MANAGER','SALES_REP');for(const q of d.quotes){const old=d.flags.find(f=>f.quoteId===q.id&&f.type==='STALLED');const eligible=q.sent&&q.stage!=='CONFIRMED'&&(Date.now()-Date.parse(q.at))/86400000>=d.healthSettings.stalledDays;if(eligible&&!old)d.flags.push({id:id('flag'),quoteId:q.id,type:'STALLED',reason:`No revision for ${d.healthSettings.stalledDays} days`,status:'OPEN',detectedAt:new Date().toISOString()});if(old)old.status=eligible?'OPEN':'RESOLVED';}for(const o of d.orders){const eligible=!!o.promisedDate&&o.promisedDate<=date()&&!['DELIVERED','CANCELLED'].includes(o.status);const old=d.flags.find(f=>f.quoteId===o.quoteId&&f.type==='DELIVERY');if(eligible&&!old)d.flags.push({id:id('flag'),quoteId:o.quoteId,type:'DELIVERY',reason:'Delivery promise needs attention; payment does not imply delivery',status:'OPEN',detectedAt:new Date().toISOString()});if(old)old.status=eligible?'OPEN':'RESOLVED';}return {refreshed:true};}
-  if(action==='task'){roles(actor,'ADMIN','SALES_MANAGER','SALES_REP');if(b.complete===true){const task=d.tasks.find(t=>t.id===key);requireValue(task,'Task missing');task.status='DONE';return task;}requireValue(d.users.some(u=>u.id===b.assigneeId)&&b.dueDate&&text,'Assignee, due date and task required');const task={id:id('TASK'),quoteId:String(b.quoteId),assigneeId:String(b.assigneeId),dueDate:String(b.dueDate),text,status:'OPEN'};d.tasks.push(task);return task;}
-  throw new AppError(404,'NOT_FOUND','Action unavailable');
+function roles(actor: Actor, ...allowed: Actor["role"][]) {
+  if (!actor.active || !allowed.includes(actor.role))
+    throw new AppError(
+      403,
+      "FORBIDDEN",
+      "Your role cannot perform this action",
+    );
 }
-const DecimalMin=(a:ReturnType<typeof dec>,b:ReturnType<typeof dec>)=>a.lte(b)?a:b;const DecimalMax=(a:ReturnType<typeof dec>,b:ReturnType<typeof dec>)=>a.gte(b)?a:b;
-export const developmentAdapter:ApplicationAdapter={mode:'DEV FIXTURE',
-  authenticate:token=>access(false,s=>{const session=token?s.sessions[hash(token)]:undefined;return session&&session.expires>Date.now()?s.data.users.find(u=>u.id===session.userId&&u.active)??null:null;}),
-  login:(email,password)=>access(true,s=>{const actor=s.data.users.find(u=>u.email.toLowerCase()===email.toLowerCase());if(!actor||!s.credentials[actor.id]||!passwordMatches(password,s.credentials[actor.id]))throw new AppError(401,'INVALID_CREDENTIALS','Email or password is incorrect');if(!actor.active)throw new AppError(403,'ACCOUNT_PENDING','Your account is awaiting administrator activation');const token=randomBytes(32).toString('hex');s.sessions[hash(token)]={userId:actor.id,expires:Date.now()+8*3600000};return {actor,token};}),
-  logout:token=>access(true,s=>{delete s.sessions[hash(token)];}),
-  signup:(name,email,password)=>access(true,s=>{requireValue(name.trim()&&/^\S+@\S+\.\S+$/.test(email)&&password.length>=8,'Name, valid email and an 8-character password required');requireValue(!s.data.users.some(u=>u.email.toLowerCase()===email.toLowerCase()),'An account already exists');const user:Actor={id:id('USER'),name,email,role:'SALES_REP',active:false};s.data.users.push(user);s.credentials[user.id]=passwordHash(password);}),
-  read:()=>access(false,s=>s.data),readCustomer:customerId=>access(false,s=>{const d=structuredClone(s.data);d.quotes=d.quotes.filter(q=>q.customerId===customerId&&q.sent);d.orders=d.orders.filter(o=>o.customerId===customerId);d.invoices=d.invoices.filter(i=>i.customerId===customerId);d.messages=d.messages.filter(m=>d.quotes.some(q=>q.id===m.quoteId));d.proposals=d.proposals.filter(p=>d.quotes.some(q=>q.id===p.quoteId));return d;}),
-  fulfillmentPreview:(actor,orderId)=>access(false,s=>{roles(actor,'ADMIN','FINANCE_OPS');const order=s.data.orders.find(o=>o.id===orderId);requireValue(order,'Order missing');return {orderId, ...splitPreview(s.data,order)};}),
-  transaction:perform=>access(true,s=>perform(transaction(s))),
-  command:(actor,action,b)=>access(true,s=>{const current=s.data.users.find(u=>u.id===actor.id&&u.active);if(!current)throw new AppError(401,'UNAUTHENTICATED','Sign in again');const tx=transaction(s);requireValue(typeof b.requestKey==='string'&&b.requestKey.length>=8,'Operation key required');return tx.replay(`${action}:${actor.id}`,String(b.requestKey),JSON.stringify(b),()=>command(s,current,action,b));})
+function getQuote(d: DataState, actor: Actor, key: string) {
+  const q = d.quotes.find((q) => q.id === key);
+  if (!q || (actor.role === "SALES_REP" && q.repId !== actor.id))
+    throw new AppError(404, "NOT_FOUND", "Quotation unavailable");
+  return q;
+}
+export function splitPreview(
+  d: DataState,
+  o: Order,
+): {
+  allocations: Allocation[];
+  backorders: { lineId: string; quantity: number }[];
+  cost: string;
+} {
+  const working = d.stock.map((s) => ({
+    ...s,
+    available:
+      s.onHand -
+      s.reserved +
+      o.allocations
+        .filter(
+          (a) =>
+            a.warehouseId === s.warehouseId &&
+            o.lines.find((l) => l.id === a.lineId)?.variantId === s.variantId,
+        )
+        .reduce((n, a) => n + a.quantity, 0),
+  }));
+  const allocations: Allocation[] = [],
+    backorders: { lineId: string; quantity: number }[] = [];
+  for (const l of o.lines.filter((l) => l.stockTracked)) {
+    let remaining = l.quantity;
+    for (const stock of working
+      .filter(
+        (s) =>
+          s.variantId === l.variantId &&
+          d.warehouses.some((w) => w.id === s.warehouseId && w.active),
+      )
+      .sort((a, b) => b.available - a.available)) {
+      const quantity = Math.min(remaining, stock.available);
+      if (quantity > 0) {
+        allocations.push({
+          lineId: l.id,
+          warehouseId: stock.warehouseId,
+          quantity,
+        });
+        stock.available -= quantity;
+        remaining -= quantity;
+      }
+    }
+    if (remaining > 0) backorders.push({ lineId: l.id, quantity: remaining });
+  }
+  return {
+    allocations,
+    backorders,
+    cost: money(
+      d.warehouses
+        .filter((w) => allocations.some((a) => a.warehouseId === w.id))
+        .reduce((n, w) => n.plus(w.shippingCost), dec(0)),
+    ),
+  };
+}
+function allocate(
+  d: DataState,
+  o: Order,
+  actor: Actor,
+  requested?: Allocation[],
+) {
+  requireValue(
+    !["SHIPPED", "DELIVERED", "CANCELLED"].includes(o.status),
+    "Only unshipped orders may be allocated",
+  );
+  const allocations = requested ?? splitPreview(d, o).allocations;
+  for (const old of o.allocations) {
+    const line = o.lines.find((l) => l.id === old.lineId)!;
+    const stock = d.stock.find(
+      (s) =>
+        s.warehouseId === old.warehouseId && s.variantId === line.variantId,
+    )!;
+    stock.reserved -= old.quantity;
+  }
+  for (const a of allocations) {
+    const line = o.lines.find((l) => l.id === a.lineId);
+    requireValue(
+      line?.stockTracked && Number.isFinite(a.quantity) && a.quantity > 0,
+      "Invalid allocation line",
+    );
+    const stock = d.stock.find(
+      (s) => s.warehouseId === a.warehouseId && s.variantId === line.variantId,
+    );
+    requireValue(
+      stock && stock.onHand - stock.reserved >= a.quantity,
+      "Stock changed or allocation exceeds availability",
+    );
+    requireValue(
+      d.warehouses.some((w) => w.id === a.warehouseId && w.active),
+      "Warehouse unavailable",
+    );
+    stock.reserved += a.quantity;
+  }
+  o.backorders = o.lines
+    .filter((l) => l.stockTracked)
+    .flatMap((l) => {
+      const allocated = allocations
+        .filter((a) => a.lineId === l.id)
+        .reduce((n, a) => n + a.quantity, 0);
+      requireValue(allocated <= l.quantity, "Allocated quantity exceeds order");
+      return allocated < l.quantity
+        ? [{ lineId: l.id, quantity: l.quantity - allocated }]
+        : [];
+    });
+  o.allocations = allocations;
+  o.status = o.backorders.length ? "PARTIAL" : "ALLOCATED";
+  o.events.push(event(actor, "Allocation accepted; stock reserved"));
+}
+function quoteMargin(q: { totals: Quote["totals"] }) {
+  const net = q.totals.reduce((n, t) => n.plus(t.net), dec(0)),
+    profit = q.totals.reduce((n, t) => n.plus(t.profit), dec(0));
+  return net.gt(0) ? profit.div(net).mul(100).toNumber() : null;
+}
+function refreshHealth(d: DataState, actor: Actor) {
+  roles(actor, "ADMIN", "SALES_MANAGER");
+  for (const q of d.quotes) {
+    const oldStalled = d.flags.find(
+      (f) => f.quoteId === q.id && f.type === "STALLED",
+    );
+    const stalled =
+      q.sent &&
+      q.stage !== "CONFIRMED" &&
+      (Date.now() - Date.parse(q.at)) / 86400000 >=
+        d.healthSettings.stalledDays;
+    if (stalled && !oldStalled)
+      d.flags.push({
+        id: id("flag"),
+        quoteId: q.id,
+        type: "STALLED",
+        reason: `No revision for ${d.healthSettings.stalledDays} days`,
+        status: "OPEN",
+        detectedAt: new Date().toISOString(),
+      });
+    if (oldStalled) oldStalled.status = stalled ? "OPEN" : "RESOLVED";
+    const current = quoteMargin(q),
+      prior = q.history
+        .map((h) => quoteMargin(h))
+        .filter((m): m is number => m !== null);
+    const oldAnomaly = d.flags.find(
+      (f) => f.quoteId === q.id && f.type === "ANOMALY",
+    );
+    const anomaly =
+      current !== null &&
+      prior.length >= d.healthSettings.minimumHistory &&
+      current <
+        prior.reduce((n, m) => n + m, 0) / prior.length -
+          d.healthSettings.anomalyPoints;
+    if (anomaly && !oldAnomaly)
+      d.flags.push({
+        id: id("flag"),
+        quoteId: q.id,
+        type: "ANOMALY",
+        reason: `Current margin is ${d.healthSettings.anomalyPoints} points below its saved revision average`,
+        status: "OPEN",
+        detectedAt: new Date().toISOString(),
+      });
+    if (oldAnomaly) oldAnomaly.status = anomaly ? "OPEN" : "RESOLVED";
+  }
+  for (const o of d.orders) {
+    const delivery =
+      !!o.promisedDate &&
+      o.promisedDate <= date() &&
+      !["DELIVERED", "CANCELLED"].includes(o.status);
+    const old = d.flags.find(
+      (f) => f.quoteId === o.quoteId && f.type === "DELIVERY",
+    );
+    if (delivery && !old)
+      d.flags.push({
+        id: id("flag"),
+        quoteId: o.quoteId,
+        type: "DELIVERY",
+        reason:
+          "Delivery promise needs attention; payment does not imply delivery",
+        status: "OPEN",
+        detectedAt: new Date().toISOString(),
+      });
+    if (old) old.status = delivery ? "OPEN" : "RESOLVED";
+  }
+  return { refreshed: true };
+}
+function command(
+  store: DevelopmentStore,
+  actor: Actor,
+  action: string,
+  b: Record<string, unknown>,
+): unknown {
+  const d = store.data,
+    tx = transaction(store),
+    key = String(b.id ?? ""),
+    text = String(b.text ?? "").trim();
+  if (action === "refreshHealth") return refreshHealth(d, actor);
+  if (action === "reset") {
+    roles(actor, "ADMIN");
+    const fresh = freshStore();
+    store.data = fresh.data;
+    store.credentials = fresh.credentials;
+    store.requests = {};
+    return { reset: true };
+  }
+  if (action === "saveRecord") {
+    const collection = String(b.collection),
+      form = forms[collection];
+    requireValue(form, "Unknown collection");
+    roles(
+      actor,
+      ...(collection === "users"
+        ? (["ADMIN"] as const)
+        : collection === "plans"
+          ? (["ADMIN", "FINANCE_OPS"] as const)
+          : (["ADMIN"] as const)),
+    );
+    const r = b.record as Record<string, unknown>;
+    requireValue(r && typeof r === "object", "Record required");
+    const result: Record<string, unknown> = { id: key || id(collection) };
+    for (const field of form.fields) {
+      const value = r[field.key];
+      if (field.required)
+        requireValue(
+          value !== undefined && value !== null && String(value).trim() !== "",
+          `${field.label} required`,
+        );
+      if (field.type === "number") {
+        const n = Number(value);
+        requireValue(
+          Number.isFinite(n) &&
+            n >= (field.min ?? -Infinity) &&
+            n <= (field.max ?? Infinity),
+          `Invalid ${field.label}`,
+        );
+        result[field.key] = ["price", "cost", "shippingCost"].includes(
+          field.key,
+        )
+          ? money(n)
+          : n;
+      } else if (field.type === "checkbox") result[field.key] = value === true;
+      else {
+        if (field.options && value)
+          requireValue(
+            field.options.includes(String(value)),
+            `Invalid ${field.label}`,
+          );
+        result[field.key] = String(value ?? "").trim();
+      }
+    }
+    const list = d[collection as "products"] as unknown as Record<
+      string,
+      unknown
+    >[];
+    const index = list.findIndex((x) => x.id === result.id);
+    if (collection === "products") {
+      const old = index >= 0 ? (list[index] as unknown as Product) : undefined;
+      result.variants = old?.variants ?? [
+        { id: `${result.id}-standard`, name: "Standard", extraPrice: "0.00" },
+      ];
+      if (result.interval !== "ONE_TIME")
+        requireValue(
+          d.plans.some((p) => p.id === result.planId),
+          "Recurring product requires a plan",
+        );
+    }
+    if (collection === "users") {
+      requireValue(index >= 0, "Users request accounts through signup");
+      if (result.role === "CUSTOMER")
+        requireValue(
+          d.customers.some((c) => c.id === result.customerId),
+          "Customer membership required",
+        );
+      if (key === actor.id)
+        requireValue(
+          result.active && result.role === "ADMIN",
+          "Cannot remove your own admin access",
+        );
+    }
+    if (index < 0) list.push(result);
+    else list[index] = result;
+    return result;
+  }
+  if (action === "variant") {
+    roles(actor, "ADMIN");
+    const p = d.products.find((p) => p.id === key);
+    requireValue(p, "Product missing");
+    requireValue(text, "Variant name required");
+    requireValue(Number(b.extraPrice) >= 0, "Extra price must be nonnegative");
+    p.variants.push({
+      id: id("variant"),
+      name: text,
+      extraPrice: money(String(b.extraPrice)),
+    });
+    return p;
+  }
+  if (action === "stockReceipt") {
+    roles(actor, "ADMIN", "FINANCE_OPS");
+    const quantity = Number(b.quantity);
+    requireValue(
+      Number.isFinite(quantity) && quantity > 0,
+      "Receipt quantity must be positive",
+    );
+    let stock = d.stock.find(
+      (s) => s.variantId === b.variantId && s.warehouseId === b.warehouseId,
+    );
+    requireValue(
+      d.warehouses.some((w) => w.id === b.warehouseId) &&
+        d.products.some(
+          (p) => p.stockTracked && p.variants.some((v) => v.id === b.variantId),
+        ),
+      "Choose warehouse and physical variant",
+    );
+    if (!stock) {
+      stock = {
+        id: id("stock"),
+        warehouseId: String(b.warehouseId),
+        variantId: String(b.variantId),
+        onHand: 0,
+        reserved: 0,
+        threshold: 5,
+      };
+      d.stock.push(stock);
+    }
+    stock.onHand += quantity;
+    return stock;
+  }
+  if (action === "stockThreshold") {
+    roles(actor, "ADMIN", "FINANCE_OPS");
+    const stock = d.stock.find((s) => s.id === key);
+    requireValue(stock && Number(b.threshold) >= 0, "Invalid threshold");
+    stock.threshold = Number(b.threshold);
+    return stock;
+  }
+  if (action === "policy") {
+    roles(actor, "ADMIN", "SALES_MANAGER");
+    const p = b.policy as DataState["policy"];
+    requireValue(
+      p &&
+        Object.values(p.tierLimits)
+          .concat(Object.values(p.categoryLimits), [
+            p.financeExcess,
+            p.financeWeighted,
+          ])
+          .every((n) => Number.isFinite(n) && n >= 0 && n <= 100),
+      "Policy percentages must be 0–100",
+    );
+    requireValue(dec(p.budget).gte(0), "Budget must be nonnegative");
+    d.policy = p;
+    return p;
+  }
+  if (action === "healthSettings") {
+    roles(actor, "ADMIN", "SALES_MANAGER");
+    const settings = b.settings as DataState["healthSettings"];
+    requireValue(
+      settings &&
+        settings.stalledDays >= 1 &&
+        settings.anomalyPoints >= 0 &&
+        settings.minimumHistory >= 1,
+      "Invalid health settings",
+    );
+    d.healthSettings = settings;
+    return settings;
+  }
+  if (action === "newQuote") {
+    roles(actor, "ADMIN", "SALES_REP");
+    const c = d.customers.find((c) => c.id === b.customerId);
+    requireValue(c, "Select a customer");
+    const q: Quote = {
+      id: id("Q"),
+      name: text || "New quotation",
+      customerId: c.id,
+      repId: actor.role === "SALES_REP" ? actor.id : c.repId,
+      currency: c.currency,
+      revision: "r1",
+      stage: "DRAFT",
+      sent: false,
+      lines: [],
+      totals: [],
+      orderDiscountPct: 0,
+      promisedDate: null,
+      history: [],
+      events: [event(actor, "Draft created")],
+      evaluation: {
+        status: "NOT_REQUIRED",
+        chain: [],
+        step: 0,
+        reasons: [],
+        worstExcess: 0,
+      },
+      at: new Date().toISOString(),
+      requestedDate: null,
+      dateReviewPending: false,
+    };
+    d.quotes.push(q);
+    return q;
+  }
+  if (
+    [
+      "saveQuote",
+      "addLine",
+      "submitQuote",
+      "sendQuote",
+      "decision",
+      "reply",
+      "reviewDate",
+    ].includes(action)
+  ) {
+    roles(actor, "ADMIN", "SALES_REP", "SALES_MANAGER", "FINANCE_OPS");
+    const q = getQuote(d, actor, key);
+    revisionCheck(q.revision, b.expectedRevision);
+    if (action === "reply") {
+      requireValue(text, "Message required");
+      d.messages.push({
+        id: id("MSG"),
+        quoteId: key,
+        revision: q.revision,
+        lineId: null,
+        senderId: actor.id,
+        senderName: actor.name,
+        text,
+        kind: "RESPONSE",
+        at: new Date().toISOString(),
+      });
+      return q;
+    }
+    if (action === "decision") {
+      requireValue(q.evaluation.status === "PENDING", "No pending approval");
+      requireValue(
+        actor.role === q.evaluation.chain[q.evaluation.step],
+        "Only the assigned approval level may act",
+      );
+      requireValue(
+        actor.id !== q.repId && text,
+        "Approval reason required; reps cannot approve their own quote",
+      );
+      const decision = String(b.decision);
+      requireValue(
+        ["approve", "reject", "return"].includes(decision),
+        "Invalid decision",
+      );
+      if (decision === "approve") {
+        q.evaluation.step++;
+        if (q.evaluation.step === q.evaluation.chain.length) {
+          q.evaluation.status = "APPROVED";
+          q.stage = "APPROVED";
+        }
+      } else {
+        q.evaluation.status = decision === "reject" ? "REJECTED" : "SUPERSEDED";
+        q.stage = decision === "reject" ? "REJECTED" : "DRAFT";
+      }
+      q.events.push(event(actor, `${decision}: ${text}`, q.revision));
+      return q;
+    }
+    roles(actor, "ADMIN", "SALES_REP");
+    requireValue(q.stage !== "CONFIRMED", "Confirmed quotation is locked");
+    if (action === "addLine")
+      return tx.canonical.addLine(
+        q,
+        String(b.productId),
+        String(b.variantId),
+        Number(b.quantity),
+        actor,
+      );
+    if (action === "saveQuote") {
+      newRevision(q, actor, "Terms revised");
+      const customer = d.customers.find((c) => c.id === b.customerId);
+      requireValue(customer, "Customer required");
+      q.customerId = customer.id;
+      q.name = String(b.name ?? q.name);
+      q.currency = customer.currency;
+      q.orderDiscountPct = Number(b.orderDiscountPct);
+      requireValue(
+        Number.isFinite(q.orderDiscountPct) &&
+          q.orderDiscountPct >= 0 &&
+          q.orderDiscountPct <= 100,
+        "Order discount must be 0–100%",
+      );
+      q.promisedDate = b.promisedDate ? String(b.promisedDate) : null;
+      const changes = b.lines as {
+        id: string;
+        quantity: number;
+        discountPct: number;
+      }[];
+      requireValue(Array.isArray(changes), "Lines required");
+      q.lines = q.lines.filter((l) => changes.some((c) => c.id === l.id));
+      for (const l of q.lines) {
+        const c = changes.find((c) => c.id === l.id)!;
+        l.quantity = Number(c.quantity);
+        l.discountPct = Number(c.discountPct);
+      }
+      reprice(d, q);
+      q.stage = q.sent ? "UNDER_NEGOTIATION" : "DRAFT";
+      return q;
+    }
+    if (action === "reviewDate") {
+      requireValue(q.dateReviewPending, "No delivery request pending");
+      newRevision(q, actor, "Delivery request reviewed");
+      if (b.accept === true) q.promisedDate = q.requestedDate;
+      q.dateReviewPending = false;
+      reprice(d, q);
+      q.stage = "UNDER_NEGOTIATION";
+      d.messages.push({
+        id: id("MSG"),
+        quoteId: key,
+        revision: q.revision,
+        lineId: null,
+        senderId: actor.id,
+        senderName: actor.name,
+        text:
+          b.accept === true
+            ? `Delivery promise revised to ${q.promisedDate}`
+            : "Requested date declined; existing promise retained",
+        kind: "RESPONSE",
+        at: new Date().toISOString(),
+      });
+      return q;
+    }
+    requireValue(
+      q.lines.length && q.totals.some((t) => dec(t.net).gt(0)),
+      "Add nonzero quotation lines",
+    );
+    if (action === "submitQuote") {
+      reprice(d, q);
+      q.stage =
+        q.evaluation.status === "PENDING" ? "PENDING_APPROVAL" : "APPROVED";
+    } else {
+      q.sent = true;
+      if (q.stage === "DRAFT") q.stage = "SENT";
+      if (action === "sendQuote" && b.customerTier) {
+        const customer = d.customers.find(
+          (customer) => customer.id === q.customerId,
+        );
+        requireValue(customer, "Customer required");
+        requireValue(
+          ["Bronze", "Silver", "Gold"].includes(String(b.customerTier)),
+          "Customer tier must be Bronze, Silver, or Gold",
+        );
+        customer.tier = String(b.customerTier);
+      }
+    }
+    q.events.push(
+      event(
+        actor,
+        action === "sendQuote"
+          ? "Quotation sent to customer"
+          : "Submitted for policy review",
+        q.revision,
+      ),
+    );
+    return q;
+  }
+  if (["allocate", "ship", "deliver", "cancelOrder"].includes(action)) {
+    roles(actor, "ADMIN", "FINANCE_OPS");
+    const o = d.orders.find((o) => o.id === key);
+    requireValue(o, "Order missing");
+    if (action === "allocate") {
+      allocate(d, o, actor, b.allocations as Allocation[] | undefined);
+      return o;
+    }
+    if (action === "ship") {
+      requireValue(
+        o.status === "ALLOCATED",
+        "Allocate all stock before shipping this simulated order",
+      );
+      for (const a of o.allocations) {
+        const l = o.lines.find((l) => l.id === a.lineId)!;
+        const stock = d.stock.find(
+          (s) => s.warehouseId === a.warehouseId && s.variantId === l.variantId,
+        )!;
+        stock.onHand -= a.quantity;
+        stock.reserved -= a.quantity;
+      }
+      o.status = "SHIPPED";
+    }
+    if (action === "deliver") {
+      requireValue(o.status === "SHIPPED", "Ship before marking delivered");
+      o.status = "DELIVERED";
+    }
+    if (action === "cancelOrder") {
+      requireValue(
+        !["SHIPPED", "DELIVERED", "CANCELLED"].includes(o.status),
+        "Only unshipped orders may be cancelled",
+      );
+      for (const a of o.allocations) {
+        const l = o.lines.find((l) => l.id === a.lineId)!;
+        d.stock.find(
+          (s) => s.warehouseId === a.warehouseId && s.variantId === l.variantId,
+        )!.reserved -= a.quantity;
+      }
+      o.allocations = [];
+      o.backorders = [];
+      o.status = "CANCELLED";
+    }
+    o.events.push(event(actor, action));
+    return o;
+  }
+  if (action === "payment") {
+    roles(actor, "ADMIN", "FINANCE_OPS");
+    const i = d.invoices.find((i) => i.id === key);
+    requireValue(i, "Invoice missing");
+    const amount = dec(String(b.amount));
+    requireValue(
+      amount.isFinite() && amount.gt(0) && amount.lte(i.outstanding),
+      "Payment must be positive and no more than the balance",
+    );
+    requireValue(
+      b.method && b.reference && b.date,
+      "Method, date and reference required",
+    );
+    d.payments.push({
+      id: id("PAY"),
+      invoiceId: key,
+      amount: money(amount),
+      method: String(b.method),
+      reference: String(b.reference),
+      date: String(b.date),
+    });
+    i.paid = money(dec(i.paid).plus(amount));
+    i.outstanding = money(dec(i.outstanding).minus(amount));
+    i.status = dec(i.outstanding).eq(0) ? "PAID" : "PARTIALLY_PAID";
+    i.events.push(event(actor, `Payment recorded: INR ${money(amount)}`));
+    return i;
+  }
+  if (action === "runBilling") {
+    roles(actor, "ADMIN", "FINANCE_OPS");
+    let created = 0;
+    for (const sub of d.subscriptions.filter(
+      (s) =>
+        ["ACTIVE", "CANCEL_AT_PERIOD_END"].includes(s.status) &&
+        s.nextBill <= date(),
+    )) {
+      if (
+        d.invoices.some(
+          (i) => i.subscriptionId === sub.id && i.period === sub.periodStart,
+        )
+      ) {
+        if (sub.periodEnd > date()) continue;
+        sub.periodStart = sub.periodEnd;
+        if (sub.pendingPlanId) {
+          sub.planId = sub.pendingPlanId;
+          sub.unitPrice = d.plans.find((p) => p.id === sub.planId)!.price;
+          sub.pendingPlanId = undefined;
+        }
+        sub.periodEnd = plusPeriod(
+          sub.periodStart,
+          d.plans.find((p) => p.id === sub.planId)!.interval,
+        );
+      }
+      if (sub.status === "CANCEL_AT_PERIOD_END") {
+        sub.status = "CANCELLED";
+        continue;
+      }
+      const o = d.orders.find((o) => o.id === sub.orderId)!;
+      const l = structuredClone(
+        o.lines.find((l) => l.productId === sub.productId)!,
+      );
+      l.quantity = sub.quantity;
+      l.unitPrice = sub.unitPrice;
+      l.discountPct = 0;
+      l.net = money(dec(sub.unitPrice).mul(sub.quantity));
+      l.tax = money(dec(l.net).mul(l.taxPct).div(100));
+      l.total = money(dec(l.net).plus(l.tax));
+      invoice(d, o, [l], sub.id, sub.periodStart);
+      sub.nextBill = sub.periodEnd;
+      sub.events.push(event(actor, "Recurring invoice generated"));
+      created++;
+    }
+    return { created };
+  }
+  if (action === "subscription") {
+    roles(actor, "ADMIN", "FINANCE_OPS");
+    const sub = d.subscriptions.find((s) => s.id === key);
+    requireValue(sub, "Subscription missing");
+    const mode = String(b.operation),
+      plan = d.plans.find((p) => p.id === sub.planId)!;
+    requireValue(
+      sub.status !== "CANCELLED",
+      "Cancelled subscriptions are locked",
+    );
+    if (mode === "pause") {
+      requireValue(
+        sub.status === "ACTIVE",
+        "Only active subscriptions can pause",
+      );
+      sub.status = "PAUSED";
+    } else if (mode === "resume") {
+      requireValue(
+        sub.status === "PAUSED",
+        "Only paused subscriptions can resume",
+      );
+      sub.status = "ACTIVE";
+      sub.periodStart = date();
+      sub.periodEnd = plusPeriod(date(), plan.interval);
+      sub.nextBill = date();
+    } else if (mode === "change" || mode === "cancel") {
+      const next = d.plans.find((p) => p.id === b.planId) ?? plan;
+      const quantity = mode === "cancel" ? 0 : Number(b.quantity);
+      requireValue(
+        mode === "cancel" || (Number.isFinite(quantity) && quantity > 0),
+        "Quantity must be positive",
+      );
+      const effective = String(b.effectiveDate ?? date());
+      requireValue(
+        effective >= date() &&
+          effective >= sub.periodStart &&
+          effective <= sub.periodEnd,
+        "Effective date must be within the current period and not backdated",
+      );
+      if (next.interval !== plan.interval) {
+        sub.pendingPlanId = next.id;
+      } else {
+        const days =
+            (Date.parse(sub.periodEnd) - Date.parse(sub.periodStart)) /
+            86400000,
+          remaining =
+            (Date.parse(sub.periodEnd) - Date.parse(effective)) / 86400000;
+        const delta = dec(next.id === plan.id ? sub.unitPrice : next.price)
+          .mul(quantity)
+          .minus(dec(sub.unitPrice).mul(sub.quantity))
+          .mul(remaining)
+          .div(days);
+        const billed = d.invoices.find(
+          (i) => i.subscriptionId === sub.id && i.period === sub.periodStart,
+        );
+        if (
+          billed &&
+          plan.prorate &&
+          (mode !== "cancel" || plan.cancellation === "IMMEDIATE_CREDIT")
+        ) {
+          const taxDelta = delta.mul(
+            dec(1).plus(dec(billed.lines[0]?.tax ?? 0).div(billed.net || 1)),
+          );
+          if (delta.lt(0)) {
+            const credit = DecimalMin(
+              taxDelta.abs(),
+              dec(billed.total).minus(billed.credited),
+            );
+            billed.credited = money(dec(billed.credited).plus(credit));
+            billed.outstanding = money(
+              DecimalMax(
+                dec(0),
+                dec(billed.total).minus(billed.paid).minus(billed.credited),
+              ),
+            );
+            if (dec(billed.outstanding).eq(0)) billed.status = "PAID";
+            billed.events.push(
+              event(actor, `Credit note applied: INR ${money(credit)}`),
+            );
+          } else if (delta.gt(0)) {
+            const order = d.orders.find((o) => o.id === sub.orderId)!;
+            const line = structuredClone(
+              order.lines.find((l) => l.productId === sub.productId)!,
+            );
+            line.description = "Prorated subscription adjustment";
+            line.quantity = 1;
+            line.unitPrice = money(delta);
+            line.net = money(delta);
+            line.tax = money(taxDelta.minus(delta));
+            line.total = money(taxDelta);
+            invoice(d, order, [line], sub.id, `adjustment-${id("period")}`);
+          }
+        }
+        if (mode === "cancel")
+          sub.status =
+            plan.cancellation === "PERIOD_END"
+              ? "CANCEL_AT_PERIOD_END"
+              : "CANCELLED";
+        else {
+          sub.quantity = quantity;
+          sub.planId = next.id;
+          sub.unitPrice = next.id === plan.id ? sub.unitPrice : next.price;
+        }
+      }
+    } else throw new AppError(422, "VALIDATION", "Unknown subscription action");
+    sub.events.push(event(actor, `${mode}: ${text || "Subscription updated"}`));
+    return sub;
+  }
+  if (action === "refreshHealth") {
+    roles(actor, "ADMIN", "SALES_MANAGER", "SALES_REP");
+    for (const q of d.quotes) {
+      const old = d.flags.find(
+        (f) => f.quoteId === q.id && f.type === "STALLED",
+      );
+      const eligible =
+        q.sent &&
+        q.stage !== "CONFIRMED" &&
+        (Date.now() - Date.parse(q.at)) / 86400000 >=
+          d.healthSettings.stalledDays;
+      if (eligible && !old)
+        d.flags.push({
+          id: id("flag"),
+          quoteId: q.id,
+          type: "STALLED",
+          reason: `No revision for ${d.healthSettings.stalledDays} days`,
+          status: "OPEN",
+          detectedAt: new Date().toISOString(),
+        });
+      if (old) old.status = eligible ? "OPEN" : "RESOLVED";
+    }
+    for (const o of d.orders) {
+      const eligible =
+        !!o.promisedDate &&
+        o.promisedDate <= date() &&
+        !["DELIVERED", "CANCELLED"].includes(o.status);
+      const old = d.flags.find(
+        (f) => f.quoteId === o.quoteId && f.type === "DELIVERY",
+      );
+      if (eligible && !old)
+        d.flags.push({
+          id: id("flag"),
+          quoteId: o.quoteId,
+          type: "DELIVERY",
+          reason:
+            "Delivery promise needs attention; payment does not imply delivery",
+          status: "OPEN",
+          detectedAt: new Date().toISOString(),
+        });
+      if (old) old.status = eligible ? "OPEN" : "RESOLVED";
+    }
+    return { refreshed: true };
+  }
+  if (action === "task") {
+    roles(actor, "ADMIN", "SALES_MANAGER", "SALES_REP");
+    if (b.complete === true) {
+      const task = d.tasks.find((t) => t.id === key);
+      requireValue(task, "Task missing");
+      task.status = "DONE";
+      return task;
+    }
+    requireValue(
+      d.users.some((u) => u.id === b.assigneeId) && b.dueDate && text,
+      "Assignee, due date and task required",
+    );
+    const task = {
+      id: id("TASK"),
+      quoteId: String(b.quoteId),
+      assigneeId: String(b.assigneeId),
+      dueDate: String(b.dueDate),
+      text,
+      status: "OPEN",
+    };
+    d.tasks.push(task);
+    return task;
+  }
+  throw new AppError(404, "NOT_FOUND", "Action unavailable");
+}
+const DecimalMin = (a: ReturnType<typeof dec>, b: ReturnType<typeof dec>) =>
+  a.lte(b) ? a : b;
+const DecimalMax = (a: ReturnType<typeof dec>, b: ReturnType<typeof dec>) =>
+  a.gte(b) ? a : b;
+export const developmentAdapter: ApplicationAdapter = {
+  mode: "DEV FIXTURE",
+  authenticate: (token) =>
+    access(false, (s) => {
+      const session = token ? s.sessions[hash(token)] : undefined;
+      return session && session.expires > Date.now()
+        ? (s.data.users.find((u) => u.id === session.userId && u.active) ??
+            null)
+        : null;
+    }),
+  login: (email, password) =>
+    access(true, (s) => {
+      const actor = s.data.users.find(
+        (u) => u.email.toLowerCase() === email.toLowerCase(),
+      );
+      if (
+        !actor ||
+        !s.credentials[actor.id] ||
+        !passwordMatches(password, s.credentials[actor.id])
+      )
+        throw new AppError(
+          401,
+          "INVALID_CREDENTIALS",
+          "Email or password is incorrect",
+        );
+      if (!actor.active)
+        throw new AppError(
+          403,
+          "ACCOUNT_PENDING",
+          "Your account is awaiting administrator activation",
+        );
+      const token = randomBytes(32).toString("hex");
+      s.sessions[hash(token)] = {
+        userId: actor.id,
+        expires: Date.now() + 8 * 3600000,
+      };
+      return { actor, token };
+    }),
+  logout: (token) =>
+    access(true, (s) => {
+      delete s.sessions[hash(token)];
+    }),
+  signup: (name, email, password) =>
+    access(true, (s) => {
+      requireValue(
+        name.trim() && /^\S+@\S+\.\S+$/.test(email) && password.length >= 8,
+        "Name, valid email and an 8-character password required",
+      );
+      requireValue(
+        !s.data.users.some(
+          (u) => u.email.toLowerCase() === email.toLowerCase(),
+        ),
+        "An account already exists",
+      );
+      const user: Actor = {
+        id: id("USER"),
+        name,
+        email,
+        role: "SALES_REP",
+        active: false,
+      };
+      s.data.users.push(user);
+      s.credentials[user.id] = passwordHash(password);
+    }),
+  read: () => access(false, (s) => s.data),
+  readCustomer: (customerId) =>
+    access(false, (s) => {
+      const d = structuredClone(s.data);
+      d.quotes = d.quotes.filter((q) => q.customerId === customerId && q.sent);
+      d.orders = d.orders.filter((o) => o.customerId === customerId);
+      d.invoices = d.invoices.filter((i) => i.customerId === customerId);
+      d.messages = d.messages.filter((m) =>
+        d.quotes.some((q) => q.id === m.quoteId),
+      );
+      d.proposals = d.proposals.filter((p) =>
+        d.quotes.some((q) => q.id === p.quoteId),
+      );
+      return d;
+    }),
+  fulfillmentPreview: (actor, orderId) =>
+    access(false, (s) => {
+      roles(actor, "ADMIN", "FINANCE_OPS");
+      const order = s.data.orders.find((o) => o.id === orderId);
+      requireValue(order, "Order missing");
+      return { orderId, ...splitPreview(s.data, order) };
+    }),
+  transaction: (perform) => access(true, (s) => perform(transaction(s))),
+  command: (actor, action, b) =>
+    access(true, (s) => {
+      const current = s.data.users.find((u) => u.id === actor.id && u.active);
+      if (!current) throw new AppError(401, "UNAUTHENTICATED", "Sign in again");
+      const tx = transaction(s);
+      requireValue(
+        typeof b.requestKey === "string" && b.requestKey.length >= 8,
+        "Operation key required",
+      );
+      return tx.replay(
+        `${action}:${actor.id}`,
+        String(b.requestKey),
+        JSON.stringify(b),
+        () => command(s, current, action, b),
+      );
+    }),
 };
