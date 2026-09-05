@@ -5,7 +5,7 @@
 import { handle } from "@/lib/api/respond";
 import { getActor } from "@/server/lib/auth/dev-actor";
 import { queryFlag } from "@/features/catalog/api";
-import { getCatalogService } from "@/server/catalog/service";
+import { getCatalogService } from "@/server/catalog/live";
 
 export async function GET(request: Request) {
   return handle(async () => {

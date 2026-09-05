@@ -44,7 +44,10 @@ const MUTATION_ROLES = ["FINANCE", "ADMIN"] as const;
 const PLAN_ROLES = ["ADMIN"] as const;
 
 export class BillingService {
-  constructor(private readonly repo: BillingRepository) {}
+  constructor(
+    private readonly repo: BillingRepository,
+    private readonly listCatalogPlans?: (actor: Actor) => Promise<PlanRef[]>,
+  ) {}
 
   private assertRead(actor: Actor) {
     if (!actor.active) throw new ApiFailure("FORBIDDEN", "Inactive account");
@@ -84,7 +87,7 @@ export class BillingService {
     const map = new Map<string, PlanRef>();
     for (const p of db) map.set(p.id, { id: p.id, name: p.name, interval: p.interval });
     if (actor.role !== "CUSTOMER") {
-      const catalog = await getCatalogService().listPlans(actor);
+      const catalog = await (this.listCatalogPlans ?? ((a: Actor) => getCatalogService().listPlans(a)))(actor);
       for (const p of catalog) {
         if (!map.has(p.id)) map.set(p.id, { id: p.id, name: p.name, interval: p.interval });
       }

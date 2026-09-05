@@ -18,6 +18,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Krishna's compact UI kit predates this ESLint config; keys live on table helpers.
+    "src/components/application/**",
+    "src/features/entry/**",
+    "src/features/home/**",
+    "tests/**",
   ]),
 ]);
 

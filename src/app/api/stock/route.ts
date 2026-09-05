@@ -1,7 +1,7 @@
 import { handle } from "@/lib/api/respond";
 import { getActor } from "@/server/lib/auth/dev-actor";
 import { stockQuerySchema } from "@/features/inventory/api";
-import { getFulfillmentService } from "@/server/inventory/service";
+import { getFulfillmentService } from "@/server/inventory/live";
 
 /** GET /api/stock?warehouseId=&variantId= — StockListItem[] (internal roles). */
 export async function GET(request: Request) {
