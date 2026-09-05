@@ -177,6 +177,8 @@ Use browser DevTools or a request client with the session cookie. Responses use 
 - [ ] Login content is left-aligned and blended into the unchanged `bg-image.png`; there is no boxed white form surface.
 - [ ] Landing fits at 100% zoom with Configure / Agree / Deliver visible in the first viewport and no page scroll.
 - [ ] The landing navigation sits left of the right-side foliage and remains readable.
+- [ ] Landing and login headers have no white bar, filled rectangle, border, or shadow. Navigation text sits in the quiet area of the original photo; primary CTA buttons remain teal.
+- [ ] At desktop width, the circle and text in each Configure / Agree / Deliver step have an 18px gap. At mobile width, the icon sits above its text with 10px clearance; no icon stretches or overlaps copy.
 - [ ] Branding is the plain text wordmark `DealFlow360` with the restrained teal `360` accent.
 - [ ] Headline, supporting copy, CTA and Configure / Agree / Deliver journey are balanced in the first viewport.
 - [ ] Internal pages use a cool stone canvas and layered solid surfaces. Dense tables never sit directly on the marble photograph.
@@ -187,6 +189,19 @@ Use browser DevTools or a request client with the session cookie. Responses use 
 - [ ] Primary actions are obvious, secondary actions are quiet, disabled actions explain their state, and no emoji or unexplained decorative glyph is present.
 - [ ] Customer portal is simpler than the staff workspace and contains customer-safe data only.
 - [ ] Browser console contains no hydration, React, or route errors during the route inventory. Network requests contain no unexpected `5xx` responses.
+
+## Public navigation interaction checks
+
+These checks are pending browser execution for the latest public-header change; typecheck/build do not verify layout or pointer/keyboard behavior.
+
+- [ ] Open `/`. Click **Product**: an unboxed panel on the photograph explains quotations/recommendations, approvals/negotiation, and fulfillment/billing. The hero temporarily hides so the two sets of text cannot overlap.
+- [ ] Click **How it works** while Product is open: only the three-step process panel is visible. It explains exact-revision acceptance and the preview commitment rule.
+- [ ] Click **Access**: staff and customer account information appears, with **Sign in with your account** linking to `/login` and **Request an account** linking to `/signup`. There is no public privileged-role selector.
+- [ ] **Sign in**, **Get started**, and each panel's workspace link navigate to `/login`; **Back to home** from login returns to `/`.
+- [ ] Close a panel by clicking its trigger again, **Close**, or outside the header. The landing hero returns without page scrolling. **Escape** closes it and restores focus to its trigger.
+- [ ] Use Tab, Enter, and Space to open the three panels and follow their links. Triggers expose `aria-expanded`. Content hidden behind an open panel is inert and cannot receive focus.
+- [ ] At widths at or below 1100px, use **Menu** to reach Product, How it works, Access, and Get started. Panel content remains transparent; overflow is confined to the navigation area on short screens. Sign in is also available beside Menu.
+- [ ] At about 1440px, 1280px, 768px, and 390px, check that the photo remains visible through the panels and that no opaque card appears. The blur behind an open panel has soft edges.
 
 ## DEV FIXTURE LIMITATIONS
 

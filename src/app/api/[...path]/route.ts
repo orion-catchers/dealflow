@@ -11,7 +11,7 @@ export const dynamic='force-dynamic';
 async function handle(req:NextRequest) {
   try {
     const adapter=await getAdapter(), path=req.nextUrl.pathname.slice(5).split('/');
-    const token=req.cookies.get('dealflow-session')?.value;
+    const token=req.cookies.get('dealflow_session')?.value??req.cookies.get('dealflow-session')?.value;
     if(req.method==='POST') {const origin=req.headers.get('origin');if(origin&&!sameOrigin(req.url,req.headers,origin))throw new AppError(403,'ORIGIN','Request origin does not match');}
     const body=req.method==='POST'?await req.json().catch(()=>{throw new AppError(400,'INVALID_JSON','Invalid request body');}):{};
     const ok=(data:unknown)=>NextResponse.json({data,mode:adapter.mode},{headers:{'Cache-Control':'no-store'}});
@@ -20,7 +20,7 @@ async function handle(req:NextRequest) {
     const actor=await adapter.authenticate(token);
     if(!actor)throw new AppError(401,'UNAUTHENTICATED','Sign in to continue');
     if(path.join('/')==='auth/me')return ok({actor});
-    if(path.join('/')==='auth/logout'&&req.method==='POST'){await adapter.logout(token!);const response=ok({});response.cookies.delete('dealflow-session');return response;}
+    if(path.join('/')==='auth/logout'&&req.method==='POST'){await adapter.logout(token!);const response=ok({});response.cookies.delete('dealflow-session');response.cookies.delete('dealflow_session');return response;}
     if(path[0]==='portal') {
       if(req.method==='GET'){const result=portalData(actor,await adapter.readCustomer(customerActor(actor)));if(path[1]){const collection=path[1] as 'quotes'|'orders'|'invoices';if(!['quotes','orders','invoices'].includes(collection))throw new AppError(404,'NOT_FOUND','Page unavailable');const record=result[collection].find(x=>x.id===path[2]);if(!record)throw new AppError(404,'NOT_FOUND','Record unavailable');return ok(record);}return ok(result);}
       if(path[1]==='quotes'&&path[3]==='proposals')return ok(await propose(adapter,actor,path[2],body));

@@ -23,6 +23,8 @@ import { prisma, type Db, type Tx } from "@/server/lib/db";
 import {
   dateOnly,
   FIXTURE_USER_EMAIL,
+  FIXTURE_VARIANT_SKU,
+  FIXTURE_WAREHOUSE_CODE,
   isoOf,
   reservationStatusToDb,
   toBackorder,
@@ -84,9 +86,11 @@ export class PrismaInventoryStore implements InventoryStore {
   }
 
   async getWarehouse(id: string): Promise<Warehouse | null> {
+    const code = FIXTURE_WAREHOUSE_CODE[id] ?? (id.startsWith("warehouse-") ? id.slice("warehouse-".length).toUpperCase() : id.toUpperCase());
     const row =
       (await this.db.warehouse.findUnique({ where: { id } })) ??
-      (await this.db.warehouse.findUnique({ where: { code: id.toUpperCase() } }));
+      (await this.db.warehouse.findUnique({ where: { code: id.toUpperCase() } })) ??
+      (await this.db.warehouse.findUnique({ where: { code } }));
     return row ? toWarehouse(row) : null;
   }
 
@@ -359,27 +363,36 @@ export class PrismaInventoryStore implements InventoryStore {
   async saveRequestResult<T>(scope: string, key: string, result: T): Promise<void> {
     const pair = requestKeyPair(scope, key);
     const kind = pair.scope === "STOCK_RECEIPT" ? "STOCK_RECEIPT" : "ALLOCATION";
+    const payload = JSON.parse(JSON.stringify(result)) as Prisma.InputJsonValue;
+    const resultId =
+      result && typeof result === "object" && result !== null && "receipt" in result && (result as { receipt?: { id?: string } }).receipt?.id
+        ? String((result as { receipt: { id: string } }).receipt.id)
+        : key;
     await this.db.requestKey.upsert({
       where: { scope_key: { scope: pair.scope, key: pair.key } },
       create: {
         scope: pair.scope,
         key: pair.key,
         resultKind: kind,
-        resultPayload: JSON.parse(JSON.stringify(result)) as Prisma.InputJsonValue,
+        resultId,
+        resultPayload: payload,
         completedAt: new Date(),
       },
       update: {
         resultKind: kind,
-        resultPayload: JSON.parse(JSON.stringify(result)) as Prisma.InputJsonValue,
+        resultId,
+        resultPayload: payload,
         completedAt: new Date(),
       },
     });
   }
 
   async getVariant(id: string): Promise<Variant | null> {
+    const sku = FIXTURE_VARIANT_SKU[id] ?? id;
     const row =
       (await this.db.variant.findUnique({ where: { id }, include: { product: { select: { baseCost: true } } } })) ??
-      (await this.db.variant.findUnique({ where: { sku: id }, include: { product: { select: { baseCost: true } } } }));
+      (await this.db.variant.findUnique({ where: { sku: id }, include: { product: { select: { baseCost: true } } } })) ??
+      (await this.db.variant.findUnique({ where: { sku }, include: { product: { select: { baseCost: true } } } }));
     return row ? toVariant(row, Number(row.product.baseCost)) : null;
   }
 

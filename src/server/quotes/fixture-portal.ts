@@ -19,7 +19,10 @@ function fromAppError(error: unknown): never {
 
 export async function fixturePortalActor(request: Request) {
   const adapter = await getAdapter();
-  const token = request.headers.get("cookie")?.split(";").map((part) => part.trim()).find((part) => part.startsWith("dealflow-session="))?.slice("dealflow-session=".length);
+  const cookie = request.headers.get("cookie") ?? "";
+  const token =
+    cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith("dealflow_session="))?.slice("dealflow_session=".length) ??
+    cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith("dealflow-session="))?.slice("dealflow-session=".length);
   const actor = await adapter.authenticate(token);
   if (!actor) throw new ApiFailure("UNAUTHENTICATED", "Sign in to continue");
   return { adapter, actor };

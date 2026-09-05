@@ -348,10 +348,12 @@ export class FulfillmentService {
       if (!warehouse.active) throw new ApiFailure("INVALID_INPUT", `Warehouse ${input.warehouseId} is inactive`);
       const variant = await tx.getVariant(input.variantId);
       if (!variant) throw new ApiFailure("NOT_FOUND", `Variant ${input.variantId} not found`);
+      const warehouseId = warehouse.id;
+      const variantId = variant.id;
 
-      const level: StockLevel = (await tx.getStockLevel(input.warehouseId, input.variantId)) ?? {
-        warehouseId: input.warehouseId,
-        variantId: input.variantId,
+      const level: StockLevel = (await tx.getStockLevel(warehouseId, variantId)) ?? {
+        warehouseId,
+        variantId,
         onHand: 0,
         reserved: 0,
         reorderThreshold: 0,
@@ -361,8 +363,8 @@ export class FulfillmentService {
 
       const receipt = await tx.saveReceipt({
         id: await tx.nextId("rcpt"),
-        warehouseId: input.warehouseId,
-        variantId: input.variantId,
+        warehouseId,
+        variantId,
         quantity: input.quantity,
         requestKey: input.requestKey,
         receivedAt: tx.now(),
@@ -371,7 +373,7 @@ export class FulfillmentService {
       });
 
       // Eligible OPEN backorders for this variant, oldest order first.
-      const open = await tx.listBackorders({ variantId: input.variantId, status: "OPEN" });
+      const open = await tx.listBackorders({ variantId, status: "OPEN" });
       const withOrders: { backorder: Backorder; rec: FulfillmentRecord }[] = [];
       for (const b of open) {
         const rec = await tx.getFulfillment(b.orderId);

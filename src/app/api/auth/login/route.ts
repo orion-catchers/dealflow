@@ -1,16 +1,35 @@
 import { NextResponse } from "next/server";
 import { readJson } from "@/features/catalog/api";
-import { ApiFailure, fail, ok } from "@/lib/api/respond";
+import { ApiFailure, fail } from "@/lib/api/respond";
 import { loginWithPassword, parseLoginBody } from "@/server/lib/auth/credentials";
 import { setSessionCookie } from "@/server/lib/auth/session";
 import { developmentEnabled, getAdapter } from "@/server/adapters";
+
+function toAppActor(user: {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status?: string;
+  active?: boolean;
+  customerId?: string;
+}) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role === "FINANCE" ? "FINANCE_OPS" : user.role,
+    active: user.active !== false && user.status !== "PENDING" && user.status !== "DISABLED",
+    customerId: user.customerId,
+  };
+}
 
 export async function POST(request: Request) {
   try {
     if (developmentEnabled()) {
       const input = parseLoginBody(await readJson(request));
       const result = await (await getAdapter()).login(input.email, input.password);
-      const response = ok({ actor: result.actor, mode: "DEV FIXTURE" });
+      const response = NextResponse.json({ data: { actor: result.actor, mode: "DEV FIXTURE" }, mode: "DEV FIXTURE" });
       response.cookies.set("dealflow-session", result.token, {
         httpOnly: true,
         sameSite: "strict",
@@ -22,7 +41,7 @@ export async function POST(request: Request) {
     }
     const input = parseLoginBody(await readJson(request));
     const { user, token } = await loginWithPassword(input);
-    const response = ok(user);
+    const response = NextResponse.json({ data: { actor: toAppActor(user), mode: "LIVE" }, mode: "LIVE" });
     setSessionCookie(response, token);
     return response;
   } catch (e) {
