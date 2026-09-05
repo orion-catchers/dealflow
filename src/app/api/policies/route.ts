@@ -1,19 +1,12 @@
 import { handle } from "@/lib/api/respond";
-import { getActor, requireRole } from "@/server/lib/auth/dev-actor";
-import { policy, updatePolicy } from "@/server/governance/policy-service";
+import { getAuthorizedActor } from "@/server/lib/auth/permissions";
+import { readJson } from "@/features/catalog/api";
+import { getLivePolicyService } from "@/server/governance/live-policy-service";
 
 export async function GET(request: Request) {
-  return handle(async () => {
-    const actor = await getActor(request);
-    requireRole(actor, "ADMIN", "SALES_MANAGER", "SALES_REP");
-    return structuredClone(policy);
-  });
+  return handle(async () => getLivePolicyService().get(await getAuthorizedActor(request)));
 }
 
 export async function PATCH(request: Request) {
-  return handle(async () => {
-    const actor = await getActor(request);
-    requireRole(actor, "ADMIN", "SALES_MANAGER");
-    return updatePolicy(await request.json());
-  });
+  return handle(async () => getLivePolicyService().publish(await getAuthorizedActor(request), await readJson(request)));
 }

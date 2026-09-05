@@ -24,7 +24,10 @@ Copy `.env.example` to `.env` locally. On the host, set at least:
 
 - `DATABASE_URL` — Postgres 16 URL. Include `schema=public` on integration.
 - `SESSION_SECRET` — `openssl rand -hex 32`. Cookie signing/session hashing. Never commit it.
-- `NODE_ENV=production` on the deployed app. Production rejects the `x-dev-actor` header.
+- `NODE_ENV=production` on the deployed app. The `x-dev-actor` header is only
+  honored when `DEALFLOW_DEV_IMPERSONATION=1` in a non-production environment;
+  production always ignores it. Seeded demo accounts each have their own
+  password (see `src/fixtures/ruchir.ts`); there is no shared password.
 
 ## Migrate and seed
 

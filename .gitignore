@@ -47,6 +47,4 @@ next-env.d.ts
 
 # local implementation notes
 ATHARVA_IMPLEMENTATION_PROMPT.md
-
-# Krishna local fixture persistence
-.dealflow-development/
+ATHARVA_IMPLEMENTATION_DETAILS.md

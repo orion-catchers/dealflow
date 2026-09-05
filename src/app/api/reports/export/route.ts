@@ -5,7 +5,7 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { ApiFailure, fail } from "@/lib/api/respond";
-import { getActor } from "@/server/lib/auth/dev-actor";
+import { getAuthorizedActor } from "@/server/lib/auth/permissions";
 import { parseExportFormat, parseReportFilters } from "@/features/reports/api";
 import { getReportService } from "@/server/reports/live";
 
@@ -18,7 +18,7 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 
 export async function GET(request: NextRequest) {
   try {
-    const actor = await getActor(request);
+    const actor = await getAuthorizedActor(request);
     const params = request.nextUrl.searchParams;
     const format = parseExportFormat(params);
     const filters = parseReportFilters(params);

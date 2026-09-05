@@ -69,7 +69,10 @@ function ceilingForLine(
     return defaultCeiling;
   }
 
-  return parsePercentage(categoryCeiling, `ceiling for ${line.category}`);
+  return Math.min(
+    defaultCeiling,
+    parsePercentage(categoryCeiling, `ceiling for ${line.category}`),
+  );
 }
 
 function evaluateInterval(

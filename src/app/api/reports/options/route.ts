@@ -4,12 +4,12 @@
  */
 import type { NextRequest } from "next/server";
 import { handle } from "@/lib/api/respond";
-import { getActor } from "@/server/lib/auth/dev-actor";
+import { getAuthorizedActor } from "@/server/lib/auth/permissions";
 import { getReportService } from "@/server/reports/live";
 
 export async function GET(request: NextRequest) {
   return handle(async () => {
-    const actor = await getActor(request);
+    const actor = await getAuthorizedActor(request);
     return getReportService().filterOptions(actor);
   });
 }
