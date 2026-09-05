@@ -72,18 +72,26 @@ export async function confirmPasswordReset(
   }
 
   const newPasswordHash = await hashPassword(input.newPassword);
-  await prisma.$transaction([
-    prisma.user.update({
+  await prisma.$transaction(async (tx) => {
+    // Atomic claim: the conditional update makes concurrent replays of the
+    // same token fail here instead of both rotating the password.
+    const claimed = await tx.passwordResetToken.updateMany({
+      where: { id: record.id, usedAt: null, expiresAt: { gt: now } },
+      data: { usedAt: now },
+    });
+    if (claimed.count !== 1) {
+      throw new ApiFailure(
+        "INVALID_INPUT",
+        "Reset link is invalid or expired; request a new one",
+      );
+    }
+    await tx.user.update({
       where: { id: record.userId },
       data: { passwordHash: newPasswordHash },
-    }),
-    prisma.passwordResetToken.update({
-      where: { id: record.id },
-      data: { usedAt: now },
-    }),
+    });
     // Old sessions must not survive a password change.
-    prisma.session.deleteMany({ where: { userId: record.userId } }),
-  ]);
+    await tx.session.deleteMany({ where: { userId: record.userId } });
+  });
 
   return { ok: true };
 }

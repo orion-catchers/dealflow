@@ -106,6 +106,29 @@ describe.skipIf(!dbAvailable)("password reset flow", () => {
     expect(err.code).toBe("INVALID_INPUT");
   });
 
+  it("consumes a token atomically under concurrent confirmation", async () => {
+    const user = await prisma.user.findUniqueOrThrow({ where: { email: activeEmail } });
+    const token = randomBytes(32).toString("hex");
+    await prisma.passwordResetToken.create({
+      data: {
+        tokenHash: hashResetToken(token),
+        userId: user.id,
+        expiresAt: new Date(Date.now() + RESET_TTL_MS),
+      },
+    });
+
+    const attempts = await Promise.allSettled([
+      confirmPasswordReset({ token, newPassword: "race-password-1" }),
+      confirmPasswordReset({ token, newPassword: "race-password-2" }),
+    ]);
+    const ok = attempts.filter((a) => a.status === "fulfilled");
+    const rejected = attempts.filter(
+      (a) => a.status === "rejected" && a.reason instanceof ApiFailure && a.reason.code === "INVALID_INPUT",
+    );
+    expect(ok).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+  });
+
   it("does not create tokens for non-active accounts", async () => {
     const user = await prisma.user.create({
       data: {
