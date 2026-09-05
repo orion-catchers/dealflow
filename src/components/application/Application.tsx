@@ -87,7 +87,7 @@ export default function Application(){
     return result;
   };
 
-  if(publicPage)return <Auth path={pathname} error={error} onLogin={(nextActor,nextMode)=>{setActor(nextActor);setMode(nextMode??'DEV FIXTURE');router.push(nextActor.role==='CUSTOMER'?'/portal':'/home');}}/>;
+  if(publicPage)return <Auth path={pathname} mode={mode} error={error} onLogin={(nextActor,nextMode)=>{setActor(nextActor);setMode(nextMode??'LIVE');router.push(nextActor.role==='CUSTOMER'?'/portal':'/home');}}/>;
   if(loading)return <main className="standalone" role="status">Loading your workspace…</main>;
   if(!actor)return <main className="standalone"><h1>{error?'Service not connected':'Sign in to continue'}</h1><p>{error||'Your session has expired or you have not signed in.'}</p><Link href="/login">Open sign in</Link></main>;
   if(actor.role==='CUSTOMER'&&!pathname.startsWith('/portal'))return <main className="standalone"><h1>Customer access only</h1><Link href="/portal">Open your customer portal</Link></main>;
@@ -129,7 +129,7 @@ export default function Application(){
   </div>;
 }
 
-function Auth({path,error,onLogin}:{path:string;error:string;onLogin:(actor:Actor,mode?:string)=>void}){
+function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;onLogin:(actor:Actor,mode?:string)=>void}){
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
   const [name,setName]=useState('');
@@ -161,7 +161,7 @@ function Auth({path,error,onLogin}:{path:string;error:string;onLogin:(actor:Acto
         <span className="eyebrow">DEALFLOW360 WORKSPACE</span>
         <h1>{path==='/signup'?'Request an account':'Welcome back'}</h1>
         <p>{path==='/signup'?'Your administrator will verify your access.':'Sign in with your assigned company account.'}</p>
-        <p className="dev-copy">DEV FIXTURE · Local seeded accounts</p>
+        <p className="dev-copy">{mode==='DEV FIXTURE'?'DEV FIXTURE · Local JSON store accounts':'LIVE · Use seeded company accounts from the README'}</p>
         {done?<div className="notice" role="status">Account requested. Your administrator must activate access.<Link href="/login">Return to sign in</Link></div>:<form onSubmit={async event=>{
           event.preventDefault();setBusy(true);setIssue('');
           try{if(path==='/signup'){await api('auth/signup',{name,email,password});setDone(true);}else{const result=await api<{actor?:Actor;mode?:string;id?:string;name?:string;email?:string;role?:Role;active?:boolean;customerId?:string}>('auth/login',{email,password});const actor=result.actor??sessionToActor(result);if(!actor)throw new Error('Sign in could not be completed.');onLogin(actor,result.mode??'LIVE');}}

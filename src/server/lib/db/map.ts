@@ -27,6 +27,7 @@ import type {
   Variant,
   Warehouse,
 } from "@/contracts/harsh";
+import { harshFixtures } from "@/fixtures/harsh";
 
 export const FIXTURE_USER_EMAIL: Record<string, string> = {
   "admin-dev": "dev@nexa.example",
@@ -47,6 +48,14 @@ export const FIXTURE_CUSTOMER_EMAIL: Record<string, string> = {
 
 const CUSTOMER_EMAIL_TO_SYMBOL = Object.fromEntries(
   Object.entries(FIXTURE_CUSTOMER_EMAIL).map(([sym, email]) => [email, sym]),
+);
+CUSTOMER_EMAIL_TO_SYMBOL["meera@gamma.example"] = "customer-gamma";
+
+export const FIXTURE_WAREHOUSE_CODE: Record<string, string> = Object.fromEntries(
+  harshFixtures.warehouses.map((row) => [row.sym, row.code]),
+);
+export const FIXTURE_VARIANT_SKU: Record<string, string> = Object.fromEntries(
+  harshFixtures.variants.map((row) => [row.sym, row.sku]),
 );
 
 export function moneyOf(value: unknown): string {
