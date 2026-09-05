@@ -134,8 +134,15 @@ a.df-button--primary{color:#fff}
 .view-toggle .df-button{min-width:118px}
 .setup-nav{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 22px}
 .setup-nav .df-button{min-height:38px}
-.pipeline-board{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;width:100%;align-items:stretch}
-.pipeline-board>section{min-width:0;min-height:280px;display:flex;flex-direction:column;background:#edf2f4;border:1px solid #e1e8ed;border-radius:10px;padding:10px}
+.pipeline-board{display:flex;gap:10px;width:100%;align-items:stretch;overflow-x:auto;padding-bottom:8px}
+.pipeline-board>section{position:relative;flex:0 0 auto;min-height:280px;display:flex;flex-direction:column;background:#edf2f4;border:1px solid #e1e8ed;border-radius:10px;padding:10px 14px 10px 10px}
+.pipeline-resizer{position:absolute;top:8px;right:0;width:10px;bottom:8px;padding:0;border:0;border-radius:0 8px 8px 0;background:transparent;cursor:col-resize}
+.pipeline-resizer:hover,.pipeline-resizer.is-dragging{background:rgba(8,126,128,.22)}
+.row-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:flex-end}
+.panel>p.lede{margin:0 0 14px;max-width:68ch}
+.defined-block{display:flex;gap:24px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.defined-block p{max-width:52ch;margin:0}
+.defined-block .df-button{flex:none}
 .pipeline-board h2{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;font-size:11px;letter-spacing:.3px;text-transform:uppercase;line-height:1.25;margin:0 0 4px;min-height:32px}
 .pipeline-board h2 span{display:inline-flex;align-items:center;justify-content:center;flex:none;min-width:22px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:2px 7px;font-size:11px;color:var(--ink);font-weight:700}
 .pipeline-empty{margin:12px 0 0;font-size:12px;color:var(--muted)}

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { Quote } from "../../contracts/application";
 import type { Recommendation } from "../../contracts/krishna";
@@ -23,6 +23,107 @@ import {
   BackLink,
   type Context,
 } from "./shared";
+
+const PIPELINE_STAGES = [
+  "DRAFT",
+  "SENT",
+  "PENDING_APPROVAL",
+  "UNDER_NEGOTIATION",
+  "APPROVED",
+  "CONFIRMED",
+  "REJECTED",
+] as const;
+const PIPELINE_WIDTH_KEY = "dealflow-pipeline-widths";
+
+function PipelineBoard({
+  stages,
+  rows,
+  customers,
+}: {
+  stages: readonly string[];
+  rows: Quote[];
+  customers: { id: string; name: string }[];
+}) {
+  const [widths, setWidths] = useState<Record<string, number>>(() =>
+    Object.fromEntries(stages.map((s) => [s, 220])),
+  );
+  const widthsRef = useRef(widths);
+  widthsRef.current = widths;
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(PIPELINE_WIDTH_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Record<string, number>;
+      setWidths((prev) => ({ ...prev, ...parsed }));
+    } catch {
+      /* optional */
+    }
+  }, []);
+  const startResize = (stage: string, event: PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    const origin = event.clientX;
+    const start = widthsRef.current[stage] ?? 220;
+    const handle = event.currentTarget;
+    handle.classList.add("is-dragging");
+    const move = (ev: PointerEvent) => {
+      const next = Math.min(460, Math.max(168, start + ev.clientX - origin));
+      const merged = { ...widthsRef.current, [stage]: next };
+      widthsRef.current = merged;
+      setWidths(merged);
+    };
+    const up = () => {
+      handle.classList.remove("is-dragging");
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      try {
+        window.localStorage.setItem(PIPELINE_WIDTH_KEY, JSON.stringify(widthsRef.current));
+      } catch {
+        /* optional */
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  return (
+    <div className="pipeline-board">
+      {stages.map((stage) => {
+        const cards = rows.filter((q) => q.stage === stage);
+        return (
+          <section key={stage} style={{ width: widths[stage] ?? 220 }}>
+            <h2>
+              {stage.replaceAll("_", " ")}
+              <span>{cards.length}</span>
+            </h2>
+            {cards.length ? (
+              cards.map((q) => (
+                <article className="pipeline-deal" key={q.id}>
+                  <strong>{quoteTitle(q)}</strong>
+                  <span>{customers.find((c) => c.id === q.customerId)?.name}</span>
+                  {q.totals.map((t) => (
+                    <small key={t.interval}>
+                      <Money amount={t.total} currency={q.currency} /> ·{" "}
+                      {t.interval.replaceAll("_", " ").toLowerCase()}
+                    </small>
+                  ))}
+                  <OpenLink href={"/quotes/" + q.id} />
+                </article>
+              ))
+            ) : (
+              <p className="pipeline-empty">No deals in this stage</p>
+            )}
+            <button
+              type="button"
+              className="pipeline-resizer"
+              aria-label={`Widen ${stage.replaceAll("_", " ")} column`}
+              onPointerDown={(e) => startResize(stage, e)}
+            />
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Quotes({ ctx }: { ctx: Context }) {
   const { d, path, run, actor } = ctx,
     router = useRouter(),
@@ -127,42 +228,14 @@ export default function Quotes({ ctx }: { ctx: Context }) {
         )}
       />
       {path === "/pipeline" ? (
-        <div className="pipeline-board">
-          {[
-            "DRAFT",
-            "SENT",
-            "PENDING_APPROVAL",
-            "UNDER_NEGOTIATION",
-            "APPROVED",
-            "CONFIRMED",
-            "REJECTED",
-          ].map((stage) => {
-            const cards = rows.filter((q) => q.stage === stage);
-            return (
-            <section key={stage}>
-              <h2>
-                {stage.replaceAll("_", " ")}
-                <span>{cards.length}</span>
-              </h2>
-              {cards.length ? cards.map((q) => (
-                  <article className="pipeline-deal" key={q.id}>
-                    <strong>{quoteTitle(q)}</strong>
-                    <span>
-                      {d.customers.find((c) => c.id === q.customerId)?.name}
-                    </span>
-                    {q.totals.map((t) => (
-                      <small key={t.interval}>
-                        <Money amount={t.total} currency={q.currency} /> ·{" "}
-                        {t.interval.replaceAll("_", " ").toLowerCase()}
-                      </small>
-                    ))}
-                    <OpenLink href={"/quotes/" + q.id} />
-                  </article>
-              )) : <p className="pipeline-empty">No deals in this stage</p>}
-            </section>
-            );
-          })}
-        </div>
+        <>
+          <p className="lede">Drag the right edge of a column to make it wider.</p>
+          <PipelineBoard
+            stages={PIPELINE_STAGES}
+            rows={rows}
+            customers={d.customers}
+          />
+        </>
       ) : (
         <Section title={approval ? "Requests" : "All quotations"}>
           <Table

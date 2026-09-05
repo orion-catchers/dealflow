@@ -38,3 +38,4 @@ export function orderTitle(order:{lines?:{description:string}[];status?:string},
 export function invoiceTitle(invoice:{dueDate:string;lines?:{description:string}[]}){const names=invoice.lines?namesFromLines(invoice.lines):[];if(names.length)return `${namedList(names,'Invoice')} · due ${invoice.dueDate}`;return `Invoice due ${invoice.dueDate}`;}
 export function OpenLink({href,children='Open',variant='primary'}:{href:string;children?:ReactNode;variant?:'primary'|'secondary'}){return <Link href={href} className={`df-button df-button--${variant}`}>{children}</Link>;}
 export function BackLink({href,children='Back'}:{href:string;children?:ReactNode}){return <OpenLink href={href} variant="secondary">{children}</OpenLink>;}
+export function RowActions({children}:{children:ReactNode}){return <div className="row-actions">{children}</div>;}
