@@ -72,6 +72,22 @@ describe("evaluatePolicy", () => {
     expect(finance.requiredApprovalChain).toEqual(["MANAGER", "FINANCE"]);
   });
 
+  it("never lets a category ceiling exceed the default ceiling", () => {
+    const result = evaluatePolicy({
+      lines: [line({ discountPct: "16" })],
+      orderDiscountPct: "0",
+      policySnapshot: {
+        ...policy,
+        rules: {
+          ...policy.rules,
+          defaultCeilingPct: "15",
+          categoryCeilingsPct: { Hardware: "40" },
+        },
+      },
+    });
+    expect(result.requiredApprovalChain).toEqual(["MANAGER"]);
+  });
+
   it("keeps recurring interval risk separate and cannot be bypassed by order discount", () => {
     const result = evaluatePolicy({
       lines: [
