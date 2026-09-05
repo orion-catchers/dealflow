@@ -1,5 +1,5 @@
 import { handle } from "@/lib/api/respond";
-import { getActor } from "@/server/lib/auth/dev-actor";
+import { getAuthorizedActor } from "@/server/lib/auth/permissions";
 import { readJson } from "@/features/catalog/api";
 import { getLiveQuoteService } from "@/server/quotes/live-service";
 import { parseExpectedRevisionBody } from "@/server/quotes/http";
@@ -11,7 +11,7 @@ export async function POST(request: Request, context: { params: Promise<{ quoteI
     const raw = await readJson(request);
     if (usesFixturePortal()) return fixturePortalPropose(request, quoteId, raw);
     const body = parseExpectedRevisionBody(raw);
-    return getLiveQuoteService().propose(await getActor(request), quoteId, {
+    return getLiveQuoteService().propose(await getAuthorizedActor(request), quoteId, {
       expectedRevision: body.expectedRevision,
       requestKey: body.requestKey,
       body: body.body || body.lineChanges.map((line) => line.comment).filter(Boolean).join("\n"),

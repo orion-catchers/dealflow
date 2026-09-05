@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ApiFailure, fail } from "@/lib/api/respond";
 import { getBillingService } from "@/server/billing/live";
 import { renderInvoicePdf } from "@/server/billing/pdf";
-import { getActor } from "@/server/lib/auth/dev-actor";
+import { getAuthorizedActor } from "@/server/lib/auth/permissions";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -14,7 +14,7 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    const actor = await getActor(request);
+    const actor = await getAuthorizedActor(request);
     const { id } = await context.params;
     const invoice = await getBillingService().getInvoice(actor, id);
     const bytes = await renderInvoicePdf(invoice);
