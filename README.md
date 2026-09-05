@@ -1,36 +1,35 @@
-<div align="center">
 
-<h1 align="center" style="margin:0 0 12px;background:#9CAF88;color:#ffffff;font-family:'Segoe Script','Apple Chancery','Snell Roundhand',cursive;font-size:64px;font-weight:700;padding:28px 20px;border-radius:14px;">
-  DealFlow360
-</h1>
 
-<p align="center">
-  <img src="docs/assets/dealflow-title-sage.png" alt="DealFlow360" width="720"/>
-</p>
+
+
+![DealFlow360](docs/assets/dealflow-title-sage.png)
 
 **B2B quote-to-cash for connected sales operations**
 
 Price, approve, negotiate, confirm, allocate, bill, and report on every deal — one Next.js app, one PostgreSQL database, one canonical revision. Previews never commit. Stock is reserved only on explicit allocation.
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-24-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![Next.js](https://img.shields.io/badge/Next.js-16.3-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Prisma](https://img.shields.io/badge/Prisma-7.10-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io/)
-[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![Tailwind](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-24-339933?logo=node.js&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-16.3-000000?logo=nextdotjs&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
+![Prisma](https://img.shields.io/badge/Prisma-7.10-2D3748?logo=prisma&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![Tailwind](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)
 
 Built by **Team Orion Catchers**. Demo tenant: **Nexa Office Solutions**.
 
-<br/>
+  
 
-<img src="docs/assets/landing.png" alt="DealFlow360 landing page: Every deal. Every detail. In sync. with Product, How it works, Access, Sign in, and Get started." width="920"/>
 
-<p><em>Public landing at <code>/</code> — marble workspace photography, teal CTAs, Configure → Agree → Deliver.</em></p>
+![DealFlow360 landing page: Every deal. Every detail. In sync. with Product, How it works, Access, Sign in, and Get started.](docs/assets/landing.png)
 
-</div>
+*Public landing at* `/` *— marble workspace photography, teal CTAs, Configure → Agree → Deliver.*
+
+
 
 ---
+
+
 
 ## Table of contents
 
@@ -63,27 +62,33 @@ Built by **Team Orion Catchers**. Demo tenant: **Nexa Office Solutions**.
 
 ---
 
+
+
 ## What a reviewer or agent must verify first
 
 Use this section as a checklist. If an item fails, do not treat the system as production-ready.
 
-| # | Requirement | How to verify | Pass looks like |
-|---|---|---|---|
-| 1 | One app, one database | `package.json`, `prisma/schema.prisma`, no second service compose file | Next.js + Postgres 16 only |
-| 2 | Live path has no silent fixture fallback | `src/server/adapters.ts` | `DEALFLOW_ADAPTER=development` only when `NODE_ENV !== production`; missing `DATABASE_URL` → **503 INTEGRATION_REQUIRED** |
-| 3 | Money and percentages | Contracts + API payloads | Money is decimal **strings**; percentages **0..100** |
-| 4 | Quote mutations are revision-safe | POST bodies on quote/portal actions | `expectedRevision` required; stale → **409 STALE_REVISION** |
-| 5 | Commitment rule | Confirm + allocate code paths | Confirm creates Order + billing/fulfillment **init**; **no stock reservation** until explicit allocate |
-| 6 | Portal isolation | Two customer accounts | Acme cannot read Beta quotes (**404**); portal JSON has no cost/margin/rep internals |
-| 7 | Signup is not privileged | POST `/api/auth/signup` | Creates **PENDING**; cannot sign in until an admin activates |
-| 8 | CSRF on mutations | POST with `Origin: http://evil.example` | **403 ORIGIN** |
-| 9 | Session is httpOnly | Login `Set-Cookie` | `dealflow_session` httpOnly, `SameSite=Strict`, not readable from JS |
-| 10 | CI is the source of truth | `.github/workflows/ci.yml` | validate → migrate → seed twice → typecheck → lint → test → build |
-| 11 | Demo credentials never in production | This README + `.env.example` | Seed passwords in [docs/env-keys.md](docs/env-keys.md); `SESSION_SECRET=change-me` is local-only |
+
+| #   | Requirement                              | How to verify                                                          | Pass looks like                                                                                                           |
+| --- | ---------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 1   | One app, one database                    | `package.json`, `prisma/schema.prisma`, no second service compose file | Next.js + Postgres 16 only                                                                                                |
+| 2   | Live path has no silent fixture fallback | `src/server/adapters.ts`                                               | `DEALFLOW_ADAPTER=development` only when `NODE_ENV !== production`; missing `DATABASE_URL` → **503 INTEGRATION_REQUIRED** |
+| 3   | Money and percentages                    | Contracts + API payloads                                               | Money is decimal **strings**; percentages **0..100**                                                                      |
+| 4   | Quote mutations are revision-safe        | POST bodies on quote/portal actions                                    | `expectedRevision` required; stale → **409 STALE_REVISION**                                                               |
+| 5   | Commitment rule                          | Confirm + allocate code paths                                          | Confirm creates Order + billing/fulfillment **init**; **no stock reservation** until explicit allocate                    |
+| 6   | Portal isolation                         | Two customer accounts                                                  | Acme cannot read Beta quotes (**404**); portal JSON has no cost/margin/rep internals                                      |
+| 7   | Signup is not privileged                 | POST `/api/auth/signup`                                                | Creates **PENDING**; cannot sign in until an admin activates                                                              |
+| 8   | CSRF on mutations                        | POST with `Origin: http://evil.example`                                | **403 ORIGIN**                                                                                                            |
+| 9   | Session is httpOnly                      | Login `Set-Cookie`                                                     | `dealflow_session` httpOnly, `SameSite=Strict`, not readable from JS                                                      |
+| 10  | CI is the source of truth                | `.github/workflows/ci.yml`                                             | validate → migrate → seed twice → typecheck → lint → test → build                                                         |
+| 11  | Demo credentials never in production     | This README + `.env.example`                                           | Seed passwords in [docs/env-keys.md](docs/env-keys.md); `SESSION_SECRET=change-me` is local-only                          |
+
 
 Canonical docs for deeper checks: [docs/architecture.md](docs/architecture.md), [docs/API.md](docs/API.md), [docs/SECURITY.md](docs/SECURITY.md), [docs/DATA_MODEL.md](docs/DATA_MODEL.md), [docs/deploy.md](docs/deploy.md), [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ---
+
+
 
 ## What is DealFlow360?
 
@@ -93,13 +98,17 @@ It is **not** a CRM, ERP purchasing module, or card-acquiring gateway. Those bel
 
 ### Product surfaces
 
-| Surface | Who | Routes |
-|---|---|---|
-| Public entry | Anyone | `/`, `/login`, `/signup` |
+
+| Surface         | Who                                      | Routes                                                                                                                                          |
+| --------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public entry    | Anyone                                   | `/`, `/login`, `/signup`                                                                                                                        |
 | Staff workspace | ADMIN, SALES_REP, SALES_MANAGER, FINANCE | `/home`, `/quotes`, `/pipeline`, `/approvals`, `/fulfillment`, `/subscriptions`, `/invoices`, `/health`, `/reports`, `/products`, `/settings/*` |
-| Customer portal | CUSTOMER | `/portal`, `/portal/quotes/:id`, `/portal/orders/:id`, `/portal/invoices/:id` |
+| Customer portal | CUSTOMER                                 | `/portal`, `/portal/quotes/:id`, `/portal/orders/:id`, `/portal/invoices/:id`                                                                   |
+
 
 ---
+
+
 
 ## Non-goals
 
@@ -116,22 +125,28 @@ Do **not** grade the product against hosted vendor accounts you have not configu
 
 ---
 
+
+
 ## Design principles (acceptance criteria)
 
-| Principle | How it shows up in code | Fail if |
-|---|---|---|
-| **Canonical engines, not UI math** | Pricing, policy evaluation, confirmation, fulfillment split, billing calendars live under `src/server/*` and `src/features/{quotes,recommendations,portal}` | A React component writes `total = qty * price` as the system of record |
-| **Revision is the unit of truth** | Quote mutations carry `expectedRevision`; material change → new revision; stale approval/acceptance never commits | Confirm succeeds on an old revision |
-| **Preview ≠ commit** | Fulfillment preview and billing previews are labeled Preview and must not reserve stock or create invoices | GET preview changes `reserved` |
-| **Confirm then allocate** | `confirm` → Order + `initializeBilling` + `initializeFulfillment` (PENDING, **zero** reservations). `allocate` is a separate finance/admin action | Confirm increments `Stock.reserved` |
-| **Idempotent money writes** | `requestKey` on payments, receipts, allocation accept, due billing | Same key + different payload → **409 KEY_REUSE**; same key + same payload → replay |
-| **Customer allowlist** | Portal reconstructs responses; no cost, profit, margin, internal notes, other customers | Portal JSON contains `marginPct` / `unitCost` / another customer’s quote |
-| **Fail closed** | Production never loads `src/development/*`. Missing live DB → 503, not fixtures | `NODE_ENV=production` and `DEALFLOW_ADAPTER=development` serving JSON store |
-| **RBAC on the server** | Route handlers and `runLiveCommand` `roles()` checks | Hiding a nav link is treated as security |
+
+| Principle                          | How it shows up in code                                                                                                                                     | Fail if                                                                            |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| **Canonical engines, not UI math** | Pricing, policy evaluation, confirmation, fulfillment split, billing calendars live under `src/server/`* and `src/features/{quotes,recommendations,portal}` | A React component writes `total = qty * price` as the system of record             |
+| **Revision is the unit of truth**  | Quote mutations carry `expectedRevision`; material change → new revision; stale approval/acceptance never commits                                           | Confirm succeeds on an old revision                                                |
+| **Preview ≠ commit**               | Fulfillment preview and billing previews are labeled Preview and must not reserve stock or create invoices                                                  | GET preview changes `reserved`                                                     |
+| **Confirm then allocate**          | `confirm` → Order + `initializeBilling` + `initializeFulfillment` (PENDING, **zero** reservations). `allocate` is a separate finance/admin action           | Confirm increments `Stock.reserved`                                                |
+| **Idempotent money writes**        | `requestKey` on payments, receipts, allocation accept, due billing                                                                                          | Same key + different payload → **409 KEY_REUSE**; same key + same payload → replay |
+| **Customer allowlist**             | Portal reconstructs responses; no cost, profit, margin, internal notes, other customers                                                                     | Portal JSON contains `marginPct` / `unitCost` / another customer’s quote           |
+| **Fail closed**                    | Production never loads `src/development/`*. Missing live DB → 503, not fixtures                                                                             | `NODE_ENV=production` and `DEALFLOW_ADAPTER=development` serving JSON store        |
+| **RBAC on the server**             | Route handlers and `runLiveCommand` `roles()` checks                                                                                                        | Hiding a nav link is treated as security                                           |
+
 
 Shared commitment rule (team): before final customer acceptance, warehouse split suggestions and billing previews are allowed and must be labeled **Preview**. Create an order only when the **same current revision** has valid required approvals (or approval is not required) **and** final customer acceptance. Material changes create a new revision and require re-evaluation.
 
 ---
+
+
 
 ## Live feature demos
 
@@ -155,74 +170,90 @@ Neha cannot open Rohan’s portal quote (**404**). A proposal with financial cha
 
 ---
 
+
+
 ## Tech stack
+
+
 
 ### Application
 
-| Layer | Choice | Why |
-|---|---|---|
-| Runtime | Node.js **24** | CI and `package.json` engines/workflow |
-| App | Next.js **16.3.4** App Router | One deployable: UI + Route Handlers |
-| UI | React **19.2**, Tailwind **4**, lucide-react | Compact light workspace (slate, white, teal) |
-| Language | TypeScript **5** (strict project) | Shared contracts in `src/contracts/` |
-| Validation | Zod **4.5** | Lane API bodies (`src/features/*/api.ts`) |
-| Money | `Decimal(14,2)` in Postgres; decimal **strings** on the wire | No IEEE float in API money |
-| ORM | Prisma **7.10.0** + `@prisma/adapter-pg` + `pg` **8.23** | PostgreSQL 16, generated client in `src/generated/prisma` (gitignored) |
-| Auth | Server session cookie `dealflow_session` | httpOnly, hashed token in `Session` table |
-| Exports | exceljs, pdf-lib, xlsx | Reports and invoice PDF |
-| Tests | Vitest **5** + node:test (`tests/*.test.mjs`) | Engines are unit-tested without the browser |
+
+| Layer      | Choice                                                       | Why                                                                    |
+| ---------- | ------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| Runtime    | Node.js **24**                                               | CI and `package.json` engines/workflow                                 |
+| App        | Next.js **16.3.4** App Router                                | One deployable: UI + Route Handlers                                    |
+| UI         | React **19.2**, Tailwind **4**, lucide-react                 | Compact light workspace (slate, white, teal)                           |
+| Language   | TypeScript **5** (strict project)                            | Shared contracts in `src/contracts/`                                   |
+| Validation | Zod **4.5**                                                  | Lane API bodies (`src/features/*/api.ts`)                              |
+| Money      | `Decimal(14,2)` in Postgres; decimal **strings** on the wire | No IEEE float in API money                                             |
+| ORM        | Prisma **7.10.0** + `@prisma/adapter-pg` + `pg` **8.23**     | PostgreSQL 16, generated client in `src/generated/prisma` (gitignored) |
+| Auth       | Server session cookie `dealflow_session`                     | httpOnly, hashed token in `Session` table                              |
+| Exports    | exceljs, pdf-lib, xlsx                                       | Reports and invoice PDF                                                |
+| Tests      | Vitest **5** + node:test (`tests/*.test.mjs`)                | Engines are unit-tested without the browser                            |
+
+
+
 
 ### Infrastructure
 
-| Component | Choice |
-|---|---|
-| Local DB | Docker Compose `postgres:16-alpine`, volume `dealflow-pgdata` |
-| Package manager | **pnpm 11.3.0** (`packageManager` field). npm may be used locally; CI uses `pnpm install --frozen-lockfile` |
-| CI | GitHub Actions: Postgres service, migrate, seed **twice**, typecheck, lint, test, build |
-| Hosted DB (integration/demo) | Neon Postgres 16, or any Postgres 16 URL |
+
+| Component                    | Choice                                                                                                      |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Local DB                     | Docker Compose `postgres:16-alpine`, volume `dealflow-pgdata`                                               |
+| Package manager              | **pnpm 11.3.0** (`packageManager` field). npm may be used locally; CI uses `pnpm install --frozen-lockfile` |
+| CI                           | GitHub Actions: Postgres service, migrate, seed **twice**, typecheck, lint, test, build                     |
+| Hosted DB (integration/demo) | Neon Postgres 16, or any Postgres 16 URL                                                                    |
+
 
 **Explicitly avoided:** Firebase/Supabase Auth, a second app server, browser-trusted `x-dev-actor` in production.
 
 ---
 
+
+
 ## Architecture at a glance
 
-<p align="center">
-  <img src="docs/assets/architecture.svg" alt="DealFlow360 layered architecture: browser shells, Next.js APIs and six engines, PostgreSQL 16" width="1100"/>
-</p>
+![DealFlow360 layered architecture: browser shells, Next.js APIs and six engines, PostgreSQL 16](docs/assets/architecture.svg)
 
-<p align="center">
-  <img src="docs/assets/architecture.png" alt="DealFlow360 architecture poster: browser, Next.js 16, engines, PostgreSQL 16" width="1100"/>
-</p>
+![DealFlow360 architecture poster: browser, Next.js 16, engines, PostgreSQL 16](docs/assets/architecture.png)
 
 Six engines (pure logic + services + repositories):
 
-| Engine | Owner | Responsibility |
-|---|---|---|
-| E1 Governance | Atharva | Policy evaluation, approval chain, confirmOrder |
-| E2 Fulfillment | Harsh | Preview split, allocate, ship, deliver, receipt, backorder |
-| E3 Billing | Ruchir | Invoices, subscriptions, proration, payments, credits |
-| E4 Recommendations | Krishna | Rank add-ons from rules + canonical candidate prices |
-| E5 Health | Atharva | Stalled quotes, discount anomaly, delivery risk, tasks |
-| E6 Negotiation | Krishna | Portal proposals, messages, date review, customer confirm |
+
+| Engine             | Owner   | Responsibility                                             |
+| ------------------ | ------- | ---------------------------------------------------------- |
+| E1 Governance      | Atharva | Policy evaluation, approval chain, confirmOrder            |
+| E2 Fulfillment     | Harsh   | Preview split, allocate, ship, deliver, receipt, backorder |
+| E3 Billing         | Ruchir  | Invoices, subscriptions, proration, payments, credits      |
+| E4 Recommendations | Krishna | Rank add-ons from rules + canonical candidate prices       |
+| E5 Health          | Atharva | Stalled quotes, discount anomaly, delivery risk, tasks     |
+| E6 Negotiation     | Krishna | Portal proposals, messages, date review, customer confirm  |
+
 
 Deep dive: [docs/architecture.md](docs/architecture.md).
 
 ---
 
+
+
 ## Prerequisites
 
-| Tool | Version |
-|---|---|
-| Node.js | **24** |
-| pnpm | **11.3.0** (`corepack enable` then `corepack prepare pnpm@11.3.0 --activate`) |
-| Docker Desktop | Compose v2 (for local Postgres) |
-| Git | 2.x |
-| Optional | OpenSSL (to generate `SESSION_SECRET`) |
+
+| Tool           | Version                                                                       |
+| -------------- | ----------------------------------------------------------------------------- |
+| Node.js        | **24**                                                                        |
+| pnpm           | **11.3.0** (`corepack enable` then `corepack prepare pnpm@11.3.0 --activate`) |
+| Docker Desktop | Compose v2 (for local Postgres)                                               |
+| Git            | 2.x                                                                           |
+| Optional       | OpenSSL (to generate `SESSION_SECRET`)                                        |
+
 
 Tested on Windows 10/11 (PowerShell) and typical Linux CI (`ubuntu-latest`). If host port **5432** is busy, use **5434** (see Quick start).
 
 ---
+
+
 
 ## Quick start
 
@@ -238,7 +269,7 @@ pnpm db:seed
 pnpm dev
 ```
 
-Open **http://localhost:3000**. Sign in with a [seed account](#seed-accounts).
+Open **[http://localhost:3000](http://localhost:3000)**. Sign in with a [seed account](#seed-accounts).
 
 **Live UI (default):** do **not** set `DEALFLOW_ADAPTER=development`. Requires `DATABASE_URL`.
 
@@ -248,25 +279,31 @@ Native Postgres instead of Docker: point `DATABASE_URL` at your instance and ski
 
 ---
 
+
+
 ## Seed accounts
 
 Passwords are **per user** (not `password123`). Full table: [docs/env-keys.md](docs/env-keys.md). Never use these in production.
 
-| Role | Email | Password | Lands on |
-|---|---|---|---|
-| Admin | `dev@nexa.example` | `admin-nexa-2026!` | `/home` |
-| Sales rep | `arjun@nexa.example` | `arjun-nexa-2026!` | `/home` |
-| Sales rep | `priya@nexa.example` | `priya-nexa-2026!` | `/home` |
-| Sales manager | `sana@nexa.example` | `sana-nexa-2026!` | `/home` |
-| Finance | `farah@nexa.example` | `farah-nexa-2026!` | `/home` |
-| Customer (Acme) | `neha@acme.example` | `neha-acme-2026!` | `/portal` |
-| Customer (Beta) | `rohan@beta.example` | `rohan-beta-2026!` | `/portal` |
-| Customer (Gamma) | `meera@gamma.example` | `meera-gamma-2026!` | `/portal` |
-| Pending rep | `vikram@nexa.example` | `vikram-nexa-2026!` | **Cannot sign in** until activated |
+
+| Role             | Email                 | Password            | Lands on                           |
+| ---------------- | --------------------- | ------------------- | ---------------------------------- |
+| Admin            | `dev@nexa.example`    | `admin-nexa-2026!`  | `/home`                            |
+| Sales rep        | `arjun@nexa.example`  | `arjun-nexa-2026!`  | `/home`                            |
+| Sales rep        | `priya@nexa.example`  | `priya-nexa-2026!`  | `/home`                            |
+| Sales manager    | `sana@nexa.example`   | `sana-nexa-2026!`   | `/home`                            |
+| Finance          | `farah@nexa.example`  | `farah-nexa-2026!`  | `/home`                            |
+| Customer (Acme)  | `neha@acme.example`   | `neha-acme-2026!`   | `/portal`                          |
+| Customer (Beta)  | `rohan@beta.example`  | `rohan-beta-2026!`  | `/portal`                          |
+| Customer (Gamma) | `meera@gamma.example` | `meera-gamma-2026!` | `/portal`                          |
+| Pending rep      | `vikram@nexa.example` | `vikram-nexa-2026!` | **Cannot sign in** until activated |
+
 
 Fixture symbols are stable team IDs. Prisma generates row IDs; `src/server/lib/db/map.ts` and `src/server/live/ids.ts` map symbols ↔ emails/SKUs/warehouse codes for live commands.
 
 ---
+
+
 
 ## Repository layout
 
@@ -297,45 +334,55 @@ dealflow/
 
 ---
 
+
+
 ## Feature matrix
 
-| Module | Screen | Key business rule |
-|---|---|---|
-| Auth | Login, signup | Signup → PENDING; no client-chosen privileged role |
-| Overview | `/home` | Pipeline counts from scoped workspace |
-| Quotations | List, pipeline, builder | Canonical price; save reprices; `expectedRevision` |
-| Recommendations | Quote panel | Server-ranked; add creates a new revision |
-| Approvals | Inbox, decision | Assigned role only; reason required; no self-approve as rep on own quote |
-| Portal | Deals, propose, confirm | Customer-scoped allowlist; confirm = current revision + approval OK |
-| Fulfillment | Orders, preview, allocate, ship, deliver | Preview read-only; allocate reserves; ship deducts on-hand |
-| Catalog | Products, variants, price lists, customers | Admin writes; products archived not deleted |
-| Warehouses | Stock, receipt, thresholds | Receipt idempotent by `requestKey`; fixture ids resolve to Prisma |
-| Billing | Invoices, payments, subscriptions, due run | No double pay; proration per plan; cancel policy |
-| Health | Flags, tasks | Manual refresh; tasks assigned to reps |
-| Reports | Filters, Excel, PDF | Same filter as on-screen rows; customer may export own invoice PDF |
-| Setup | Users, policy, recommendation rules, health settings | Role-gated mutations |
+
+| Module          | Screen                                               | Key business rule                                                        |
+| --------------- | ---------------------------------------------------- | ------------------------------------------------------------------------ |
+| Auth            | Login, signup                                        | Signup → PENDING; no client-chosen privileged role                       |
+| Overview        | `/home`                                              | Pipeline counts from scoped workspace                                    |
+| Quotations      | List, pipeline, builder                              | Canonical price; save reprices; `expectedRevision`                       |
+| Recommendations | Quote panel                                          | Server-ranked; add creates a new revision                                |
+| Approvals       | Inbox, decision                                      | Assigned role only; reason required; no self-approve as rep on own quote |
+| Portal          | Deals, propose, confirm                              | Customer-scoped allowlist; confirm = current revision + approval OK      |
+| Fulfillment     | Orders, preview, allocate, ship, deliver             | Preview read-only; allocate reserves; ship deducts on-hand               |
+| Catalog         | Products, variants, price lists, customers           | Admin writes; products archived not deleted                              |
+| Warehouses      | Stock, receipt, thresholds                           | Receipt idempotent by `requestKey`; fixture ids resolve to Prisma        |
+| Billing         | Invoices, payments, subscriptions, due run           | No double pay; proration per plan; cancel policy                         |
+| Health          | Flags, tasks                                         | Manual refresh; tasks assigned to reps                                   |
+| Reports         | Filters, Excel, PDF                                  | Same filter as on-screen rows; customer may export own invoice PDF       |
+| Setup           | Users, policy, recommendation rules, health settings | Role-gated mutations                                                     |
+
 
 ---
+
+
 
 ## Roles and permissions
 
 Prisma `Role`: `ADMIN`, `SALES_REP`, `SALES_MANAGER`, `FINANCE`, `CUSTOMER`. The staff UI may label finance as `FINANCE_OPS`.
 
-| Capability | Rep | Manager | Finance | Admin | Customer |
-|---|:---:|:---:|:---:|:---:|:---:|
-| Own / scoped quotes | ✅ | ✅ | ✅ (read) | ✅ | Own via portal |
-| Create/edit quote, add line | ✅ | ❌ | ❌ | ✅ | Propose only |
-| Approval decision (when assigned) | ❌ | ✅ | ✅ | ✅ | ❌ |
-| Allocate / ship / receive stock | ❌ | ❌ | ✅ | ✅ | ❌ |
-| Record payment / run due billing | ❌ | ❌ | ✅ | ✅ | ❌ |
-| Catalog / customers / price lists | ❌ | ❌ | ❌ | ✅ | ❌ |
-| Policy / health settings | ❌ | ✅ | ❌ | ✅ | ❌ |
-| Portal confirm / proposal | ❌ | ❌ | ❌ | ❌ | ✅ |
-| Development fixture reset | ❌ | ❌ | ❌ | Fixture only | ❌ |
+
+| Capability                        | Rep | Manager | Finance  | Admin        | Customer       |
+| --------------------------------- | --- | ------- | -------- | ------------ | -------------- |
+| Own / scoped quotes               | ✅   | ✅       | ✅ (read) | ✅            | Own via portal |
+| Create/edit quote, add line       | ✅   | ❌       | ❌        | ✅            | Propose only   |
+| Approval decision (when assigned) | ❌   | ✅       | ✅        | ✅            | ❌              |
+| Allocate / ship / receive stock   | ❌   | ❌       | ✅        | ✅            | ❌              |
+| Record payment / run due billing  | ❌   | ❌       | ✅        | ✅            | ❌              |
+| Catalog / customers / price lists | ❌   | ❌       | ❌        | ✅            | ❌              |
+| Policy / health settings          | ❌   | ✅       | ❌        | ✅            | ❌              |
+| Portal confirm / proposal         | ❌   | ❌       | ❌        | ❌            | ✅              |
+| Development fixture reset         | ❌   | ❌       | ❌        | Fixture only | ❌              |
+
 
 Sales reps are scoped to their quotes (`repId`). Portal reads require membership for that customer.
 
 ---
+
+
 
 ## Data model
 
@@ -353,6 +400,8 @@ Money: `Decimal(14, 2)`. Percentages: `Decimal(5, 2)` in range 0–100. Billing 
 
 ---
 
+
+
 ## API surface
 
 Envelope: success `{ data, mode }` where `mode` is `LIVE` or `DEV FIXTURE`. Error `{ error: { code, message, details? } }` with HTTP **401 / 403 / 404 / 409 / 422 / 503**.
@@ -362,24 +411,28 @@ There are **two** HTTP layers (both must stay consistent):
 1. **Workspace catch-all** `src/app/api/[...path]/route.ts` — Krishna `Application` uses `/api/workspace`, `/api/actions`, `/api/portal`, `/api/recommendations`, `/api/export`.
 2. **Lane REST** under `src/app/api/{auth,products,quotes,fulfillment,invoices,...}` — Harsh/Atharva/Ruchir screens and services.
 
+
+
 ### Catch-all (staff cookie required except login/signup)
 
-| Method | Path | Purpose |
-|---|---|---|
-| POST | `/api/auth/login` | `{ email, password }` → `{ actor }` + cookies |
-| POST | `/api/auth/signup` | Pending account |
-| GET | `/api/auth/me` | Current actor |
-| POST | `/api/auth/logout` | Destroy session |
-| GET | `/api/workspace` | Scoped staff snapshot |
-| POST | `/api/actions` | `{ action, requestKey, ... }` command bus |
-| GET | `/api/portal` | Customer snapshot |
-| GET | `/api/portal/{quotes\|orders\|invoices}/:id` | Customer record |
-| POST | `/api/portal/quotes/:id/proposals` | Negotiation |
-| POST | `/api/portal/quotes/:id/confirm` | Customer acceptance |
-| GET/POST | `/api/recommendations/:quoteId` | List / add candidate |
-| POST | `/api/recommendations/rules` | Replace rules |
-| GET | `/api/export` | `format=xlsx\|pdf` |
-| GET | `/api/fulfillment/:orderId/preview` | Read-only split |
+
+| Method   | Path                                       | Purpose                                       |
+| -------- | ------------------------------------------ | --------------------------------------------- |
+| POST     | `/api/auth/login`                          | `{ email, password }` → `{ actor }` + cookies |
+| POST     | `/api/auth/signup`                         | Pending account                               |
+| GET      | `/api/auth/me`                             | Current actor                                 |
+| POST     | `/api/auth/logout`                         | Destroy session                               |
+| GET      | `/api/workspace`                           | Scoped staff snapshot                         |
+| POST     | `/api/actions`                             | `{ action, requestKey, ... }` command bus     |
+| GET      | `/api/portal`                              | Customer snapshot                             |
+| GET      | `/api/portal/{quotes|orders|invoices}/:id` | Customer record                               |
+| POST     | `/api/portal/quotes/:id/proposals`         | Negotiation                                   |
+| POST     | `/api/portal/quotes/:id/confirm`           | Customer acceptance                           |
+| GET/POST | `/api/recommendations/:quoteId`            | List / add candidate                          |
+| POST     | `/api/recommendations/rules`               | Replace rules                                 |
+| GET      | `/api/export`                              | `format=xlsx|pdf`                             |
+| GET      | `/api/fulfillment/:orderId/preview`        | Read-only split                               |
+
 
 **Actions** (non-exhaustive): `newQuote`, `addLine`, `saveQuote`, `submitQuote`, `sendQuote`, `decision`, `reply`, `reviewDate`, `allocate`, `ship`, `deliver`, `cancelOrder`, `stockReceipt`, `stockThreshold`, `saveRecord`, `variant`, `policy`, `healthSettings`, `refreshHealth`, `task`, `payment`, `runBilling`, `subscription`. Live `reset` is **403**.
 
@@ -387,26 +440,30 @@ Full contract: [docs/API.md](docs/API.md).
 
 ---
 
+
+
 ## Environment variables
 
 Copy `.env.example` → `.env`. Never commit `.env`.
 
 **Canonical list (required vs optional vendors):** [docs/env-keys.md](docs/env-keys.md). You do not need to deploy or buy Stripe/Resend/Google for the Nexa browser demo.
 
-| Name | Required | Notes |
-|---|---|---|
-| `DATABASE_URL` | Live yes | Must match Docker host port (`DEALFLOW_DB_PORT`; **5434** on some machines) |
-| `DEALFLOW_DB_PORT` | Compose | Host port mapped to container 5432 |
-| `SESSION_SECRET` | Auth | `openssl rand -hex 32`. Default `change-me` is local-only |
-| `APP_URL` | Optional | OAuth redirect + email links; `http://localhost:3000` locally |
-| `RESEND_API_KEY` / `MAIL_FROM` / `MAIL_WEBHOOK_URL` | Optional | Email; otherwise log in non-production |
-| `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` / `STRIPE_WEBHOOK_SECRET` | Optional | Card checkout; 503 without secret |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional | SSO; user email must already exist |
-| `CRON_SECRET` / `JOBS_ACTOR_EMAIL` | Optional | `POST /api/jobs/run`; or run `npm run jobs` |
-| `DEALFLOW_FX_JSON` | Optional | Display FX Preview |
-| `CARRIER_QUOTE_URL` / `CARRIER_API_KEY` | Optional | Live courier HTTP; rate card still works |
-| `NODE_ENV` | Host | `production` rejects `x-dev-actor` and development adapter |
-| `DEALFLOW_ADAPTER` | Optional | `development` only with non-production Node — **not** the live demo |
+
+| Name                                                                     | Required | Notes                                                                       |
+| ------------------------------------------------------------------------ | -------- | --------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                           | Live yes | Must match Docker host port (`DEALFLOW_DB_PORT`; **5434** on some machines) |
+| `DEALFLOW_DB_PORT`                                                       | Compose  | Host port mapped to container 5432                                          |
+| `SESSION_SECRET`                                                         | Auth     | `openssl rand -hex 32`. Default `change-me` is local-only                   |
+| `APP_URL`                                                                | Optional | OAuth redirect + email links; `http://localhost:3000` locally               |
+| `RESEND_API_KEY` / `MAIL_FROM` / `MAIL_WEBHOOK_URL`                      | Optional | Email; otherwise log in non-production                                      |
+| `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` / `STRIPE_WEBHOOK_SECRET` | Optional | Card checkout; 503 without secret                                           |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`                              | Optional | SSO; user email must already exist                                          |
+| `CRON_SECRET` / `JOBS_ACTOR_EMAIL`                                       | Optional | `POST /api/jobs/run`; or run `npm run jobs`                                 |
+| `DEALFLOW_FX_JSON`                                                       | Optional | Display FX Preview                                                          |
+| `CARRIER_QUOTE_URL` / `CARRIER_API_KEY`                                  | Optional | Live courier HTTP; rate card still works                                    |
+| `NODE_ENV`                                                               | Host     | `production` rejects `x-dev-actor` and development adapter                  |
+| `DEALFLOW_ADAPTER`                                                       | Optional | `development` only with non-production Node — **not** the live demo         |
+
 
 Per-developer schema on a shared host:
 
@@ -417,6 +474,8 @@ DATABASE_URL="postgresql://user:pass@host:5432/dealflow?schema=dev_<name>"
 Only the integration owner migrates `schema=public`.
 
 ---
+
+
 
 ## Adapters (live vs development fixture)
 
@@ -434,43 +493,53 @@ Reviewer trap: running `pnpm dev:fixture` is **not** a database proof. Label UI 
 
 ---
 
+
+
 ## Common commands
 
 Run from repo root.
 
-| Command | Purpose |
-|---|---|
-| `pnpm install` | Install + `prisma generate` (postinstall) |
-| `pnpm dev` | Next dev (default port 3000) |
-| `pnpm dev:fixture` | Fixture adapter |
-| `pnpm build` | `prisma generate && next build` |
-| `pnpm start` | Production Next server |
-| `pnpm typecheck` | `next typegen && tsc --noEmit` |
-| `pnpm lint` | ESLint |
-| `pnpm test` | Vitest once |
-| `pnpm test:krishna` | `tests/*.test.mjs` |
-| `pnpm db:up` / `db:down` | Compose Postgres |
-| `pnpm db:deploy` | `prisma migrate deploy` (safe for shared DB) |
-| `pnpm db:migrate` | `prisma migrate dev` (creates migrations) |
-| `pnpm db:seed` | Seed (idempotent in CI: run twice) |
-| `pnpm db:reset` | **Drop** database, migrate, seed — **never** on integration/prod |
-| `pnpm db:studio` | Prisma Studio |
-| `pnpm db:generate` | Generate client only |
+
+| Command                  | Purpose                                                          |
+| ------------------------ | ---------------------------------------------------------------- |
+| `pnpm install`           | Install + `prisma generate` (postinstall)                        |
+| `pnpm dev`               | Next dev (default port 3000)                                     |
+| `pnpm dev:fixture`       | Fixture adapter                                                  |
+| `pnpm build`             | `prisma generate && next build`                                  |
+| `pnpm start`             | Production Next server                                           |
+| `pnpm typecheck`         | `next typegen && tsc --noEmit`                                   |
+| `pnpm lint`              | ESLint                                                           |
+| `pnpm test`              | Vitest once                                                      |
+| `pnpm test:krishna`      | `tests/*.test.mjs`                                               |
+| `pnpm db:up` / `db:down` | Compose Postgres                                                 |
+| `pnpm db:deploy`         | `prisma migrate deploy` (safe for shared DB)                     |
+| `pnpm db:migrate`        | `prisma migrate dev` (creates migrations)                        |
+| `pnpm db:seed`           | Seed (idempotent in CI: run twice)                               |
+| `pnpm db:reset`          | **Drop** database, migrate, seed — **never** on integration/prod |
+| `pnpm db:studio`         | Prisma Studio                                                    |
+| `pnpm db:generate`       | Generate client only                                             |
+
 
 ---
 
+
+
 ## Testing
 
-| Layer | How | What it proves |
-|---|---|---|
-| Engine + services | `pnpm test` (Vitest) | Governance, fulfillment split/invariants, billing calendar/proration, reports filter=export, auth password/session, catalog price resolve, health, audit writer |
-| Krishna fixture | `pnpm test:krishna` | Portal allowlist, recommendation add+replay, origin helper, fixture exports |
-| Type + lint + build | CI | Schema validate, migrate, seed twice, `tsc`, eslint, `next build` |
-| Manual / HTTP | [docs/krishna-manual-qa.md](docs/krishna-manual-qa.md), this README demos | Browser + live cookie; **not** implied by Vitest |
+
+| Layer               | How                                                                       | What it proves                                                                                                                                                  |
+| ------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Engine + services   | `pnpm test` (Vitest)                                                      | Governance, fulfillment split/invariants, billing calendar/proration, reports filter=export, auth password/session, catalog price resolve, health, audit writer |
+| Krishna fixture     | `pnpm test:krishna`                                                       | Portal allowlist, recommendation add+replay, origin helper, fixture exports                                                                                     |
+| Type + lint + build | CI                                                                        | Schema validate, migrate, seed twice, `tsc`, eslint, `next build`                                                                                               |
+| Manual / HTTP       | [docs/krishna-manual-qa.md](docs/krishna-manual-qa.md), this README demos | Browser + live cookie; **not** implied by Vitest                                                                                                                |
+
 
 Isolated Vitest **does not** prove Postgres, cookies, or browser behavior. Say so in any status report.
 
 ---
+
+
 
 ## Security model
 
@@ -485,6 +554,8 @@ Summary; full text in [docs/SECURITY.md](docs/SECURITY.md).
 - SQL via Prisma parameterization. No production import of `src/development/*`.
 
 ---
+
+
 
 ## Deployment
 
@@ -503,51 +574,63 @@ Minimum production shape:
 
 ---
 
+
+
 ## Operations and incident response
 
 See [docs/OPERATIONS.md](docs/OPERATIONS.md) for backup/restore, rollback, log triage, and “login works but invoices 404” diagnosis.
 
 ---
 
+
+
 ## Documentation index
 
-| Document | Audience |
-|---|---|
-| [README.md](./README.md) | Humans, reviewers, coding agents (this file) |
-| [docs/assets/](docs/assets/) | Landing screenshot + architecture SVG/PNG |
-| [docs/architecture.md](docs/architecture.md) | Engines, confirmation handoff, ER sketch |
-| [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | Tables, enums, invariants |
-| [docs/API.md](docs/API.md) | HTTP contract, errors, actions |
-| [docs/SECURITY.md](docs/SECURITY.md) | Threats, session, CSRF, RBAC |
-| [docs/deploy.md](docs/deploy.md) | Environments, migrate, host |
-| [docs/OPERATIONS.md](docs/OPERATIONS.md) | Runbooks, backup, incidents |
-| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Branches, migrations, review |
-| [docs/detailed-project-understanding.md](docs/detailed-project-understanding.md) | Stack fundamentals, workflows, vendor keys |
-| [docs/env-keys.md](docs/env-keys.md) | Required `.env` + optional vendor keys (no deploy) |
-| [docs/team-integration-handoff.md](docs/team-integration-handoff.md) | Krishna UI + adapter seams |
-| [docs/krishna-manual-qa.md](docs/krishna-manual-qa.md) | Manual UI checklist (fixture-oriented) |
-| [DealFlow360_Team_Execution_Blueprint-krishna.md](./DealFlow360_Team_Execution_Blueprint-krishna.md) | Original team plan |
-| [memory.md](./memory.md) | Dated work log (do not treat as spec) |
-| [AGENTS.md](./AGENTS.md) | Implementation constraints for agents |
-| `.env.example` | Env template |
-| `prisma/schema.prisma` | Schema source of truth |
+
+| Document                                                                                             | Audience                                           |
+| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| [README.md](./README.md)                                                                             | Humans, reviewers, coding agents (this file)       |
+| [docs/assets/](docs/assets/)                                                                         | Landing screenshot + architecture SVG/PNG          |
+| [docs/architecture.md](docs/architecture.md)                                                         | Engines, confirmation handoff, ER sketch           |
+| [docs/DATA_MODEL.md](docs/DATA_MODEL.md)                                                             | Tables, enums, invariants                          |
+| [docs/API.md](docs/API.md)                                                                           | HTTP contract, errors, actions                     |
+| [docs/SECURITY.md](docs/SECURITY.md)                                                                 | Threats, session, CSRF, RBAC                       |
+| [docs/deploy.md](docs/deploy.md)                                                                     | Environments, migrate, host                        |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md)                                                             | Runbooks, backup, incidents                        |
+| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)                                                         | Branches, migrations, review                       |
+| [docs/detailed-project-understanding.md](docs/detailed-project-understanding.md)                     | Stack fundamentals, workflows, vendor keys         |
+| [docs/env-keys.md](docs/env-keys.md)                                                                 | Required `.env` + optional vendor keys (no deploy) |
+| [docs/team-integration-handoff.md](docs/team-integration-handoff.md)                                 | Krishna UI + adapter seams                         |
+| [docs/krishna-manual-qa.md](docs/krishna-manual-qa.md)                                               | Manual UI checklist (fixture-oriented)             |
+| [DealFlow360_Team_Execution_Blueprint-krishna.md](./DealFlow360_Team_Execution_Blueprint-krishna.md) | Original team plan                                 |
+| [memory.md](./memory.md)                                                                             | Dated work log (do not treat as spec)              |
+| [AGENTS.md](./AGENTS.md)                                                                             | Implementation constraints for agents              |
+| `.env.example`                                                                                       | Env template                                       |
+| `prisma/schema.prisma`                                                                               | Schema source of truth                             |
+
 
 ---
+
+
 
 ## Ownership and team
 
 **Team Orion Catchers.** One lane branch per owner. Ruchir owns schema, migrations, `src/server/lib/db/`, package/lockfile/CI.
 
-| Owner | Lane | Paths |
-|---|---|---|
-| Krishna | Shell, login, builder, recommendations, portal | `src/components/application`, `src/features/{builder,recommendations,portal}`, `src/contracts/krishna.ts` |
-| Ruchir | Prisma, auth, billing, payments, CI | `prisma/`, `src/server/lib/auth`, billing services |
-| Atharva | Quotes, pricing, approval, confirm, health, audit | `src/server/quotes`, `src/server/governance`, `src/server/health` |
-| Harsh | Catalog, customers, inventory, reports, architecture docs | `src/server/{catalog,inventory,reports}`, `src/contracts/harsh.ts` |
+
+| Owner   | Lane                                                      | Paths                                                                                                     |
+| ------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Krishna | Shell, login, builder, recommendations, portal            | `src/components/application`, `src/features/{builder,recommendations,portal}`, `src/contracts/krishna.ts` |
+| Ruchir  | Prisma, auth, billing, payments, CI                       | `prisma/`, `src/server/lib/auth`, billing services                                                        |
+| Atharva | Quotes, pricing, approval, confirm, health, audit         | `src/server/quotes`, `src/server/governance`, `src/server/health`                                         |
+| Harsh   | Catalog, customers, inventory, reports, architecture docs | `src/server/{catalog,inventory,reports}`, `src/contracts/harsh.ts`                                        |
+
 
 Schema changes are **additive**. Never edit a merged migration. Ask Ruchir before model changes.
 
 ---
+
+
 
 ## Known limitations
 
@@ -560,14 +643,15 @@ Schema changes are **additive**. Never edit a merged migration. Ask Ruchir befor
 
 ---
 
+
+
 ## Roadmap (optional vendors, not required for demo)
 
 Paste keys from [docs/env-keys.md](docs/env-keys.md) when you want live email, Stripe cards, Google SSO, or a carrier HTTP overlay. Core fulfillment and reports already run locally. Hosted deploy is optional.
 
 ---
 
-<div align="center">
+
 
 *Review this repository on: **data model, canonical engines, revision safety, RBAC, fail-closed adapters, and demo integrity** — in that order.*
 
-</div>
