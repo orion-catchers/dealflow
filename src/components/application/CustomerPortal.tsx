@@ -7,6 +7,9 @@ type PortalQuoteRow=Portal['quotes'][number];
 
 let portalCache:Portal|null=null;
 
+export function rememberPortal(data:Portal){portalCache=data;}
+export function clearPortalCache(){portalCache=null;}
+
 function productLabel(description:string){
   return description.split('·')[0]?.trim() || description;
 }
@@ -37,7 +40,10 @@ export default function CustomerPortal({path}:{path:string}){
     portalCache=next;
     setData(next);
   };
-  useEffect(()=>{reload().catch(e=>setError(e.message));},[]);
+  useEffect(()=>{
+    if(portalCache)return;
+    reload().catch(e=>setError(e.message));
+  },[]);
   if(!data)return <><Heading title="Your customer workspace"/>{error?<div className="error" role="alert">{error}<Button onClick={()=>reload().catch(e=>setError(e.message))}>Try again</Button></div>:<p role="status">Loading your records…</p>}</>;
   const parts=path.slice(1).split('/');
   const id=parts[2];

@@ -8,7 +8,7 @@ import {api,Button,Heading,Input,Link,Money,Section,StatusBadge,Table,newId,type
 import Quotes from './Quotes';
 import Operations from './Operations';
 import Setup from './Setup';
-import CustomerPortal from './CustomerPortal';
+import CustomerPortal,{clearPortalCache,rememberPortal} from './CustomerPortal';
 import PublicHeader from './PublicHeader';
 import {FulfillmentList} from '@/features/inventory/ui/FulfillmentList';
 import {FulfillmentDetailView} from '@/features/inventory/ui/FulfillmentDetailView';
@@ -29,10 +29,26 @@ const navigation=[
 
 type ShellMemory={actor:Actor;mode:string;data:DataState|null};
 const SHELL_KEY='dealflow-shell';
+const SIGNED_OUT_KEY='dealflow-signed-out';
 let shellMemory:ShellMemory|null=null;
+
+function wasSignedOut(){
+  if(typeof window==='undefined')return false;
+  try{return window.sessionStorage.getItem(SIGNED_OUT_KEY)==='1';}catch{return false;}
+}
+
+function markSignedOut(){
+  shellMemory=null;
+  if(typeof window==='undefined')return;
+  try{
+    window.sessionStorage.removeItem(SHELL_KEY);
+    window.sessionStorage.setItem(SIGNED_OUT_KEY,'1');
+  }catch{/* quota is optional */}
+}
 
 function readShell():ShellMemory|null{
   if(typeof window==='undefined')return null;
+  if(wasSignedOut()){shellMemory=null;return null;}
   if(shellMemory)return shellMemory;
   try{
     const raw=window.sessionStorage.getItem(SHELL_KEY);
@@ -51,8 +67,21 @@ function writeShell(next:ShellMemory|null){
   if(typeof window==='undefined')return;
   try{
     if(!next)window.sessionStorage.removeItem(SHELL_KEY);
-    else window.sessionStorage.setItem(SHELL_KEY,JSON.stringify(next));
+    else{
+      window.sessionStorage.removeItem(SIGNED_OUT_KEY);
+      window.sessionStorage.setItem(SHELL_KEY,JSON.stringify(next));
+    }
   }catch{/* quota is optional */}
+}
+
+function isAuthPath(path:string){return path==='/'||path==='/login'||path==='/signup';}
+function isPortalPath(path:string){return path==='/portal'||path.startsWith('/portal/');}
+function homeFor(next:Actor){return next.role==='CUSTOMER'?'/portal':'/home';}
+function viewPathFor(next:Actor|null,path:string){
+  if(!next)return isAuthPath(path)?path:'/login';
+  if(next.role==='CUSTOMER')return isPortalPath(path)?path:'/portal';
+  if(isAuthPath(path)||isPortalPath(path))return '/home';
+  return path;
 }
 
 function sessionToActor(data: unknown): Actor | null {
@@ -83,22 +112,56 @@ export default function Application(){
   const [message,setMessage]=useState('');
   const [menu,setMenu]=useState(false);
   const [collapsed,setCollapsed]=useState(false);
-  const publicPage=['/login','/signup'].includes(pathname) || (pathname==='/' && !remembered?.actor);
+  const sessionActor=wasSignedOut()?null:actor;
+  const viewPath=viewPathFor(sessionActor,pathname);
+  const showAuth=!sessionActor&&(isAuthPath(pathname)||wasSignedOut());
 
   const reload=useCallback(async()=>{
     if(actor&&actor.role!=='CUSTOMER')setData(await api<DataState>('workspace'));
   },[actor]);
 
   useEffect(()=>{
-    if(!actor)return;
-    if(pathname==='/'||pathname==='/login'||pathname==='/signup'){
-      router.replace(actor.role==='CUSTOMER'?'/portal':'/home');
+    if(!sessionActor){
+      if(wasSignedOut()&&!isAuthPath(pathname)) router.replace('/login');
+      return;
     }
-  },[actor,pathname,router]);
+    if(viewPath!==pathname) router.replace(viewPath);
+  },[sessionActor,pathname,router,viewPath]);
+
+  useEffect(()=>{
+    const onShow=(event:PageTransitionEvent)=>{
+      if(!event.persisted)return;
+      if(wasSignedOut()){
+        writeShell(null);
+        setActor(null);
+        setData(null);
+        clearPortalCache();
+        router.replace('/login');
+        return;
+      }
+      fetch('/api/auth/me',{cache:'no-store'}).then(async response=>{
+        const result=await response.json();
+        if(response.status===401){
+          markSignedOut();
+          setActor(null);
+          setData(null);
+          clearPortalCache();
+          router.replace('/login');
+          return;
+        }
+        if(response.ok){
+          const next=sessionToActor(result.data);
+          if(next){setActor(next);setMode(result.mode??'LIVE');}
+        }
+      }).catch(()=>{/* pageshow recheck is best-effort */});
+    };
+    window.addEventListener('pageshow',onShow);
+    return()=>window.removeEventListener('pageshow',onShow);
+  },[router]);
 
   useEffect(()=>{
     let cancelled=false;
-    if(publicPage)return;
+    if(showAuth)return;
     fetch('/api/auth/me',{cache:'no-store'}).then(async response=>{
       const result=await response.json();
       if(cancelled)return;
@@ -106,18 +169,27 @@ export default function Application(){
         const next=sessionToActor(result.data);
         if(next){setActor(next);setMode(result.mode??'LIVE');}
       }else if(response.status===401){
+        markSignedOut();
         writeShell(null);
         setActor(null);
         setData(null);
+        clearPortalCache();
       }else setError(result.error?.message??'The session could not be checked.');
     }).catch(reason=>{if(!cancelled)setError(reason instanceof Error?reason.message:'The session could not be checked.');});
     return()=>{cancelled=true;};
-  },[publicPage]);
+  },[showAuth]);
 
   useEffect(()=>{reload().catch(reason=>setError(reason instanceof Error?reason.message:'The workspace could not be loaded.'));},[reload]);
   useEffect(()=>{
-    if(actor)writeShell({actor,mode,data});
-  },[actor,mode,data]);
+    if(wasSignedOut()&&actor){
+      setActor(null);
+      setData(null);
+      clearPortalCache();
+    }
+  },[actor]);
+  useEffect(()=>{
+    if(sessionActor)writeShell({actor:sessionActor,mode,data});
+  },[sessionActor,mode,data]);
   useEffect(()=>{setMenu(false);},[pathname]);
   useEffect(()=>{
     try{setCollapsed(window.localStorage.getItem('dealflow-sidebar')==='collapsed');}catch{/* local preference is optional */}
@@ -134,39 +206,50 @@ export default function Application(){
     return result;
   };
 
-  if(publicPage)return <Auth path={pathname} mode={mode} error={error} onLogin={async(nextActor,nextMode)=>{
-    setActor(nextActor);
-    setMode(nextMode??'LIVE');
-    if(nextActor.role!=='CUSTOMER'){
-      try{setData(await api<DataState>('workspace'));}
-      catch(reason){setError(reason instanceof Error?reason.message:'The workspace could not be loaded.');}
+  if(showAuth||!sessionActor)return showAuth?<Auth path={isAuthPath(pathname)?pathname:'/login'} mode={mode} error={error} onLogin={async(nextActor,nextMode)=>{
+    const nextModeValue=nextMode??'LIVE';
+    setError('');
+    if(nextActor.role==='CUSTOMER'){
+      try{rememberPortal(await api('portal'));}
+      catch(reason){clearPortalCache();setError(reason instanceof Error?reason.message:'The customer workspace could not be loaded.');}
+      setData(null);
+      writeShell({actor:nextActor,mode:nextModeValue,data:null});
+    }else{
+      clearPortalCache();
+      try{
+        const workspace=await api<DataState>('workspace');
+        setData(workspace);
+        writeShell({actor:nextActor,mode:nextModeValue,data:workspace});
+      }catch(reason){
+        writeShell({actor:nextActor,mode:nextModeValue,data:null});
+        setError(reason instanceof Error?reason.message:'The workspace could not be loaded.');
+      }
     }
-    router.replace(nextActor.role==='CUSTOMER'?'/portal':'/home');
-  }}/>;
-  if(!actor)return null;
-  const shellPath=(pathname==='/'||pathname==='/login'||pathname==='/signup')?(actor.role==='CUSTOMER'?'/portal':'/home'):pathname;
-  if(actor.role==='CUSTOMER'&&!shellPath.startsWith('/portal'))return <main className="standalone"><h1>Customer access only</h1><Link href="/portal">Open your customer portal</Link></main>;
-  if(actor.role!=='CUSTOMER'&&shellPath.startsWith('/portal'))return <main className="standalone"><h1>Customer account required</h1><Link href="/home">Return to workspace</Link></main>;
+    setActor(nextActor);
+    setMode(nextModeValue);
+    router.replace(homeFor(nextActor));
+  }}/>:null;
+  const shellPath=viewPath;
 
-  const ctx:Context={d:data!,actor,path:shellPath,reload,run,notice:setMessage};
-  const shellClass=`application ${actor.role==='CUSTOMER'?'customer-app ':''}${collapsed?'is-collapsed':''}`;
+  const ctx:Context={d:data!,actor:sessionActor,path:shellPath,reload,run,notice:setMessage};
+  const shellClass=`application ${sessionActor.role==='CUSTOMER'?'customer-app ':''}${collapsed?'is-collapsed':''}`;
   return <div className={shellClass}>
     <a className="skip" href="#main">Skip to main content</a>
     <aside className={menu?'sidebar visible':'sidebar'} aria-label="Primary navigation">
       <div className="sidebar-head">
-        <Link className="brand wordmark" href={actor.role==='CUSTOMER'?'/portal':'/home'} aria-label="DealFlow360 home">DealFlow<span>360</span></Link>
+        <Link className="brand wordmark" href={sessionActor.role==='CUSTOMER'?'/portal':'/home'} aria-label="DealFlow360 home">DealFlow<span>360</span></Link>
         <button className="sidebar-toggle" type="button" aria-expanded={!collapsed} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'} title={collapsed?'Expand sidebar':'Collapse sidebar'} onClick={()=>setSidebarCollapsed(!collapsed)}>
           {collapsed?<PanelLeft size={18}/>:<PanelLeftClose size={18}/>}
         </button>
       </div>
-      <p className="nav-caption">{actor.role==='CUSTOMER'?'YOUR BUSINESS':'WORKSPACE'}</p>
+      <p className="nav-caption">{sessionActor.role==='CUSTOMER'?'YOUR BUSINESS':'WORKSPACE'}</p>
       <nav id="primary-navigation">
-        {actor.role==='CUSTOMER'?<Link className={shellPath.startsWith('/portal')?'active':''} href="/portal" aria-label="Your deals" title="Your deals"><FileText size={18}/><span className="nav-label">Your deals</span></Link>:navigation.filter(([url])=>actor.role!=='SALES_REP'||url!=='/settings/customers').map(([url,name,Icon])=><Link key={url} className={shellPath.startsWith(url)?'active':''} href={url} aria-label={name} title={collapsed?name:undefined}><Icon size={18}/><span className="nav-label">{name}</span></Link>)}
+        {sessionActor.role==='CUSTOMER'?<Link className={shellPath.startsWith('/portal')?'active':''} href="/portal" aria-label="Your deals" title="Your deals"><FileText size={18}/><span className="nav-label">Your deals</span></Link>:navigation.filter(([url])=>sessionActor.role!=='SALES_REP'||url!=='/settings/customers').map(([url,name,Icon])=><Link key={url} className={shellPath.startsWith(url)?'active':''} href={url} aria-label={name} title={collapsed?name:undefined}><Icon size={18}/><span className="nav-label">{name}</span></Link>)}
       </nav>
       <div className="sidebar-footer">
-        <span className="avatar" aria-hidden="true">{actor.name.split(' ').map(s=>s[0]).join('')}</span>
-        <div><strong>{actor.name}</strong><small>{actor.role.replaceAll('_',' ')}</small></div>
-        <button type="button" aria-label="Sign out" title="Sign out" onClick={async()=>{writeShell(null);await api('auth/logout',{});location.href='/login';}}><LogOut size={18}/></button>
+        <span className="avatar" aria-hidden="true">{sessionActor.name.split(' ').map(s=>s[0]).join('')}</span>
+        <div><strong>{sessionActor.name}</strong><small>{sessionActor.role.replaceAll('_',' ')}</small></div>
+        <button type="button" aria-label="Sign out" title="Sign out" onClick={async()=>{markSignedOut();writeShell(null);setActor(null);setData(null);clearPortalCache();try{await api('auth/logout',{});}catch{/* leave locally even if the server call fails */}window.location.replace('/login');}}><LogOut size={18}/></button>
       </div>
     </aside>
     <div className="main-column">
@@ -177,7 +260,7 @@ export default function Application(){
       <main id="main">
         {message&&<div className="notice" role="status">{message}<button type="button" onClick={()=>setMessage('')} aria-label="Dismiss notification">×</button></div>}
         {error&&<div role="alert" className="error">{error}<Button onClick={()=>{setError('');reload().catch(reason=>setError(reason instanceof Error?reason.message:'Retry failed.'));}}>Retry</Button></div>}
-        {actor.role==='CUSTOMER'?<CustomerPortal path={shellPath}/>:!data?null:shellPath==='/home'?<Home ctx={ctx}/>:shellPath.startsWith('/quotes')||shellPath==='/pipeline'||shellPath.startsWith('/approvals')?<Quotes ctx={ctx}/>:shellPath.startsWith('/products')||shellPath.startsWith('/settings')||shellPath==='/policies'||shellPath==='/price-lists'?<Setup ctx={ctx}/>:shellPath.startsWith('/fulfillment')?(shellPath.split('/')[2]?<FulfillmentDetailView orderId={shellPath.split('/')[2]}/>:<FulfillmentList/>):shellPath.startsWith('/reports')?<Suspense fallback={<p className="hint">Loading reports…</p>}><ReportsDashboard/></Suspense>:['/subscriptions','/invoices','/health'].some(p=>shellPath.startsWith(p))?<Operations ctx={ctx}/>:<><Heading title="Page not found" description="This route does not exist."/><Link href="/home">Return to overview</Link></>}
+        {sessionActor.role==='CUSTOMER'?<CustomerPortal path={shellPath}/>:!data?null:shellPath==='/home'?<Home ctx={ctx}/>:shellPath.startsWith('/quotes')||shellPath==='/pipeline'||shellPath.startsWith('/approvals')?<Quotes ctx={ctx}/>:shellPath.startsWith('/products')||shellPath.startsWith('/settings')||shellPath==='/policies'||shellPath==='/price-lists'?<Setup ctx={ctx}/>:shellPath.startsWith('/fulfillment')?(shellPath.split('/')[2]?<FulfillmentDetailView orderId={shellPath.split('/')[2]}/>:<FulfillmentList/>):shellPath.startsWith('/reports')?<Suspense fallback={<p className="hint">Loading reports…</p>}><ReportsDashboard/></Suspense>:['/subscriptions','/invoices','/health'].some(p=>shellPath.startsWith(p))?<Operations ctx={ctx}/>:<><Heading title="Page not found" description="This route does not exist."/><Link href="/home">Return to overview</Link></>}
       </main>
     </div>
   </div>;
