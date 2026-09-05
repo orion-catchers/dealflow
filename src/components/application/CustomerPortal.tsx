@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useState} from 'react';
 import type {portalData} from '../../features/portal/server';
-import {api,Button,Input,Link,StatusBadge,Money,Heading,Section,Table,FormAction,Events,newId,quoteTitle,orderTitle,invoiceTitle} from './shared';
+import {api,Button,Input,Link,StatusBadge,Money,Heading,Section,Table,FormAction,Events,newId,quoteTitle,orderTitle,invoiceTitle,BackLink} from './shared';
 import {readPortalCache,rememberPortal} from './portal-cache';
 type Portal=ReturnType<typeof portalData>;
 type PortalQuoteRow=Portal['quotes'][number];
@@ -25,7 +25,7 @@ export default function CustomerPortal({path}:{path:string}){
   const q=data.quotes.find(item=>item.id===id);
   const invoice=data.invoices.find(item=>item.id===id);
   const order=data.orders.find(item=>item.id===id);
-  if(id&&!q&&!invoice&&!order)return <><Heading title="Record unavailable" description="This record is not available to your account."/><Link href="/portal">Back to your deals</Link></>;
+  if(id&&!q&&!invoice&&!order)return <><Heading title="Record unavailable" description="This record is not available to your account."/><BackLink href="/portal">Back to your deals</BackLink></>;
   const headingTitle=q?quoteTitle(q):invoice?invoiceTitle(invoice):order?orderTitle(order,data.quotes.find(item=>item.id===order.quoteId)):'Your deals';
   const headingDescription=q?`Current version ${q.revision}. Review terms, ask a question, or accept when approval is complete.`:'Review quotations, follow deliveries, and open invoices.';
   return <>

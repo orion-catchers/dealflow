@@ -132,14 +132,21 @@ a.df-button:hover{text-decoration:none}
 a.df-button--primary{color:#fff}
 .view-toggle{display:inline-flex;gap:8px;margin:0 0 20px;flex-wrap:wrap}
 .view-toggle .df-button{min-width:118px}
-.pipeline{display:grid;grid-template-columns:repeat(7,minmax(196px,1fr));gap:12px;align-items:stretch;overflow:auto;padding-bottom:8px}
-.pipeline>section{min-width:0;min-height:320px;display:flex;flex-direction:column;background:#edf2f4;border:1px solid #e1e8ed;border-radius:10px;padding:12px;flex:unset}
-.pipeline h2{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;letter-spacing:.4px;text-transform:uppercase;margin:0;min-height:28px}
-.pipeline h2 small{display:inline-flex;align-items:center;justify-content:center;margin:0;min-width:22px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:11px;color:var(--ink);font-weight:700}
-.pipeline-empty{margin:14px 0 0;font-size:12px;color:var(--muted)}
-.pipeline-deal{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:14px;margin-top:10px;min-height:156px}
-.pipeline-deal>span{margin-top:0}
-.pipeline-deal .df-button{margin-top:auto}
+.setup-nav{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 22px}
+.setup-nav .df-button{min-height:38px}
+.pipeline-board{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;width:100%;align-items:stretch}
+.pipeline-board>section{min-width:0;min-height:280px;display:flex;flex-direction:column;background:#edf2f4;border:1px solid #e1e8ed;border-radius:10px;padding:10px}
+.pipeline-board h2{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;font-size:11px;letter-spacing:.3px;text-transform:uppercase;line-height:1.25;margin:0 0 4px;min-height:32px}
+.pipeline-board h2 span{display:inline-flex;align-items:center;justify-content:center;flex:none;min-width:22px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:2px 7px;font-size:11px;color:var(--ink);font-weight:700}
+.pipeline-empty{margin:12px 0 0;font-size:12px;color:var(--muted)}
+.pipeline-board .pipeline-deal{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:12px;margin-top:8px;min-height:0;width:100%;box-sizing:border-box}
+.pipeline-board .pipeline-deal strong{font-size:13px;line-height:1.35;overflow-wrap:anywhere}
+.pipeline-board .pipeline-deal .df-button{margin-top:auto;width:100%}
+.deal-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:stretch;margin-bottom:24px;padding:0;background:transparent;border-radius:0}
+.deal-chip{display:flex;flex-direction:column;gap:6px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.deal-chip>span{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.2px}
+.deal-chip>strong{font-size:13px;color:var(--ink)}
+.deal-summary .df-button{align-self:center;justify-self:start}
 .home-guides .panel{display:flex;flex-direction:column;min-height:200px}
 .home-guides .panel>p{flex:1}
 .home-guides .df-button{align-self:flex-start;margin-top:12px}

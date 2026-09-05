@@ -277,8 +277,8 @@ export function FulfillmentDetailView({ orderId }: { orderId: string }) {
           <>
             <StatusBadge status="LIVE" />
             <StatusBadge status={data.status} />
-            <Link href="/fulfillment" className="text-sm text-blue-700 hover:underline">
-              All orders
+            <Link href="/fulfillment" className="df-button df-button--secondary">
+              Back to orders
             </Link>
             <Button type="button" variant="secondary" onClick={() => void reload()}>
               Reload

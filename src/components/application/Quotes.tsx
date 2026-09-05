@@ -20,6 +20,7 @@ import {
   newId,
   quoteTitle,
   OpenLink,
+  BackLink,
   type Context,
 } from "./shared";
 export default function Quotes({ ctx }: { ctx: Context }) {
@@ -36,7 +37,9 @@ export default function Quotes({ ctx }: { ctx: Context }) {
         <Heading
           title="Create a quotation"
           description="Start with the customer. Pricing comes from their applicable price list."
-        />
+        >
+          <BackLink href="/quotes">Back to quotations</BackLink>
+        </Heading>
         <Section title="Deal details">
           <FormAction
             title="New quotation"
@@ -65,7 +68,9 @@ export default function Quotes({ ctx }: { ctx: Context }) {
       <Heading
         title="Quotation unavailable"
         description="The record was removed or is outside your access."
-      />
+      >
+        <BackLink href={approval ? "/approvals" : "/quotes"}>Back to list</BackLink>
+      </Heading>
     );
   if (q)
     return (
@@ -122,7 +127,7 @@ export default function Quotes({ ctx }: { ctx: Context }) {
         )}
       />
       {path === "/pipeline" ? (
-        <div className="pipeline">
+        <div className="pipeline-board">
           {[
             "DRAFT",
             "SENT",
@@ -137,7 +142,7 @@ export default function Quotes({ ctx }: { ctx: Context }) {
             <section key={stage}>
               <h2>
                 {stage.replaceAll("_", " ")}
-                <small>{cards.length}</small>
+                <span>{cards.length}</span>
               </h2>
               {cards.length ? cards.map((q) => (
                   <article className="pipeline-deal" key={q.id}>
@@ -247,21 +252,29 @@ function QuoteDetail({
     <>
       <Heading
         title={quoteTitle(q)}
-        description={`${d.customers.find((c) => c.id === q.customerId)?.name ?? "Customer"} · current version ${q.revision}`}
+        description={d.customers.find((c) => c.id === q.customerId)?.name ?? "Customer"}
       >
-        <StatusBadge status={q.stage} />
-        <Link href={approval ? "/approvals" : "/quotes"}>Back to list</Link>
+        <BackLink href={approval ? "/approvals" : "/quotes"}>Back to list</BackLink>
       </Heading>
       <div className="deal-summary">
-        <span>
-          Approval <StatusBadge status={q.evaluation.status} />
-        </span>
-        <span>{q.sent ? "Shared with customer" : "Internal draft"}</span>
-        <span>
-          {q.promisedDate
-            ? "Promised " + q.promisedDate
-            : "Delivery date not promised"}
-        </span>
+        <div className="deal-chip">
+          <span>Stage</span>
+          <StatusBadge status={q.stage} />
+        </div>
+        <div className="deal-chip">
+          <span>Approval</span>
+          <StatusBadge status={q.evaluation.status} />
+        </div>
+        <div className="deal-chip">
+          <span>Customer copy</span>
+          <strong>{q.sent ? "Shared" : "Internal draft"}</strong>
+        </div>
+        <div className="deal-chip">
+          <span>Delivery</span>
+          <strong>
+            {q.promisedDate ? q.promisedDate : "Not promised"}
+          </strong>
+        </div>
         {q.orderId && (
           <OpenLink href={"/fulfillment/" + q.orderId} variant="secondary">Open order</OpenLink>
         )}
