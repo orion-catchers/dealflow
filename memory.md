@@ -459,6 +459,16 @@ Checks: focused vitest stripe + existing fail-closed tests; `npx tsc --noEmit`.
 
 Status: Local demo complete. Remaining human work: manual click-through + demo video.
 
+## 2026-09-06T02:50:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Aligned Harsh fulfillment/workspace with the Deal schema: Order stays the commitment boundary; commercial names/money/stock flags read from accepted `DealRevision`/`DealLine`; `OrderLine` remains allocation/reservation identity. Confirm now sets `Order.dealId`. Applied `combine_policy_ceilings` + `add_deal_compatibility_layer` locally.
+
+Files: `src/server/inventory/prisma-inventory.ts`, `src/server/quotes/live-service.ts`, `src/server/live/{canonical,state}.ts`, `docs/detailed-project-understanding.md`.
+
+Checks: `npx prisma validate`; `npx prisma migrate deploy`; `npx tsc --noEmit` (this session).
+
+Status: Preview still does not reserve. Allocate remains the only reservation command.
+
 ---
 
 ## 5. Interface notes (cross-lane changes)
@@ -467,7 +477,7 @@ Status: Local demo complete. Remaining human work: manual click-through + demo v
 - **2026-09-05, Ruchir, `GET /api/plans`:** still `{ id, name, interval }[]` for Harsh's product editor. Extra Prisma plans may appear with cuid ids; fixture ids `plan-support-monthly` etc. remain from the catalog merge. `POST /api/plans` is ADMIN. Consumers: Harsh ProductEditor.
 - **2026-09-05, merge `origin/main` into Krishna UI PR:** Conflicted files were Krishna-owned UI/theme plus Ruchir-owned scaffold. Kept Krishna `globals.css`/login/home/portal/builder screens and seed+harness exports in `src/fixtures/krishna.ts`. Kept main `package.json`/Prisma/auth/CI/`@/*` tsconfig, and appended Krishna's `memory.md` log instead of overwriting teammate entries. Removed root `[[...path]]` page so teammate App Router screens keep their URLs.
 - **2026-09-05, Atharva live quotes:** `confirmOrder` persists `Order`/`OrderLine` then calls `initializeBilling(tx, …)` and `initializeFulfillment(tx, orderReady)` in one transaction. Fulfillment is `CONNECTED` only if the Order row exists. Krishna portal confirm maps `{orderId, quoteId, revision, created, fulfillmentInitialization}`. Approvals POST now runs `LiveQuoteService.decideApproval` then returns Ruchir's UI detail. Consumers: Krishna portal/builder HTTP, Harsh fulfillment, Ruchir billing.
-- **2026-09-05, Harsh, live workspace:** `getAdapter()` loads `src/server/live/adapter.ts` when `DATABASE_URL` is present. Catch-all `/api/workspace` and `/api/actions` authenticate with `dealflow_session`. Consumers: Krishna Application shell.
+- **2026-09-06, Harsh, Deal schema:** Fulfillment maps `OrderLine` → operational ids/qty; labels, billing kind, and money on workspace orders come from `sourceDealLine` (`DealLine`). Confirm copies `quote.dealId` onto `Order`. Consumers: Atharva confirm, Ruchir billing init, Krishna workspace.
 
 ---
 

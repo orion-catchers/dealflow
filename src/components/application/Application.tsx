@@ -4,7 +4,7 @@ import {Suspense,useCallback,useEffect,useState} from 'react';
 import {usePathname,useRouter} from 'next/navigation';
 import {BarChart3,Boxes,CircleCheck,CreditCard,FileText,HeartPulse,LayoutDashboard,LogOut,Menu,Package,PanelLeft,PanelLeftClose,Repeat,Settings,Settings2,ShieldCheck,UsersRound} from 'lucide-react';
 import type {Actor,DataState,Role} from '../../contracts/application';
-import {api,Button,Heading,Input,Link,Money,Section,StatusBadge,Table,type Context} from './shared';
+import {api,Button,Heading,Input,Link,Money,Section,StatusBadge,Table,newId,type Context} from './shared';
 import Quotes from './Quotes';
 import Operations from './Operations';
 import Setup from './Setup';
@@ -83,11 +83,18 @@ export default function Application(){
   const [message,setMessage]=useState('');
   const [menu,setMenu]=useState(false);
   const [collapsed,setCollapsed]=useState(false);
-  const publicPage=['/','/login','/signup'].includes(pathname);
+  const publicPage=['/login','/signup'].includes(pathname) || (pathname==='/' && !remembered?.actor);
 
   const reload=useCallback(async()=>{
     if(actor&&actor.role!=='CUSTOMER')setData(await api<DataState>('workspace'));
   },[actor]);
+
+  useEffect(()=>{
+    if(!actor)return;
+    if(pathname==='/'||pathname==='/login'||pathname==='/signup'){
+      router.replace(actor.role==='CUSTOMER'?'/portal':'/home');
+    }
+  },[actor,pathname,router]);
 
   useEffect(()=>{
     let cancelled=false;
@@ -121,7 +128,7 @@ export default function Application(){
     try{window.localStorage.setItem('dealflow-sidebar',value?'collapsed':'expanded');}catch{/* local preference is optional */}
   };
   const run=async(action:string,body:Record<string,unknown>={})=>{
-    const result=await api('actions',{...body,action,requestKey:body.requestKey??crypto.randomUUID()});
+    const result=await api('actions',{...body,action,requestKey:body.requestKey??newId()});
     await reload();
     setMessage(mode==='DEV FIXTURE'?'Development record updated.':'Record updated.');
     return result;
@@ -134,13 +141,14 @@ export default function Application(){
       try{setData(await api<DataState>('workspace'));}
       catch(reason){setError(reason instanceof Error?reason.message:'The workspace could not be loaded.');}
     }
-    router.push(nextActor.role==='CUSTOMER'?'/portal':'/home');
+    router.replace(nextActor.role==='CUSTOMER'?'/portal':'/home');
   }}/>;
   if(!actor)return null;
-  if(actor.role==='CUSTOMER'&&!pathname.startsWith('/portal'))return <main className="standalone"><h1>Customer access only</h1><Link href="/portal">Open your customer portal</Link></main>;
-  if(actor.role!=='CUSTOMER'&&pathname.startsWith('/portal'))return <main className="standalone"><h1>Customer account required</h1><Link href="/home">Return to workspace</Link></main>;
+  const shellPath=(pathname==='/'||pathname==='/login'||pathname==='/signup')?(actor.role==='CUSTOMER'?'/portal':'/home'):pathname;
+  if(actor.role==='CUSTOMER'&&!shellPath.startsWith('/portal'))return <main className="standalone"><h1>Customer access only</h1><Link href="/portal">Open your customer portal</Link></main>;
+  if(actor.role!=='CUSTOMER'&&shellPath.startsWith('/portal'))return <main className="standalone"><h1>Customer account required</h1><Link href="/home">Return to workspace</Link></main>;
 
-  const ctx:Context={d:data!,actor,path:pathname,reload,run,notice:setMessage};
+  const ctx:Context={d:data!,actor,path:shellPath,reload,run,notice:setMessage};
   const shellClass=`application ${actor.role==='CUSTOMER'?'customer-app ':''}${collapsed?'is-collapsed':''}`;
   return <div className={shellClass}>
     <a className="skip" href="#main">Skip to main content</a>
@@ -153,7 +161,7 @@ export default function Application(){
       </div>
       <p className="nav-caption">{actor.role==='CUSTOMER'?'YOUR BUSINESS':'WORKSPACE'}</p>
       <nav id="primary-navigation">
-        {actor.role==='CUSTOMER'?<Link className="active" href="/portal" aria-label="Your deals" title="Your deals"><FileText size={18}/><span className="nav-label">Your deals</span></Link>:navigation.filter(([url])=>actor.role!=='SALES_REP'||url!=='/settings/customers').map(([url,name,Icon])=><Link key={url} className={pathname.startsWith(url)?'active':''} href={url} aria-label={name} title={collapsed?name:undefined}><Icon size={18}/><span className="nav-label">{name}</span></Link>)}
+        {actor.role==='CUSTOMER'?<Link className={shellPath.startsWith('/portal')?'active':''} href="/portal" aria-label="Your deals" title="Your deals"><FileText size={18}/><span className="nav-label">Your deals</span></Link>:navigation.filter(([url])=>actor.role!=='SALES_REP'||url!=='/settings/customers').map(([url,name,Icon])=><Link key={url} className={shellPath.startsWith(url)?'active':''} href={url} aria-label={name} title={collapsed?name:undefined}><Icon size={18}/><span className="nav-label">{name}</span></Link>)}
       </nav>
       <div className="sidebar-footer">
         <span className="avatar" aria-hidden="true">{actor.name.split(' ').map(s=>s[0]).join('')}</span>
@@ -169,7 +177,7 @@ export default function Application(){
       <main id="main">
         {message&&<div className="notice" role="status">{message}<button type="button" onClick={()=>setMessage('')} aria-label="Dismiss notification">×</button></div>}
         {error&&<div role="alert" className="error">{error}<Button onClick={()=>{setError('');reload().catch(reason=>setError(reason instanceof Error?reason.message:'Retry failed.'));}}>Retry</Button></div>}
-        {actor.role==='CUSTOMER'?<CustomerPortal path={pathname}/>:!data?null:pathname==='/home'?<Home ctx={ctx}/>:pathname.startsWith('/quotes')||pathname==='/pipeline'||pathname.startsWith('/approvals')?<Quotes ctx={ctx}/>:pathname.startsWith('/products')||pathname.startsWith('/settings')||pathname==='/policies'||pathname==='/price-lists'?<Setup ctx={ctx}/>:pathname.startsWith('/fulfillment')?(pathname.split('/')[2]?<FulfillmentDetailView orderId={pathname.split('/')[2]}/>:<FulfillmentList/>):pathname.startsWith('/reports')?<Suspense fallback={<p className="hint">Loading reports…</p>}><ReportsDashboard/></Suspense>:['/subscriptions','/invoices','/health'].some(p=>pathname.startsWith(p))?<Operations ctx={ctx}/>:<><Heading title="Page not found" description="This route does not exist."/><Link href="/home">Return to overview</Link></>}
+        {actor.role==='CUSTOMER'?<CustomerPortal path={shellPath}/>:!data?null:shellPath==='/home'?<Home ctx={ctx}/>:shellPath.startsWith('/quotes')||shellPath==='/pipeline'||shellPath.startsWith('/approvals')?<Quotes ctx={ctx}/>:shellPath.startsWith('/products')||shellPath.startsWith('/settings')||shellPath==='/policies'||shellPath==='/price-lists'?<Setup ctx={ctx}/>:shellPath.startsWith('/fulfillment')?(shellPath.split('/')[2]?<FulfillmentDetailView orderId={shellPath.split('/')[2]}/>:<FulfillmentList/>):shellPath.startsWith('/reports')?<Suspense fallback={<p className="hint">Loading reports…</p>}><ReportsDashboard/></Suspense>:['/subscriptions','/invoices','/health'].some(p=>shellPath.startsWith(p))?<Operations ctx={ctx}/>:<><Heading title="Page not found" description="This route does not exist."/><Link href="/home">Return to overview</Link></>}
       </main>
     </div>
   </div>;

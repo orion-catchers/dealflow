@@ -831,6 +831,7 @@ export class LiveQuoteService {
       });
       const order = await tx.order.create({
         data: {
+          dealId: quote.dealId,
           sourceRevisionId: revision.id,
           acceptanceId: revision.acceptances.find((acceptance) => acceptance.actorId === actorId)!.id,
           customerId: quote.customerId,
@@ -861,6 +862,7 @@ export class LiveQuoteService {
             include: {
               product: { select: { name: true } },
               variant: { select: { name: true, shippingWeight: true } },
+              sourceDealLine: { include: { product: { select: { name: true } }, variant: { select: { name: true } } } },
             },
           },
           customer: { select: { name: true } },
@@ -872,20 +874,25 @@ export class LiveQuoteService {
       const billingInput: ConfirmedOrderForBilling = {
         orderId: order.id,
         customerId: order.customerId,
-        currency: order.currency,
+        currency: revision.currency,
         confirmedAt: order.createdAt.toISOString().slice(0, 10),
-        lines: order.lines.map((line) => ({
-          orderLineId: line.id,
-          description: line.variant ? `${line.product.name} · ${line.variant.name}` : line.product.name,
-          quantity: line.quantity,
-          unitPrice: money(line.unitPrice),
-          discountPct: Number(line.lineDiscountPct.toString()),
-          taxPct: Number(line.taxPct.toString()),
-          lineTotal: money(line.lineTotal),
-          billingKind: line.billingKind,
-          interval: line.interval,
-          planId: line.planId,
-        })),
+        lines: order.lines.map((line) => {
+          const dealLine = revision.lines.find((item) => item.id === line.sourceDealLineId);
+          const productName = dealLine?.product.name ?? line.product.name;
+          const variantName = dealLine?.variant?.name ?? line.variant?.name;
+          return {
+            orderLineId: line.id,
+            description: variantName ? `${productName} · ${variantName}` : productName,
+            quantity: dealLine?.quantity ?? line.quantity,
+            unitPrice: money(dealLine?.unitPrice ?? line.unitPrice),
+            discountPct: Number((dealLine?.lineDiscountPct ?? line.lineDiscountPct).toString()),
+            taxPct: Number((dealLine?.taxPct ?? line.taxPct).toString()),
+            lineTotal: money(dealLine?.lineTotal ?? line.lineTotal),
+            billingKind: (dealLine?.billingKind ?? line.billingKind) === "RECURRING" ? "RECURRING" : "ONE_TIME",
+            interval: dealLine?.interval ?? line.interval,
+            planId: dealLine?.planId ?? line.planId,
+          };
+        }),
       };
       await initializeBilling(tx, billingInput, input.requestKey);
       const fulfillmentInput: OrderForFulfillment = {
@@ -893,20 +900,23 @@ export class LiveQuoteService {
         customerId: order.customerId,
         customerName: order.customer.name,
         repId: order.repId,
-        currency: order.currency as "INR" | "USD" | "EUR",
-        promisedDate: dateOnly(order.promisedDate),
+        currency: (revision.currency === "USD" || revision.currency === "EUR" ? revision.currency : "INR") as "INR" | "USD" | "EUR",
+        promisedDate: dateOnly(revision.promisedDate),
         confirmedAt: order.createdAt.toISOString(),
-        lines: order.lines.map((line) => ({
-          orderLineId: line.id,
-          productId: line.productId,
-          productName: line.product.name,
-          variantId: line.variantId ?? undefined,
-          variantLabel: line.variant?.name,
-          quantity: line.quantity,
-          stockTracked: line.stockTracked,
-          isSubscription: line.billingKind === "RECURRING",
-          shippingWeightKg: line.variant?.shippingWeight ? Number(line.variant.shippingWeight.toString()) : undefined,
-        })),
+        lines: order.lines.map((line) => {
+          const dealLine = revision.lines.find((item) => item.id === line.sourceDealLineId);
+          return {
+            orderLineId: line.id,
+            productId: dealLine?.productId ?? line.productId,
+            productName: dealLine?.product.name ?? line.product.name,
+            variantId: dealLine?.variantId ?? line.variantId ?? undefined,
+            variantLabel: dealLine?.variant?.name ?? line.variant?.name,
+            quantity: line.quantity,
+            stockTracked: dealLine?.stockTracked ?? line.stockTracked,
+            isSubscription: (dealLine?.billingKind ?? line.billingKind) === "RECURRING",
+            shippingWeightKg: line.variant?.shippingWeight ? Number(line.variant.shippingWeight.toString()) : undefined,
+          };
+        }),
       };
       void fulfillmentInput;
       const orderReady = {

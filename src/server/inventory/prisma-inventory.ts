@@ -155,29 +155,40 @@ export class PrismaInventoryStore implements InventoryStore {
       where: { id: orderId },
       include: {
         customer: true,
-        lines: { include: { product: true, variant: true } },
+        sourceRevision: true,
+        lines: {
+          include: {
+            product: true,
+            variant: true,
+            sourceDealLine: { include: { product: true, variant: true } },
+          },
+        },
       },
     });
     if (!order) return null;
+    const revision = order.sourceRevision;
     const mapped: OrderForFulfillment = {
       orderId: order.id,
       customerId: order.customerId,
       customerName: order.customer.name,
       repId: order.repId,
-      currency: (order.currency === "USD" || order.currency === "EUR" ? order.currency : "INR") as OrderForFulfillment["currency"],
-      promisedDate: dateOnly(order.promisedDate),
+      currency: (revision.currency === "USD" || revision.currency === "EUR" ? revision.currency : "INR") as OrderForFulfillment["currency"],
+      promisedDate: dateOnly(revision.promisedDate ?? order.promisedDate),
       confirmedAt: isoOf(order.createdAt),
-      lines: order.lines.map((l) => ({
-        orderLineId: l.id,
-        productId: l.productId,
-        productName: l.product.name,
-        variantId: l.variantId ?? undefined,
-        variantLabel: l.variant?.name,
-        quantity: l.quantity,
-        stockTracked: l.stockTracked,
-        isSubscription: l.billingKind === "RECURRING",
-        shippingWeightKg: l.variant?.shippingWeight != null ? Number(l.variant.shippingWeight) : undefined,
-      })),
+      lines: order.lines.map((l) => {
+        const dealLine = l.sourceDealLine;
+        return {
+          orderLineId: l.id,
+          productId: dealLine?.productId ?? l.productId,
+          productName: dealLine?.product.name ?? l.product.name,
+          variantId: dealLine?.variantId ?? l.variantId ?? undefined,
+          variantLabel: dealLine?.variant?.name ?? l.variant?.name,
+          quantity: l.quantity,
+          stockTracked: dealLine?.stockTracked ?? l.stockTracked,
+          isSubscription: (dealLine?.billingKind ?? l.billingKind) === "RECURRING",
+          shippingWeightKg: l.variant?.shippingWeight != null ? Number(l.variant.shippingWeight) : undefined,
+        };
+      }),
     };
     return {
       order: mapped,

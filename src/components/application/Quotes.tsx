@@ -17,6 +17,7 @@ import {
   Filter,
   FormAction,
   Events,
+  newId,
   type Context,
 } from "./shared";
 export default function Quotes({ ctx }: { ctx: Context }) {
@@ -215,7 +216,7 @@ function QuoteDetail({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [revision, setRevision] = useState(q.revision),
-    [opKey, setOpKey] = useState(crypto.randomUUID());
+    [opKey, setOpKey] = useState(newId());
   const editable =
       !approval &&
       q.stage !== "CONFIRMED" &&
@@ -242,7 +243,7 @@ function QuoteDetail({
         ...body,
         requestKey: opKey,
       });
-      setOpKey(crypto.randomUUID());
+      setOpKey(newId());
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -306,7 +307,7 @@ function QuoteDetail({
               value={draft.name}
               onChange={(e) => {
                 setDraft({ ...draft, name: e.target.value });
-                setOpKey(crypto.randomUUID());
+                setOpKey(newId());
               }}
             />
             <Select
@@ -314,7 +315,7 @@ function QuoteDetail({
               value={draft.customerId}
               onChange={(e) => {
                 setDraft({ ...draft, customerId: e.target.value });
-                setOpKey(crypto.randomUUID());
+                setOpKey(newId());
               }}
             >
               {d.customers.map((c) => (
@@ -335,7 +336,7 @@ function QuoteDetail({
                   ...draft,
                   orderDiscountPct: Number(e.target.value),
                 });
-                setOpKey(crypto.randomUUID());
+                setOpKey(newId());
               }}
             />
             <Input
@@ -344,7 +345,7 @@ function QuoteDetail({
               value={draft.promisedDate ?? ""}
               onChange={(e) => {
                 setDraft({ ...draft, promisedDate: e.target.value || null });
-                setOpKey(crypto.randomUUID());
+                setOpKey(newId());
               }}
             />
           </div>
@@ -381,7 +382,7 @@ function QuoteDetail({
                         : x,
                     ),
                   });
-                  setOpKey(crypto.randomUUID());
+                  setOpKey(newId());
                 }}
               />
             ) : (
@@ -405,7 +406,7 @@ function QuoteDetail({
                         : x,
                     ),
                   });
-                  setOpKey(crypto.randomUUID());
+                  setOpKey(newId());
                 }}
               />
             ) : (
@@ -423,7 +424,7 @@ function QuoteDetail({
                         ...draft,
                         lines: draft.lines.filter((x) => x.id !== l.id),
                       });
-                      setOpKey(crypto.randomUUID());
+                      setOpKey(newId());
                     }}
                   >
                     Remove
@@ -448,7 +449,7 @@ function QuoteDetail({
                     d.products.find((p) => p.id === e.target.value)?.variants[0]
                       ?.id ?? "",
                   );
-                  setOpKey(crypto.randomUUID());
+                  setOpKey(newId());
                 }}
               >
                 <option value="">Choose a product</option>
@@ -465,7 +466,7 @@ function QuoteDetail({
                 value={variant}
                 onChange={(e) => {
                   setVariant(e.target.value);
-                  setOpKey(crypto.randomUUID());
+                  setOpKey(newId());
                 }}
               >
                 {p?.variants.map((v) => (
@@ -481,7 +482,7 @@ function QuoteDetail({
                 value={quantity}
                 onChange={(e) => {
                   setQuantity(Number(e.target.value));
-                  setOpKey(crypto.randomUUID());
+                  setOpKey(newId());
                 }}
               />
               <Button

@@ -58,6 +58,13 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
 
 /** Stable request key per user intent (blueprint: repeat-safe writes). */
 export function newRequestKey(prefix: string): string {
-  const rnd = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+  const web = globalThis.crypto;
+  let rnd: string;
+  if (web && typeof web.randomUUID === "function") rnd = web.randomUUID();
+  else if (web && typeof web.getRandomValues === "function") {
+    const bytes = new Uint8Array(16);
+    web.getRandomValues(bytes);
+    rnd = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  } else rnd = `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
   return `${prefix}-${rnd}`;
 }

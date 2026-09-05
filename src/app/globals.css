@@ -127,3 +127,6 @@ dialog.df-dialog{position:fixed;inset:0;margin:auto;width:min(640px,calc(100% - 
 .auth-demo code{font-size:12px;color:var(--ink)}
 .auth-demo button{margin-left:6px;border:0;background:transparent;color:var(--teal);padding:0;font:inherit;cursor:pointer}
 .topbar-end{margin-left:auto}
+a.df-button{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;white-space:nowrap}
+a.df-button:hover{text-decoration:none}
+a.df-button--primary{color:#fff}

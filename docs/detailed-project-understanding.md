@@ -175,7 +175,8 @@ You do not need every column. You need these **identities**:
 - **User** + **Session** + **CustomerMembership** — who is logged in; customers map to a company card.
 - **Customer** — tier (Bronze/Silver/Gold in the app; Prisma maps Bronze→STANDARD), currency, assigned rep, optional price list.
 - **Product / Variant / TaxRate / PriceList / PriceRule** — catalog. `taxPct` is also snapshotted on quote lines so old quotes do not move when tax tables change.
-- **Quote / QuoteRevision / QuoteLine** — versioned deal. **Current revision** is the only one that can be approved or accepted.
+- **Deal** — shared commercial identity (one per sales cycle). Quote is the compatibility-facing sales head; Order is the confirmed operational record. Revisions/lines are Prisma `DealRevision` / `DealLine` mapped to existing `QuoteRevision` / `QuoteLine` tables.
+- **Quote** — mutable deal head used by `/api/quotes` and the UI. Creating a quote creates a `Deal` and sets `dealId` on each revision.
 - **Approval** records — per revision; stale approvals die when the revision changes.
 - **Order / OrderLine** — immutable commercial commitment after confirm.
 - **Warehouse / StockLevel / Reservation / Backorder / Shipment** — Engine 2. Available = onHand − reserved.
@@ -369,7 +370,7 @@ Then Flow A/B in `docs/demo-walkthrough.md`. Vendor keys are optional. The remai
 
 | File | Use |
 |---|---|
-| `docs/env-keys.md` | Required vs optional keys |
+| `docs/deal-schema-migration.md` | Deal identity vs Quote vs Order |
 | `docs/demo-walkthrough.md` | Click script Flow A/B |
 | `docs/harsh-lane-explained.md` | Catalog/split/reports in plain English |
 | `docs/MENTOR_REVIEW.md` | Oral exam |

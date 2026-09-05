@@ -253,7 +253,7 @@ export async function loadDataState(): Promise<DataState> {
     }),
     prisma.order.findMany({
       include: {
-        lines: { include: { product: true, variant: true } },
+        lines: { include: { product: true, variant: true, sourceDealLine: { include: { product: true, variant: true } } } },
         sourceRevision: true,
         shipments: { include: { lines: true } },
       },
@@ -400,23 +400,28 @@ export async function loadDataState(): Promise<DataState> {
   });
 
   const appOrders: Order[] = orders.map((o) => {
-    const lines: Line[] = o.lines.map((l) => ({
-      id: l.id,
-      productId: l.productId,
-      variantId: l.variantId ?? "",
-      description: `${l.product.name}${l.variant ? ` · ${l.variant.name}` : ""}`,
-      quantity: l.quantity,
-      discountPct: pctOf(l.lineDiscountPct),
-      unitPrice: money(l.unitPrice),
-      unitCost: money(l.unitCost),
-      taxPct: pctOf(l.taxPct),
-      tax: "0.00",
-      net: money(l.lineTotal),
-      total: money(l.lineTotal),
-      profit: "0.00",
-      interval: intervalOf(l.billingKind, l.interval),
-      stockTracked: l.stockTracked,
-    }));
+    const lines: Line[] = o.lines.map((l) => {
+      const dealLine = l.sourceDealLine;
+      const productName = dealLine?.product.name ?? l.product.name;
+      const variantName = dealLine?.variant?.name ?? l.variant?.name;
+      return {
+        id: l.id,
+        productId: dealLine?.productId ?? l.productId,
+        variantId: dealLine?.variantId ?? l.variantId ?? "",
+        description: variantName ? `${productName} · ${variantName}` : productName,
+        quantity: l.quantity,
+        discountPct: pctOf(dealLine?.lineDiscountPct ?? l.lineDiscountPct),
+        unitPrice: money(dealLine?.unitPrice ?? l.unitPrice),
+        unitCost: money(dealLine?.unitCost ?? l.unitCost),
+        taxPct: pctOf(dealLine?.taxPct ?? l.taxPct),
+        tax: "0.00",
+        net: money(dealLine?.lineTotal ?? l.lineTotal),
+        total: money(dealLine?.lineTotal ?? l.lineTotal),
+        profit: "0.00",
+        interval: intervalOf(dealLine?.billingKind ?? l.billingKind, dealLine?.interval ?? l.interval),
+        stockTracked: dealLine?.stockTracked ?? l.stockTracked,
+      };
+    });
     const allocations = reservations
       .filter((r) => r.orderLine.orderId === o.id && r.status === "ACTIVE")
       .map((r) => ({ lineId: r.orderLineId, warehouseId: r.warehouseId, quantity: r.quantity }));

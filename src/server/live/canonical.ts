@@ -228,6 +228,12 @@ export async function persistQuote(state: DataState, quote: Quote) {
       where: { id: quote.id },
       data: { customerId, stage, lastActivityAt: new Date(quote.at) },
     });
+    if (row.dealId) {
+      await prisma.deal.update({
+        where: { id: row.dealId },
+        data: { status: stage, lastActivityAt: new Date(quote.at) },
+      });
+    }
   }
 
   const existingRev = await prisma.dealRevision.findUnique({
@@ -300,6 +306,12 @@ export async function persistQuote(state: DataState, quote: Quote) {
   });
 
   await prisma.quote.update({ where: { id: row.id }, data: { currentRevisionId: revision.id } });
+  if (row.dealId) {
+    await prisma.deal.update({
+      where: { id: row.dealId },
+      data: { status: stage, lastActivityAt: new Date(quote.at) },
+    });
+  }
 
   const chain = quote.evaluation.chain;
   for (let i = 0; i < chain.length; i++) {
@@ -410,19 +422,25 @@ async function persistConfirmation(state: DataState, order: Order, actor: Actor)
       include: { lines: true },
     });
     await tx.quote.update({ where: { id: dbQuote.id }, data: { stage: "CONFIRMED" } });
+    if (dbQuote.dealId) {
+      await tx.deal.update({
+        where: { id: dbQuote.dealId },
+        data: { status: "CONFIRMED", lastActivityAt: new Date() },
+      });
+    }
     const billingLines = row.lines.map((line) => {
       const source = revision.lines.find((l) => l.id === line.sourceDealLineId);
       return {
         orderLineId: line.id,
         description: source?.product.name ?? "Order line",
-        quantity: line.quantity,
-        unitPrice: String(line.unitPrice),
-        discountPct: Number(line.lineDiscountPct),
-        taxPct: Number(line.taxPct),
-        lineTotal: String(line.lineTotal),
-        billingKind: line.billingKind === "RECURRING" ? ("RECURRING" as const) : ("ONE_TIME" as const),
-        interval: line.interval,
-        planId: line.planId,
+        quantity: source?.quantity ?? line.quantity,
+        unitPrice: String(source?.unitPrice ?? line.unitPrice),
+        discountPct: Number(source?.lineDiscountPct ?? line.lineDiscountPct),
+        taxPct: Number(source?.taxPct ?? line.taxPct),
+        lineTotal: String(source?.lineTotal ?? line.lineTotal),
+        billingKind: (source?.billingKind ?? line.billingKind) === "RECURRING" ? ("RECURRING" as const) : ("ONE_TIME" as const),
+        interval: source?.interval ?? line.interval,
+        planId: source?.planId ?? line.planId,
       };
     });
     await initializeBilling(
