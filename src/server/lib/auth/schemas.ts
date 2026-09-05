@@ -18,3 +18,12 @@ export const userPatchSchema = z.object({
   teamId: z.string().trim().min(1).nullable().optional(),
   customerIds: z.array(z.string().trim().min(1)).optional(),
 });
+
+export const passwordResetRequestSchema = z.object({
+  email: z.string().trim().email(),
+});
+
+export const passwordResetConfirmSchema = z.object({
+  token: z.string().trim().min(16).max(128),
+  newPassword: z.string().min(8),
+});

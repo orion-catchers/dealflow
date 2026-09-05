@@ -4,6 +4,8 @@ import { parseInput } from "@/features/catalog/api";
 import { ApiFailure } from "@/lib/api/respond";
 import { prisma } from "@/server/lib/db";
 import { requireRole } from "@/server/lib/auth/actor";
+import { prismaUserIdForActor } from "@/server/lib/auth/resolve-user";
+import { recordPrismaAudit } from "@/server/audit/prisma-repository";
 import { userPatchSchema } from "@/server/lib/auth/schemas";
 
 function toAdminRow(user: {
@@ -59,6 +61,19 @@ export async function patchUser(actor: Actor, id: string, raw: unknown): Promise
     }
   }
 
+  const changes: Record<string, { from: unknown; to: unknown }> = {};
+  if (input.status !== undefined && input.status !== existing.status) changes.status = { from: existing.status, to: input.status };
+  if (input.role !== undefined && input.role !== existing.role) changes.role = { from: existing.role, to: input.role };
+  if (input.teamId !== undefined && input.teamId !== existing.teamId) changes.teamId = { from: existing.teamId, to: input.teamId };
+  if (input.customerIds !== undefined) {
+    const before = existing.memberships.map((m) => m.customerId).sort();
+    if (JSON.stringify(before) !== JSON.stringify([...input.customerIds].sort())) changes.customerIds = { from: before, to: input.customerIds };
+  }
+
+  // AuditEvent.actorId references User, so a fixture actor symbol (x-dev-actor)
+  // must resolve to the seeded database user before it can be recorded.
+  const resolvedActorId = await prismaUserIdForActor(actor);
+
   const user = await prisma.$transaction(async (tx) => {
     await tx.user.update({
       where: { id },
@@ -77,6 +92,19 @@ export async function patchUser(actor: Actor, id: string, raw: unknown): Promise
         });
       }
     }
+
+    // Blueprint §1: admin configuration changes are audited. Deactivation and
+    // demotion to PENDING end live sessions so removed access takes effect now.
+    if (input.status !== undefined && input.status !== "ACTIVE") {
+      await tx.session.deleteMany({ where: { userId: id } });
+    }
+    await recordPrismaAudit(tx, {
+      entityType: "User",
+      entityId: id,
+      actorId: resolvedActorId ?? undefined,
+      action: "user.update",
+      metadata: { changes, actor: actor.id },
+    });
 
     return tx.user.findUniqueOrThrow({
       where: { id },

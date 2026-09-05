@@ -52,6 +52,9 @@ export function clearSessionCookie(response: NextResponse): void {
 export async function createSession(userId: string): Promise<{ token: string; expiresAt: Date }> {
   const token = generateSessionToken();
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
+  // Expired rows are never read (findUserBySessionToken rechecks), but without
+  // a purge they accumulate forever on the shared database.
+  await prisma.session.deleteMany({ where: { expiresAt: { lt: new Date() } } });
   await prisma.session.create({
     data: {
       userId,

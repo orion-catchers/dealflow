@@ -135,6 +135,11 @@ function Auth({path,error,onLogin}:{path:string;error:string;onLogin:(actor:Acto
   const [issue,setIssue]=useState(error);
   const [busy,setBusy]=useState(false);
   const [done,setDone]=useState(false);
+  const [recovery,setRecovery]=useState<'none'|'request'|'confirm'>('none');
+  const [resetToken,setResetToken]=useState('');
+  const [resetPassword,setResetPassword]=useState('');
+  const [recoveryMsg,setRecoveryMsg]=useState('');
+  const [recoveryOk,setRecoveryOk]=useState(false);
   const landing=path==='/';
   return <div className={`auth-page ${landing?'auth-landing':''}`}>
     <header className="auth-topbar">
@@ -168,7 +173,7 @@ function Auth({path,error,onLogin}:{path:string;error:string;onLogin:(actor:Acto
           <Button type="submit" disabled={busy}>{busy?'Please wait…':path==='/signup'?'Request access':'Sign in'}</Button>
         </form>}
         <p className="auth-switch">{path==='/signup'?'Already have access?':'Need an account?'} <Link href={path==='/signup'?'/login':'/signup'}>{path==='/signup'?'Sign in':'Request access'}</Link></p>
-        <small>Password recovery: contact your company administrator.</small>
+        <small className="auth-recovery">{recovery==='none'&&recoveryOk?<span>Password updated. Sign in with your new password.</span>:recovery==='none'&&<button type="button" onClick={()=>{setRecovery('request');setRecoveryOk(false);setRecoveryMsg('');}}>Forgot password?</button>}{recovery==='request'&&<form onSubmit={async event=>{event.preventDefault();setBusy(true);try{await api('auth/password-reset',{email});setRecovery('confirm');setRecoveryMsg('If that account exists, a reset request was recorded. Email delivery is not configured; use the token from the server log (development) or ask your administrator.');}catch(reason){setIssue(reason instanceof Error?reason.message:'Reset request failed.');}finally{setBusy(false);}}} aria-label="Password recovery"><Input label="Work email" type="email" value={email} onChange={event=>setEmail(event.target.value)} required autoComplete="username"/><Button type="submit" disabled={busy}>{busy?'Please wait…':'Send reset request'}</Button> <button type="button" onClick={()=>setRecovery('none')}>Cancel</button></form>}{recovery==='confirm'&&<div><div className="notice" role="status">{recoveryMsg}</div><form onSubmit={async event=>{event.preventDefault();setBusy(true);try{await api('auth/password-reset/confirm',{token:resetToken.trim(),newPassword:resetPassword});setRecovery('none');setResetToken('');setResetPassword('');setRecoveryOk(true);}catch(reason){setIssue(reason instanceof Error?reason.message:'Reset failed; check the token and try again.');}finally{setBusy(false);}}} aria-label="Set new password"><Input label="Reset token" value={resetToken} onChange={event=>setResetToken(event.target.value)} required/><Input label="New password" type="password" value={resetPassword} onChange={event=>setResetPassword(event.target.value)} required minLength={8} autoComplete="new-password"/><Button type="submit" disabled={busy}>{busy?'Please wait…':'Set new password'}</Button></form></div>}</small>
       </div>
     </main>}
   </div>;

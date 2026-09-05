@@ -4,19 +4,28 @@ import { ApiFailure } from "@/lib/api/respond";
 import { prisma } from "@/server/lib/db";
 import { userToSessionUser } from "./actor-helpers";
 import { hashPassword, verifyPassword } from "./password";
+import { loginRateLimiter } from "./rate-limit";
 import { createSession } from "./session";
 import { loginSchema, signupSchema } from "./schemas";
 
 export async function loginWithPassword(input: { email: string; password: string }): Promise<{ user: SessionUser; token: string }> {
-  const user = await prisma.user.findUnique({
-    where: { email: input.email.toLowerCase() },
-    include: { memberships: true },
-  });
-  if (!user || user.status !== "ACTIVE" || !(await verifyPassword(input.password, user.passwordHash))) {
-    throw new ApiFailure("UNAUTHENTICATED", "Invalid email or password");
+  const email = input.email.toLowerCase();
+  loginRateLimiter.assertAllowed(email);
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { memberships: true },
+    });
+    if (!user || user.status !== "ACTIVE" || !(await verifyPassword(input.password, user.passwordHash))) {
+      throw new ApiFailure("UNAUTHENTICATED", "Invalid email or password");
+    }
+    const { token } = await createSession(user.id);
+    loginRateLimiter.recordSuccess(email);
+    return { user: userToSessionUser(user), token };
+  } catch (e) {
+    if (e instanceof ApiFailure && e.code === "UNAUTHENTICATED") loginRateLimiter.recordFailure(email);
+    throw e;
   }
-  const { token } = await createSession(user.id);
-  return { user: userToSessionUser(user), token };
 }
 
 export async function signupUser(raw: SignupInput): Promise<SessionUser> {
