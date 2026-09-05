@@ -5,6 +5,10 @@ import { SESSION_COOKIE, SESSION_MAX_AGE_SECONDS } from "./cookies";
 
 export { SESSION_COOKIE, SESSION_MAX_AGE_SECONDS } from "./cookies";
 
+// Sample rate for expired-session cleanup inside createSession.
+const SESSION_PURGE_INTERVAL = 20;
+let sessionPurgeCounter = 0;
+
 export function hashSessionToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
@@ -52,6 +56,14 @@ export function clearSessionCookie(response: NextResponse): void {
 export async function createSession(userId: string): Promise<{ token: string; expiresAt: Date }> {
   const token = generateSessionToken();
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
+  // Expired rows are never read (findUserBySessionToken rechecks), but without
+  // a purge they accumulate forever on the shared database. Sampling keeps the
+  // deleteMany scan off the hot path (review P2); the first login purges so a
+  // stale demo database starts clean.
+  sessionPurgeCounter += 1;
+  if (sessionPurgeCounter % SESSION_PURGE_INTERVAL === 1) {
+    await prisma.session.deleteMany({ where: { expiresAt: { lt: new Date() } } });
+  }
   await prisma.session.create({
     data: {
       userId,
