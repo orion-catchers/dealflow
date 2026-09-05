@@ -148,6 +148,58 @@ _No entries yet._
    `src/lib/auth/dev-actor.ts` (dev-only `x-dev-actor` header → Actor; production throws
    UNAUTHENTICATED; Ruchir's `getActor` replaces it).
 8. Delegated three parallel engine/service tracks to subagents (see entries below).
+9. Wrote `src/lib/api/client.ts` (browser fetch helper: unwraps envelope, throws
+   `ApiClientError`, sends `x-dev-actor`, `newRequestKey`), `src/app/(internal)/layout.tsx`
+   (AppShell route group), `src/dev-adapter/dev-actor-switcher.tsx` (dev-only fixture actor
+   picker; renders nothing in production — not a role bypass).
+10. Wrote `docs/architecture.md` (one-page runtime + ER diagram, Mermaid), `docs/demo-walkthrough.md`
+    (Flow A / Flow B step tables with owner + status), refreshed `README.md`.
+11. **Reports backend landed (subagent) — DEV FIXTURE.** `src/features/reports/`:
+    `repository.ts` (interface + in-memory over fixtures; Prisma impl will project
+    Atharva's tables into `ReportQuoteRecord`), `engine/{period,filter,aggregate,
+    export-xlsx,export-pdf}.ts`, `service.ts` (ADMIN/MANAGER/FINANCE all; SALES_REP
+    scoped to own repId; CUSTOMER forbidden; export reuses same `run` rows), `api.ts` (zod
+    query parsing, default period THIS_MONTH). Routes: `GET /api/reports`,
+    `GET /api/reports/options`, `GET /api/reports/export?format=PDF|XLSX`. 54 vitest
+    tests pass (period ranges in IST, filters, fixture aggregates, XLSX `PK` / PDF `%PDF`
+    magic bytes, export rows == run rows). Judgment calls: period matches `createdAt` OR
+    `confirmedAt`; product/category filters count whole quote at quote level but only
+    matching lines in `byProduct`; `byStage` always emits all six stages zero-filled.
+12. **Catalog + customer master backend landed (subagent) — DEV FIXTURE.**
+    `src/features/catalog/`: `engine/{money,resolve-price}.ts` (pure: price list by
+    customer override → tier/currency; variant rule beats product rule; `minQty` honoured;
+    fixedPrice replaces base, variant extra still added; tax by product), `repository.ts`
+    (interface + in-memory, `setCatalogRepository` for Prisma swap), `service.ts` (role
+    checks: ADMIN mutations; ADMIN/MANAGER customer edits; CUSTOMER reads only own record
+    and may resolve only own customerId), `api.ts` (zod). 17 routes: `/api/customers[/id]`,
+    `/api/sales-teams`, `/api/tax-rates`, `/api/plans` (DEV FIXTURE of Ruchir's),
+    `/api/products[/summary|/id|/id/restore|/id/variants[/variantId]]`,
+    `/api/price-lists[/id|/id/rules[/ruleId]]`, `/api/catalog/{resolve,search}`.
+    Archive never deletes. 40 tests pass, tsc clean. Contract addition:
+    `CatalogDashboardSummary` appended to `src/contracts/harsh.ts`.
+13. **Engine 2 backend landed (subagent) — DEV FIXTURE.** `src/features/inventory/`:
+    `engine/{availability,demand,split,validate-plan,status}.ts` (pure; preview writes
+    nothing; single-warehouse else greedy most-units → lower cost → id; own RESERVED
+    reservations credited during override validation), `repository.ts` (interface +
+    in-memory with promise-chain mutex + snapshot/restore so a failed transaction leaves
+    no partial writes; request-key results per scope), `service.ts` (reads any internal
+    role; accept/override/consolidate/receipt/ship/deliver/cancel FINANCE/ADMIN; warehouse
+    CRUD + stock-level edit ADMIN), `api.ts` (zod). 17 routes: `/api/warehouses[/id]`,
+    `/api/stock`, `/api/stock/receipts`, `/api/stock/levels`, `/api/fulfillment`,
+    `/api/fulfillment/initialize`, `/api/fulfillment/[orderId]` + `/preview`, `/delivery`,
+    `/accept`, `/override`, `/consolidate`, `/ship`, `/deliver`, `/cancel`. 47 tests
+    (repeated lines aggregate; competing orders never oversell; preview no-write; repeat
+    Accept same key replays; different key on allocated → 409; override releases +
+    reassigns; receipt → eligible backorders → consolidate; service-only → 422
+    NO_STOCK_TRACKED_LINES; cancel releases; ship idempotent). Full suite 141/141, tsc
+    clean. Contract additions: `AllocationCommitResult`, `ShipmentActionResult`,
+    `CancelAllocationResult`, `StockLevelUpsertInput`. Decisions: `Reservation.shipmentId`
+    set at planning time; override cancels PLANNED shipments and creates new ones, never
+    touches SHIPPED/DELIVERED; service-only orders derive DELIVERED with
+    `stockTrackedUnits: 0`.
+14. UI tracks delegated (Grok 4.6 Medium per user request): Reports screen (15), Product
+    dashboard/editor + price lists + customers (16/17/supplementary), Fulfillment list/
+    detail (07/08), Warehouses/stock/receipts (supplementary).
 
 **Status legend for Harsh's lane:** everything is **DEV FIXTURE** (in-memory repositories)
 until Ruchir's Prisma schema lands; then the repository adapters swap to Prisma.

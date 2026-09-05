@@ -599,3 +599,73 @@ export interface InitializeFulfillmentResult {
   status: "PENDING";
   created: boolean;
 }
+
+// Added by Engine 2 implementation
+// ---------------------------------------------------------------------------
+// Result shapes returned by the fulfillment mutations (Accept / Override /
+// Consolidate / Ship / Deliver / Cancel) and the admin stock-level edit.
+// All mutation results carry `replayed` so a repeated request key is visible.
+// ---------------------------------------------------------------------------
+
+/** Result of Accept, Override and Consolidate: what THIS commit created. */
+export interface AllocationCommitResult {
+  orderId: string;
+  requestKey: string;
+  /** Derived fulfillment status after the commit. */
+  status: FulfillmentStatus;
+  /** True when a previous call with the same requestKey was replayed (no new writes). */
+  replayed: boolean;
+  /** Reservations created by this commit (RESERVED). */
+  reservations: Reservation[];
+  /** Backorders created (Accept/Override) or updated (Consolidate) by this commit. */
+  backorders: Backorder[];
+  /** PLANNED shipments created by this commit, one per warehouse used. */
+  shipments: Shipment[];
+}
+
+/** Result of Ship / Deliver. */
+export interface ShipmentActionResult {
+  orderId: string;
+  shipmentId: string;
+  status: FulfillmentStatus;
+  shipment: Shipment;
+  replayed: boolean;
+}
+
+/** Result of cancelling the unshipped allocation of an order. */
+export interface CancelAllocationResult {
+  orderId: string;
+  status: FulfillmentStatus;
+  /** Units released back to available stock. */
+  releasedUnits: number;
+  cancelledReservationIds: string[];
+  cancelledBackorderIds: string[];
+  cancelledShipmentIds: string[];
+  replayed: boolean;
+}
+
+/** Admin edit of a stock level (threshold and/or onHand). Creates the row when absent. */
+export interface StockLevelUpsertInput {
+  warehouseId: string;
+  variantId: string;
+  onHand?: number;
+  reorderThreshold?: number;
+  actor: Actor;
+}
+
+// ---------------------------------------------------------------------------
+// Added by Catalog implementation
+// ---------------------------------------------------------------------------
+
+/** Counts for Screen 16 (Product Dashboard). `byCategory` counts non-archived products. */
+export interface CatalogDashboardSummary {
+  /** All product records, including archived. */
+  productCount: number;
+  /** Active and not archived. */
+  activeProductCount: number;
+  variantCount: number;
+  priceListCount: number;
+  priceRuleCount: number;
+  subscriptionProductCount: number;
+  byCategory: { category: ProductCategory; count: number }[];
+}

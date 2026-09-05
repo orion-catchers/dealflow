@@ -1,0 +1,14 @@
+/** Delete a price rule — DEV FIXTURE. Rules may be deleted; lists are archived instead. */
+import { handle } from "@/lib/api/respond";
+import { getActor } from "@/lib/auth/dev-actor";
+import { getCatalogService } from "@/features/catalog/service";
+
+type Ctx = { params: Promise<{ id: string; ruleId: string }> };
+
+export async function DELETE(request: Request, { params }: Ctx) {
+  return handle(async () => {
+    const { id, ruleId } = await params;
+    const actor = await getActor(request);
+    return getCatalogService().deletePriceRule(actor, id, ruleId);
+  });
+}
