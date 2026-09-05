@@ -5,7 +5,7 @@ import type {
   PolicyEvaluation,
   PolicySnapshot,
   PricedQuoteLine,
-} from "../../contracts/atharva";
+} from "@/contracts/atharva";
 
 export interface PolicyEvaluationInput {
   lines: PricedQuoteLine[];

@@ -8,7 +8,7 @@ import type {
   QuoteRevision,
   QuoteStage,
   RevisionApprovalStatus,
-} from "../../contracts/atharva";
+} from "@/contracts/atharva";
 
 export interface CreateQuoteInput {
   quoteId: Id;

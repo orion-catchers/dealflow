@@ -1,7 +1,7 @@
 import { handle } from "@/lib/api/respond";
-import { getActor } from "@/lib/auth/dev-actor";
+import { getActor } from "@/server/lib/auth/dev-actor";
 import { warehouseUpdateSchema } from "@/features/inventory/api";
-import { getFulfillmentService } from "@/features/inventory/service";
+import { getFulfillmentService } from "@/server/inventory/service";
 
 /** PATCH /api/warehouses/:id — update a warehouse (ADMIN). */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {

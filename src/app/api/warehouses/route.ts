@@ -1,7 +1,7 @@
 import { handle } from "@/lib/api/respond";
-import { getActor } from "@/lib/auth/dev-actor";
+import { getActor } from "@/server/lib/auth/dev-actor";
 import { warehouseCreateSchema } from "@/features/inventory/api";
-import { getFulfillmentService } from "@/features/inventory/service";
+import { getFulfillmentService } from "@/server/inventory/service";
 
 /** GET /api/warehouses — list warehouses (internal roles). */
 export async function GET(request: Request) {

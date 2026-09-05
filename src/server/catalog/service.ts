@@ -24,7 +24,7 @@ import type {
   Variant,
 } from "@/contracts/harsh";
 import { ApiFailure } from "@/lib/api/respond";
-import { requireRole } from "@/lib/auth/dev-actor";
+import { requireRole } from "@/server/lib/auth/dev-actor";
 import {
   catalogSearchInputSchema,
   customerCreateSchema,
@@ -39,7 +39,7 @@ import {
   taxRateCreateSchema,
   variantCreateSchema,
   variantUpdateSchema,
-} from "./api";
+} from "@/features/catalog/api";
 import { resolvePrice, searchCatalog } from "./engine/resolve-price";
 import { getCatalogRepository, type CatalogRepository } from "./repository";
 

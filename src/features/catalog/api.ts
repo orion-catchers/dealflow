@@ -5,7 +5,8 @@
 import { z } from "zod";
 import type { Currency, CustomerTier, ProductCategory, Unit } from "@/contracts/harsh";
 import { ApiFailure } from "@/lib/api/respond";
-import { MONEY_PATTERN } from "./engine/money";
+
+export const MONEY_PATTERN = /^\d+(\.\d{1,2})?$/;
 
 /** Validate with a schema, converting zod issues into the shared INVALID_INPUT envelope. */
 export function parseInput<S extends z.ZodTypeAny>(schema: S, raw: unknown): z.infer<S> {

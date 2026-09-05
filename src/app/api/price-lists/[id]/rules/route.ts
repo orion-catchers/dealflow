@@ -1,8 +1,8 @@
 /** Price rules in a list — DEV FIXTURE. GET list, PUT upsert (body `id` → update, else create). */
 import { handle } from "@/lib/api/respond";
-import { getActor } from "@/lib/auth/dev-actor";
+import { getActor } from "@/server/lib/auth/dev-actor";
 import { readJson } from "@/features/catalog/api";
-import { getCatalogService } from "@/features/catalog/service";
+import { getCatalogService } from "@/server/catalog/service";
 
 type Ctx = { params: Promise<{ id: string }> };
 

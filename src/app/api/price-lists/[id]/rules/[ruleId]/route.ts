@@ -1,7 +1,7 @@
 /** Delete a price rule — DEV FIXTURE. Rules may be deleted; lists are archived instead. */
 import { handle } from "@/lib/api/respond";
-import { getActor } from "@/lib/auth/dev-actor";
-import { getCatalogService } from "@/features/catalog/service";
+import { getActor } from "@/server/lib/auth/dev-actor";
+import { getCatalogService } from "@/server/catalog/service";
 
 type Ctx = { params: Promise<{ id: string; ruleId: string }> };
 

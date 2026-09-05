@@ -4,8 +4,8 @@ import { atharvaFixtures, type DealFixture } from "@/fixtures/atharva";
 import { harshFixtures } from "@/fixtures/harsh";
 import { krishnaFixtures } from "@/fixtures/krishna";
 import { ruchirFixtures } from "@/fixtures/ruchir";
-import { hashPassword } from "@/lib/auth/password";
-import { prisma, type Db as PrismaClient } from "@/lib/db";
+import { hashPassword } from "@/server/lib/auth/password";
+import { prisma, type Db as PrismaClient } from "@/server/lib/db";
 import {
   buildSeedCatalog,
   expandAllDeals,

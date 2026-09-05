@@ -1,8 +1,8 @@
 import { handle } from "@/lib/api/respond";
-import { getActor } from "@/lib/auth/dev-actor";
-import { requireRole } from "@/lib/auth/dev-actor";
+import { getActor } from "@/server/lib/auth/dev-actor";
+import { requireRole } from "@/server/lib/auth/dev-actor";
 import { initializeBodySchema } from "@/features/inventory/api";
-import { getFulfillmentService } from "@/features/inventory/service";
+import { getFulfillmentService } from "@/server/inventory/service";
 
 /**
  * POST /api/fulfillment/initialize — DEV hook for Atharva's confirmOrder until the

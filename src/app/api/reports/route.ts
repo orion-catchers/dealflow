@@ -4,9 +4,9 @@
  */
 import type { NextRequest } from "next/server";
 import { handle } from "@/lib/api/respond";
-import { getActor } from "@/lib/auth/dev-actor";
+import { getActor } from "@/server/lib/auth/dev-actor";
 import { parseReportFilters } from "@/features/reports/api";
-import { getReportService } from "@/features/reports/service";
+import { getReportService } from "@/server/reports/service";
 
 export async function GET(request: NextRequest) {
   return handle(async () => {

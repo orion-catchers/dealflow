@@ -7,7 +7,7 @@
  */
 import type { Actor, ExportFormat, ProductCategory, ReportAggregates, ReportFilters, SalesTeam } from "@/contracts/harsh";
 import { ApiFailure } from "@/lib/api/respond";
-import { requireRole } from "@/lib/auth/dev-actor";
+import { requireRole } from "@/server/lib/auth/dev-actor";
 import { aggregateReport } from "./engine/aggregate";
 import { buildPdf } from "./engine/export-pdf";
 import { buildXlsx } from "./engine/export-xlsx";

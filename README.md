@@ -54,7 +54,7 @@ Fixture symbols are stable IDs shared by all lanes. `prisma/seed.ts` maps them t
 | Atharva | Quotes, pricing, orders, governance, deal health, and audit |
 | Harsh | Catalog, customers, fulfillment, reports, exports, architecture, and demo docs |
 
-Ruchir owns `prisma/schema.prisma`, `prisma/migrations/`, `src/lib/db/`, and seed assembly. Feature owners write repositories and queries against the generated client.
+Ruchir owns `prisma/schema.prisma`, `prisma/migrations/`, `src/server/lib/db/`, and seed assembly. Feature owners write repositories and queries against the generated client.
 
 - Keep schema changes additive. Ask Ruchir for a model or field change.
 - Never edit a merged migration. Add a new migration.
@@ -69,7 +69,7 @@ Each developer can use a private PostgreSQL schema on a shared database:
 DATABASE_URL="postgresql://user:pass@host:5432/dealflow?schema=dev_<yourname>"
 ```
 
-The Prisma CLI and `src/lib/db/index.ts` both read the `schema` query parameter. Only Ruchir uses `schema=public` on the integration database.
+The Prisma CLI and `src/server/lib/db/index.ts` both read the `schema` query parameter. Only Ruchir uses `schema=public` on the integration database.
 
 ## Scripts
 
@@ -91,10 +91,12 @@ The Prisma CLI and `src/lib/db/index.ts` both read the `schema` query parameter.
 
 ```text
 prisma/                    schema, migrations, and seed assembly
-src/lib/db/                Prisma client singleton
+src/server/lib/db/         Prisma client singleton
+src/server/<area>/         backend services, repositories, and engines
+src/features/<area>/ui/    feature UI modules
+src/features/<area>/api.ts request/body/query schemas and API helpers
 src/fixtures/<lane>.ts     canonical database seed data
 src/fixtures/harsh-dev.ts  temporary in-memory feature data
 src/contracts/<lane>.ts    feature contracts
-src/features/<area>/       feature services and UI
 src/generated/prisma/      generated Prisma Client, gitignored
 ```
