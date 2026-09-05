@@ -764,7 +764,13 @@ export async function executePayment(
   const claim = await store.claimRequest("PAYMENT", input.requestKey, input.recordedById);
   if (claim.replayed) {
     const payload = claim.payload as PaymentRecord;
-    if (payload.invoiceId !== input.invoiceId || toCents(payload.amount) !== toCents(input.amount)) {
+    if (
+      payload.invoiceId !== input.invoiceId ||
+      toCents(payload.amount) !== toCents(input.amount) ||
+      payload.method !== input.method ||
+      payload.reference !== input.reference ||
+      payload.paidOn !== input.paidOn
+    ) {
       throw new ApiFailure("CONFLICT", "Request key was used for a different payment");
     }
     return { ...payload, replayed: true };

@@ -187,10 +187,10 @@ describe("payments", () => {
     await expectFailure(
       svc.recordPayment(finance, {
         invoiceId,
-        amount: "200.00",
+        amount: "100.00",
         method: "CASH",
         reference: "b",
-        paidOn: "2026-09-02",
+        paidOn: "2026-09-03",
         requestKey: "pay-mismatch",
       }),
       "CONFLICT",
