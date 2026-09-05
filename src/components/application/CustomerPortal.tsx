@@ -2,13 +2,9 @@
 import {useEffect,useState} from 'react';
 import type {portalData} from '../../features/portal/server';
 import {api,Button,Input,Link,StatusBadge,Money,Heading,Section,Table,FormAction,Events,newId} from './shared';
+import {readPortalCache,rememberPortal} from './portal-cache';
 type Portal=ReturnType<typeof portalData>;
 type PortalQuoteRow=Portal['quotes'][number];
-
-let portalCache:Portal|null=null;
-
-export function rememberPortal(data:Portal){portalCache=data;}
-export function clearPortalCache(){portalCache=null;}
 
 function productLabel(description:string){
   return description.split('·')[0]?.trim() || description;
@@ -32,16 +28,16 @@ function invoiceTitle(invoice:Portal['invoices'][number]){
 }
 
 export default function CustomerPortal({path}:{path:string}){
-  const [data,setData]=useState<Portal|null>(portalCache);
+  const [data,setData]=useState<Portal|null>(readPortalCache<Portal>());
   const [error,setError]=useState('');
   const [notice,setNotice]=useState('');
   const reload=async()=>{
     const next=await api<Portal>('portal');
-    portalCache=next;
+    rememberPortal(next);
     setData(next);
   };
   useEffect(()=>{
-    if(portalCache)return;
+    if(readPortalCache())return;
     reload().catch(e=>setError(e.message));
   },[]);
   if(!data)return <><Heading title="Your customer workspace"/>{error?<div className="error" role="alert">{error}<Button onClick={()=>reload().catch(e=>setError(e.message))}>Try again</Button></div>:<p role="status">Loading your records…</p>}</>;

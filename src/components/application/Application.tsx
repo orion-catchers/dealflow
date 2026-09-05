@@ -8,7 +8,8 @@ import {api,Button,Heading,Input,Link,Money,Section,StatusBadge,Table,newId,type
 import Quotes from './Quotes';
 import Operations from './Operations';
 import Setup from './Setup';
-import CustomerPortal,{clearPortalCache,rememberPortal} from './CustomerPortal';
+import CustomerPortal from './CustomerPortal';
+import {clearPortalCache,rememberPortal} from './portal-cache';
 import PublicHeader from './PublicHeader';
 import {FulfillmentList} from '@/features/inventory/ui/FulfillmentList';
 import {FulfillmentDetailView} from '@/features/inventory/ui/FulfillmentDetailView';
