@@ -6,6 +6,12 @@
  * Uses code UNAUTHENTICATED instead of a dedicated 429 so the shared error
  * envelope contract (blueprint §7) stays untouched; callers get
  * `details.retryAfterSeconds`.
+ *
+ * Deliberate tradeoff (review P1, accepted): keys are the email, so an attacker
+ * who knows a victim's email can keep them locked out by submitting bad
+ * passwords. IP-only keying breaks on shared networks and attacker keys rotate,
+ * so the denial-of-service window is accepted for this single-tenant prototype
+ * and documented here rather than hidden.
  */
 import { ApiFailure } from "@/lib/api/respond";
 
