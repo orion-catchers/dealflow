@@ -1,6 +1,6 @@
 import type { Quote } from "@/contracts/atharva";
 import { ApiFailure } from "@/lib/api/respond";
-import type { QuoteCreateInput, QuoteLineMutationInput, QuoteRevisionInput } from "./live-service";
+import type { QuoteCreateInput, DealLineMutationInput, DealRevisionInput } from "./live-service";
 
 export function quoteListItem(quote: Quote) {
   return {
@@ -56,7 +56,7 @@ export function parseQuoteCreate(raw: unknown): QuoteCreateInput {
   };
 }
 
-export function parseQuoteRevision(raw: unknown): QuoteRevisionInput {
+export function parseDealRevision(raw: unknown): DealRevisionInput {
   const body = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
   return {
     expectedRevision: expectedRevision(body.expectedRevision),
@@ -66,7 +66,7 @@ export function parseQuoteRevision(raw: unknown): QuoteRevisionInput {
   };
 }
 
-export function parseLineMutation(raw: unknown): QuoteLineMutationInput {
+export function parseLineMutation(raw: unknown): DealLineMutationInput {
   const body = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
   const action = body.action;
   if (action !== "ADD" && action !== "REMOVE" && action !== "REPLACE") {

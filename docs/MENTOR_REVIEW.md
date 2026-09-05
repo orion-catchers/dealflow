@@ -354,8 +354,7 @@ Prisma stores tax on **Product.taxPct** (architecture.md still mentions a TaxRat
 
 ```
 PolicyVersion
-  1—n PolicyTierCeiling (unique version+tier)
-  1—n PolicyCategoryCeiling (unique version+tier+category)
+  1—n PolicyCeiling (unique version+tier+category; null category is the tier default)
   1—n PolicyChainStep (unique version+stepIndex, role)
 QuoteRevision n—1 PolicyVersion   // never edit published policy rows
 ```

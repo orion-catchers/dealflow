@@ -178,7 +178,7 @@ export async function persistWorkspace(state: DataState, dirty: Dirty) {
       if (!quote?.currentRevision) continue;
       const authorId = await prismaUserId(message.senderId).catch(() => quote.repId);
       const lineExists = message.lineId
-        ? await prisma.quoteLine.findUnique({ where: { id: message.lineId } })
+        ? await prisma.dealLine.findUnique({ where: { id: message.lineId } })
         : null;
       await prisma.portalMessage.create({
         data: {
@@ -212,8 +212,16 @@ export async function persistQuote(state: DataState, quote: Quote) {
 
   let row = await prisma.quote.findUnique({ where: { id: quote.id } });
   if (!row) {
+    const deal = await prisma.deal.create({ data: { customerId, repId, teamId: null, status: stage, lastActivityAt: new Date(quote.at) } });
     row = await prisma.quote.create({
-      data: { id: quote.id, customerId, repId, stage, lastActivityAt: new Date(quote.at) },
+      data: {
+        id: quote.id,
+        customerId,
+        repId,
+        stage,
+        lastActivityAt: new Date(quote.at),
+        dealId: deal.id,
+      },
     });
   } else {
     await prisma.quote.update({
@@ -222,11 +230,11 @@ export async function persistQuote(state: DataState, quote: Quote) {
     });
   }
 
-  const existingRev = await prisma.quoteRevision.findUnique({
+  const existingRev = await prisma.dealRevision.findUnique({
     where: { quoteId_revisionNumber: { quoteId: row.id, revisionNumber } },
   });
   if (existingRev) {
-    await prisma.quoteRevision.update({
+    await prisma.dealRevision.update({
       where: { id: existingRev.id },
       data: {
         approvalStatus:
@@ -245,7 +253,7 @@ export async function persistQuote(state: DataState, quote: Quote) {
   }
 
   if (row.currentRevisionId) {
-    await prisma.quoteRevision.update({
+    await prisma.dealRevision.update({
       where: { id: row.currentRevisionId },
       data: { supersededAt: new Date(), approvalStatus: "SUPERSEDED" },
     });
@@ -258,9 +266,10 @@ export async function persistQuote(state: DataState, quote: Quote) {
   const risk =
     quote.evaluation.chain.includes("FINANCE_OPS") ? "FINANCE" : quote.evaluation.chain.includes("SALES_MANAGER") ? "MANAGER" : "NONE";
 
-  const revision = await prisma.quoteRevision.create({
+  const revision = await prisma.dealRevision.create({
     data: {
       quoteId: row.id,
+      dealId: row.dealId,
       revisionNumber,
       policyVersionId,
       riskLevel: risk,
@@ -294,7 +303,7 @@ export async function persistQuote(state: DataState, quote: Quote) {
 
   const chain = quote.evaluation.chain;
   for (let i = 0; i < chain.length; i++) {
-    await prisma.quoteRevisionApprovalStep.create({
+    await prisma.dealApprovalStep.create({
       data: {
         revisionId: revision.id,
         stepIndex: i,
@@ -307,7 +316,7 @@ export async function persistQuote(state: DataState, quote: Quote) {
   for (const [index, line] of quote.lines.entries()) {
     const product = await prisma.product.findUnique({ where: { id: line.productId } });
     if (!product) continue;
-    await prisma.quoteLine.create({
+    await prisma.dealLine.create({
       data: {
         revisionId: revision.id,
         productId: line.productId,
@@ -371,6 +380,7 @@ async function persistConfirmation(state: DataState, order: Order, actor: Actor)
     );
     const row = await tx.order.create({
       data: {
+        dealId: dbQuote.dealId!,
         sourceRevisionId: revision.id,
         acceptanceId: acceptance.id,
         customerId: dbQuote.customerId,
@@ -381,7 +391,7 @@ async function persistConfirmation(state: DataState, order: Order, actor: Actor)
         fulfillmentStatus: "PENDING",
         lines: {
           create: revision.lines.map((line) => ({
-            sourceQuoteLineId: line.id,
+            sourceDealLineId: line.id,
             productId: line.productId,
             variantId: line.variantId,
             quantity: line.quantity,
@@ -401,7 +411,7 @@ async function persistConfirmation(state: DataState, order: Order, actor: Actor)
     });
     await tx.quote.update({ where: { id: dbQuote.id }, data: { stage: "CONFIRMED" } });
     const billingLines = row.lines.map((line) => {
-      const source = revision.lines.find((l) => l.id === line.sourceQuoteLineId);
+      const source = revision.lines.find((l) => l.id === line.sourceDealLineId);
       return {
         orderLineId: line.id,
         description: source?.product.name ?? "Order line",

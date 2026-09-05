@@ -5,7 +5,7 @@ import type {
   ApprovalRecord,
   Id,
   Quote,
-  QuoteRevision,
+  DealRevision,
 } from "@/contracts/atharva";
 
 export interface ApprovalState {
@@ -17,7 +17,7 @@ export interface ApprovalState {
 
 export interface ApprovalActionInput {
   quote: Quote;
-  revision: QuoteRevision;
+  revision: DealRevision;
   actor: Actor;
   level: ApprovalLevel;
   decision: ApprovalDecision;
@@ -52,7 +52,7 @@ export class InMemoryApprovalStateMachine {
   private readonly states = new Map<Id, ApprovalState>();
   private readonly requestResults = new Map<string, ApprovalRecord>();
 
-  constructor(revisions: QuoteRevision[] = []) {
+  constructor(revisions: DealRevision[] = []) {
     for (const revision of revisions) {
       this.states.set(revision.id, {
         revisionId: revision.id,
@@ -65,7 +65,7 @@ export class InMemoryApprovalStateMachine {
     }
   }
 
-  private getStateForRevision(revision: QuoteRevision): ApprovalState {
+  private getStateForRevision(revision: DealRevision): ApprovalState {
     const existing = this.states.get(revision.id);
     if (existing) return existing;
 

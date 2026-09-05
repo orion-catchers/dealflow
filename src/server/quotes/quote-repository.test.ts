@@ -30,7 +30,7 @@ const evaluation: PolicyEvaluation = {
   },
 };
 
-const quoteLine = {
+const dealLine = {
   productId: "product-laptop",
   category: "Hardware",
   description: "Laptop",
@@ -46,7 +46,7 @@ const quoteLine = {
 function input() {
   const pricing = priceQuote({
     currency: "INR",
-    lines: [quoteLine],
+    lines: [dealLine],
     orderDiscountPct: "0",
   });
   return {

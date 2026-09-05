@@ -227,8 +227,9 @@ model User {
   memberships           CustomerMembership[]
   assignedCustomers     Customer[]           @relation("CustomerRep")
   quotesAsRep           Quote[]              @relation("QuoteRep")
+  dealsAsRep            Deal[]               @relation("DealRep")
   ordersAsRep           Order[]              @relation("OrderRep")
-  revisionsAuthored     QuoteRevision[]      @relation("RevisionAuthor")
+  revisionsAuthored     DealRevision[]      @relation("RevisionAuthor")
   approvalDecisions     ApprovalDecision[]
   acceptances           CustomerAcceptance[]
   portalMessages        PortalMessage[]
@@ -282,6 +283,7 @@ model SalesTeam {
   customers Customer[]
   quotes    Quote[]
   orders    Order[]
+  deals     Deal[]
 }
 
 /// Binds a CUSTOMER-role user to exactly the customers they may see. Portal queries start here.
@@ -320,6 +322,7 @@ model Customer {
   memberships   CustomerMembership[]
   quotes        Quote[]
   orders        Order[]
+  deals         Deal[]
   invoices      Invoice[]
   creditNotes   CreditNote[]
   subscriptions Subscription[]
@@ -340,8 +343,8 @@ model Category {
   updatedAt DateTime @updatedAt
 
   products       Product[]
-  policyCeilings PolicyCategoryCeiling[]
-  quoteLines     QuoteLine[]
+  policyCeilings PolicyCeiling[]
+  dealLines     DealLine[]
 
   @@index([active, name])
 }
@@ -384,7 +387,7 @@ model Product {
   defaultPlan         SubscriptionPlan?    @relation("ProductDefaultPlan", fields: [defaultPlanId], references: [id])
   variants            Variant[]
   priceRules          PriceRule[]
-  quoteLines          QuoteLine[]
+  dealLines          DealLine[]
   orderLines          OrderLine[]
   recRulesAsBase      RecommendationRule[] @relation("RecBase")
   recRulesAsCandidate RecommendationRule[] @relation("RecCandidate")
@@ -410,7 +413,7 @@ model Variant {
 
   product      Product        @relation(fields: [productId], references: [id])
   priceRules   PriceRule[]
-  quoteLines   QuoteLine[]
+  dealLines   DealLine[]
   orderLines   OrderLine[]
   stock        Stock[]
   reservations Reservation[]
@@ -453,7 +456,7 @@ model PriceRule {
   @@index([priceListId, productId, variantId, tier, currency, active])
 }
 
-/// Immutable published policy. Atharva points a QuoteRevision at this id and never edits the row. Thresholds and chain live as child rows so the approval editor has real fields.
+/// Immutable published policy. Atharva points a DealRevision at this id and never edits the row. Thresholds and chain live as child rows so the approval editor has real fields.
 model PolicyVersion {
   id                       String   @id @default(cuid())
   name                     String
@@ -467,36 +470,21 @@ model PolicyVersion {
   createdAt                DateTime @default(now())
 
   createdBy        User                    @relation(fields: [createdById], references: [id])
-  tierCeilings     PolicyTierCeiling[]
-  categoryCeilings PolicyCategoryCeiling[]
+  policyCeilings   PolicyCeiling[]
   chainSteps       PolicyChainStep[]
-  revisions        QuoteRevision[]
+  revisions        DealRevision[]
 }
 
-/// Max discount percent for a customer tier when no category ceiling applies.
-model PolicyTierCeiling {
+model PolicyCeiling {
   id              String       @id @default(cuid())
   policyVersionId String
   tier            DiscountTier
+  categoryId      String?
   ceilingPct      Decimal      @db.Decimal(5, 2)
   createdAt       DateTime     @default(now())
 
   policyVersion PolicyVersion @relation(fields: [policyVersionId], references: [id])
-
-  @@unique([policyVersionId, tier])
-}
-
-/// Immutable category override inside one policy version. The line evaluator combines it with the tier ceiling by taking the stricter value.
-model PolicyCategoryCeiling {
-  id              String       @id @default(cuid())
-  policyVersionId String
-  tier            DiscountTier
-  categoryId      String
-  ceilingPct      Decimal      @db.Decimal(5, 2)
-  createdAt       DateTime     @default(now())
-
-  policyVersion PolicyVersion @relation(fields: [policyVersionId], references: [id])
-  category      Category      @relation(fields: [categoryId], references: [id])
+  category      Category?     @relation(fields: [categoryId], references: [id])
 
   @@unique([policyVersionId, tier, categoryId])
 }
@@ -514,9 +502,33 @@ model PolicyChainStep {
   @@unique([policyVersionId, stepIndex])
 }
 
+/// Shared commercial identity. Quote remains the compatibility-facing sales projection; Order remains the confirmed operational record.
+model Deal {
+  id             String     @id @default(cuid())
+  customerId     String
+  repId          String
+  teamId         String?
+  status         QuoteStage @default(DRAFT)
+  lastActivityAt DateTime   @default(now())
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  rep      User     @relation("DealRep", fields: [repId], references: [id])
+  team     SalesTeam? @relation(fields: [teamId], references: [id])
+  quote    Quote?
+  order    Order?
+  revisions DealRevision[]
+
+  @@index([customerId, status])
+  @@index([repId, status])
+  @@index([status, lastActivityAt])
+}
+
 /// Mutable deal head and search projection. Commercial activity alone advances lastActivityAt, while reads leave it unchanged.
 model Quote {
   id                String     @id @default(cuid())
+  dealId            String?    @unique
   customerId        String
   repId             String
   teamId            String?
@@ -527,10 +539,11 @@ model Quote {
   updatedAt         DateTime   @updatedAt
 
   customer        Customer        @relation(fields: [customerId], references: [id])
+  deal            Deal?           @relation(fields: [dealId], references: [id])
   rep             User            @relation("QuoteRep", fields: [repId], references: [id])
   team            SalesTeam?      @relation(fields: [teamId], references: [id])
-  currentRevision QuoteRevision?  @relation("CurrentRevision", fields: [currentRevisionId], references: [id])
-  revisions       QuoteRevision[] @relation("QuoteRevisions")
+  currentRevision DealRevision?  @relation("CurrentRevision", fields: [currentRevisionId], references: [id])
+  revisions       DealRevision[] @relation("DealRevisions")
   portalMessages  PortalMessage[]
   healthFlags     HealthFlag[]
   tasks           Task[]
@@ -541,9 +554,10 @@ model Quote {
 }
 
 /// Immutable commercial snapshot and stored policy evaluation. Approvals and acceptance always target this exact set of terms.
-model QuoteRevision {
+model DealRevision {
   id                 String                 @id @default(cuid())
   quoteId            String
+  dealId             String?
   revisionNumber     Int
   policyVersionId    String
   riskLevel          RiskLevel
@@ -566,12 +580,13 @@ model QuoteRevision {
   supersededAt       DateTime?
   createdAt          DateTime               @default(now())
 
-  quote          Quote                       @relation("QuoteRevisions", fields: [quoteId], references: [id])
+  quote          Quote                       @relation("DealRevisions", fields: [quoteId], references: [id])
+  deal           Deal?                       @relation(fields: [dealId], references: [id])
   currentFor     Quote?                      @relation("CurrentRevision")
   createdBy      User                        @relation("RevisionAuthor", fields: [createdById], references: [id])
   policyVersion  PolicyVersion               @relation(fields: [policyVersionId], references: [id])
-  lines          QuoteLine[]
-  approvalSteps  QuoteRevisionApprovalStep[]
+  lines          DealLine[]
+  approvalSteps  DealApprovalStep[]
   decisions      ApprovalDecision[]
   acceptances    CustomerAcceptance[]
   portalMessages PortalMessage[]             @relation("MessageBaseRevision")
@@ -581,10 +596,12 @@ model QuoteRevision {
   @@unique([quoteId, revisionNumber])
   @@index([quoteId, createdAt])
   @@index([policyVersionId])
+  @@index([dealId, createdAt])
+  @@map("QuoteRevision")
 }
 
 /// Immutable priced line snapshot. Catalog references support search while category, stock, money, tax, and billing fields preserve evaluated history.
-model QuoteLine {
+model DealLine {
   id                   String           @id @default(cuid())
   revisionId           String
   productId            String
@@ -609,21 +626,23 @@ model QuoteLine {
   position             Int
   createdAt            DateTime         @default(now())
 
-  revision QuoteRevision     @relation(fields: [revisionId], references: [id])
+  revision DealRevision     @relation(fields: [revisionId], references: [id])
   product  Product           @relation(fields: [productId], references: [id])
   variant  Variant?          @relation(fields: [variantId], references: [id])
   plan     SubscriptionPlan? @relation(fields: [planId], references: [id])
   category Category          @relation(fields: [categoryId], references: [id])
   messages PortalMessage[]
+  orderLine OrderLine?
 
   @@unique([revisionId, position])
   @@index([productId])
   @@index([variantId])
   @@index([revisionId])
+  @@map("QuoteLine")
 }
 
 /// Required sequential approval copied from policy at evaluation. The UI reads these stored rows instead of recomputing the chain.
-model QuoteRevisionApprovalStep {
+model DealApprovalStep {
   id         String             @id @default(cuid())
   revisionId String
   stepIndex  Int
@@ -633,11 +652,12 @@ model QuoteRevisionApprovalStep {
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
 
-  revision QuoteRevision     @relation(fields: [revisionId], references: [id])
+  revision DealRevision     @relation(fields: [revisionId], references: [id])
   decision ApprovalDecision? @relation(fields: [decisionId], references: [id])
 
   @@unique([revisionId, stepIndex])
   @@index([revisionId, status])
+  @@map("QuoteRevisionApprovalStep")
 }
 
 /// Immutable yes, no, or return decision on one revision. Superseded revisions retain every decision while the service enforces step order.
@@ -651,9 +671,9 @@ model ApprovalDecision {
   reason     String
   createdAt  DateTime             @default(now())
 
-  revision QuoteRevision              @relation(fields: [revisionId], references: [id])
+  revision DealRevision              @relation(fields: [revisionId], references: [id])
   actor    User                       @relation(fields: [actorId], references: [id])
-  step     QuoteRevisionApprovalStep?
+  step     DealApprovalStep?
 
   @@index([revisionId, createdAt])
   @@index([actorId])
@@ -666,7 +686,7 @@ model CustomerAcceptance {
   actorId    String
   createdAt  DateTime @default(now())
 
-  revision QuoteRevision @relation(fields: [revisionId], references: [id])
+  revision DealRevision @relation(fields: [revisionId], references: [id])
   actor    User          @relation(fields: [actorId], references: [id])
   order    Order?
 
@@ -690,10 +710,10 @@ model PortalMessage {
   createdAt            DateTime            @default(now())
 
   quote           Quote          @relation(fields: [quoteId], references: [id])
-  baseRevision    QuoteRevision  @relation("MessageBaseRevision", fields: [baseRevisionId], references: [id])
-  line            QuoteLine?     @relation(fields: [lineId], references: [id])
+  baseRevision    DealRevision  @relation("MessageBaseRevision", fields: [baseRevisionId], references: [id])
+  line            DealLine?     @relation(fields: [lineId], references: [id])
   author          User           @relation(fields: [authorId], references: [id])
-  spawnedRevision QuoteRevision? @relation("SpawnedRevision", fields: [spawnedRevisionId], references: [id])
+  spawnedRevision DealRevision? @relation("SpawnedRevision", fields: [spawnedRevisionId], references: [id])
 
   @@index([quoteId, createdAt])
 }
@@ -701,6 +721,7 @@ model PortalMessage {
 /// Commitment created from one accepted revision. Unique revision and acceptance links make confirmation converge under retries.
 model Order {
   id                String            @id @default(cuid())
+  dealId            String?           @unique
   sourceRevisionId  String            @unique
   acceptanceId      String            @unique
   customerId        String
@@ -712,7 +733,8 @@ model Order {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
-  sourceRevision QuoteRevision      @relation(fields: [sourceRevisionId], references: [id])
+  sourceRevision DealRevision      @relation(fields: [sourceRevisionId], references: [id])
+  deal           Deal?               @relation(fields: [dealId], references: [id])
   acceptance     CustomerAcceptance @relation(fields: [acceptanceId], references: [id])
   customer       Customer           @relation(fields: [customerId], references: [id])
   rep            User               @relation("OrderRep", fields: [repId], references: [id])
@@ -728,11 +750,11 @@ model Order {
   @@index([promisedDate, fulfillmentStatus])
 }
 
-/// Immutable accepted line copied from the source QuoteLine. Fulfillment, reservations, and subscriptions hang off this row so warehouse code never joins quotes.
+/// Immutable accepted line copied from the source DealLine. Fulfillment, reservations, and subscriptions hang off this row so warehouse code never joins quotes.
 model OrderLine {
   id                String           @id @default(cuid())
   orderId           String
-  sourceQuoteLineId String           @unique
+  sourceDealLineId String           @unique @map("sourceQuoteLineId")
   productId         String
   variantId         String?
   quantity          Int
@@ -755,6 +777,7 @@ model OrderLine {
   backorders    Backorder[]
   shipmentLines ShipmentLine[]
   subscription  Subscription?
+  sourceDealLine DealLine          @relation(fields: [sourceDealLineId], references: [id])
 
   @@index([orderId])
   @@index([variantId])
@@ -898,7 +921,7 @@ model SubscriptionPlan {
   updatedAt    DateTime        @updatedAt
 
   products      Product[]            @relation("ProductDefaultPlan")
-  quoteLines    QuoteLine[]
+  dealLines    DealLine[]
   orderLines    OrderLine[]
   subscriptions Subscription[]       @relation("CurrentPlan")
   pendingFor    Subscription[]       @relation("PendingPlan")

@@ -220,7 +220,7 @@ export class ApprovalUiService {
 
   async listApprovals(actor: Actor, filter: ApprovalListFilter): Promise<ApprovalListItem[]> {
     this.assertRead(actor);
-    const rows = await prisma.quoteRevision.findMany({
+    const rows = await prisma.dealRevision.findMany({
       where: {
         OR: [{ approvalStatus: { not: "NOT_REQUIRED" } }, { approvalSteps: { some: {} } }],
       },
@@ -232,7 +232,7 @@ export class ApprovalUiService {
 
   async getApprovalDetail(actor: Actor, revisionId: string): Promise<ApprovalDetail> {
     this.assertRead(actor);
-    const row = await prisma.quoteRevision.findUnique({
+    const row = await prisma.dealRevision.findUnique({
       where: { id: revisionId },
       include: revisionInclude,
     });
@@ -270,8 +270,8 @@ export class ApprovalUiService {
     if (!actorUserId) throw new ApiFailure("UNAUTHENTICATED", "Actor is not a database user");
 
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM "QuoteRevision" WHERE id = ${revisionId} FOR UPDATE`;
-      const row = await tx.quoteRevision.findUnique({
+      await tx.$queryRaw`SELECT id FROM "DealRevision" WHERE id = ${revisionId} FOR UPDATE`;
+      const row = await tx.dealRevision.findUnique({
         where: { id: revisionId },
         include: {
           quote: { select: { id: true, stage: true, customer: { select: { name: true } } } },
@@ -342,14 +342,14 @@ export class ApprovalUiService {
         const nextDecisionId =
           decision === "RETURN" && step.stepIndex === pendingIdx ? null : step.decisionId;
         if (existing.status !== step.status || existing.decisionId !== nextDecisionId) {
-          await tx.quoteRevisionApprovalStep.update({
+          await tx.dealApprovalStep.update({
             where: { id: existing.id },
             data: { status: step.status, decisionId: nextDecisionId },
           });
         }
       }
 
-      await tx.quoteRevision.update({
+      await tx.dealRevision.update({
         where: { id: revisionId },
         data: { approvalStatus: applied.revision.approvalStatus },
       });
@@ -361,7 +361,7 @@ export class ApprovalUiService {
         });
       }
 
-      const updated = await tx.quoteRevision.findUniqueOrThrow({
+      const updated = await tx.dealRevision.findUniqueOrThrow({
         where: { id: revisionId },
         include: revisionInclude,
       });

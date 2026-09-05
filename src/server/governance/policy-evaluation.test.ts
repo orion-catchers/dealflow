@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { evaluatePolicy } from "./policy-evaluation";
-import type { PolicySnapshot, PricedQuoteLine } from "@/contracts/atharva";
+import type { PolicySnapshot, PricedDealLine } from "@/contracts/atharva";
 
 const policy: PolicySnapshot = {
   policyVersionId: "policy-1",
@@ -17,7 +17,7 @@ const policy: PolicySnapshot = {
   },
 };
 
-function line(overrides: Partial<PricedQuoteLine> = {}): PricedQuoteLine {
+function line(overrides: Partial<PricedDealLine> = {}): PricedDealLine {
   return {
     lineId: "line-1",
     productId: "product-1",
