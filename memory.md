@@ -223,6 +223,21 @@ _No entries yet._
     threshold filter, upsert stock row, Record Receipt (requestKey generated once at
     dialog open; eligibleBackorders listed with links to fulfillment detail — consolidate
     happens there). Recent receipts skipped: no list API. Smoke: `GET /warehouses` 200.
+18. **Screens 16–17 + price lists + customer master UI landed (subagent) — DEV FIXTURE.**
+    `src/features/catalog/ui/{useApi,form,ProductDashboard,ProductEditor,VariantDialog,
+    PriceRuleDialog,PriceListsManager,CustomersMaster}.tsx` + pages under
+    `src/app/(internal)/{products,products/new,products/[id],price-lists,customers}`.
+    Product dashboard (counts, catalog table, archive/restore, New Product, Manage Price
+    Lists); editor (general info, variants, per-product price rules, live resolve preview
+    with margin %); price-list manager (CRUD + rules panel); customer master (tier,
+    currency, assigned rep from fixtureUsers until Ruchir's users API, price-list override).
+    Customer schema has no team field so no sales-team select. Smoke: all 5 pages 200;
+    request bodies verified against live API (POST/PATCH product with `planId: null`,
+    variant POST, rule PUT, resolve). tsc clean project-wide.
+19. All Harsh-owned screens (07, 08, 15, 16, 17) plus supplementary warehouses and
+    customer master are reachable. Remaining: Prisma adapters (blocked on Ruchir's
+    schema), live `confirmOrder` wiring (Atharva), session auth (Ruchir). Full
+    typecheck/test/build next.
 
 **Status legend for Harsh's lane:** everything is **DEV FIXTURE** (in-memory repositories)
 until Ruchir's Prisma schema lands; then the repository adapters swap to Prisma.
