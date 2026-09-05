@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Actor, PolicyEvaluation } from "@/contracts/atharva";
 import { priceQuote } from "@/features/quotes/engine/pricing";
 import { InMemoryQuoteRepository } from "./quote-repository";
-import {
-  InMemoryQuoteTransitionService,
-  QuoteTransitionError,
-} from "./transition-service";
+import { InMemoryQuoteTransitionService } from "./transition-service";
 
 const customer: Actor = {
   id: "customer-neha",

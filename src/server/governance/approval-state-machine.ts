@@ -65,7 +65,7 @@ export class InMemoryApprovalStateMachine {
     }
   }
 
-  private getState(revision: QuoteRevision): ApprovalState {
+  private getStateForRevision(revision: QuoteRevision): ApprovalState {
     const existing = this.states.get(revision.id);
     if (existing) return existing;
 
@@ -121,7 +121,7 @@ export class InMemoryApprovalStateMachine {
       );
     }
 
-    const state = this.getState(input.revision);
+    const state = this.getStateForRevision(input.revision);
     const stepIndex = state.requiredChain.indexOf(input.level);
     if (stepIndex < 0) {
       throw new ApprovalStateMachineError(
@@ -136,7 +136,7 @@ export class InMemoryApprovalStateMachine {
     const previousResult = requestKey
       ? this.requestResults.get(requestKey)
       : undefined;
-    if (previousResult) return clone(this.getState(input.revision));
+    if (previousResult) return clone(this.getStateForRevision(input.revision));
 
     const previousStep = state.requiredChain[stepIndex - 1];
     if (

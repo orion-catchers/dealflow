@@ -154,6 +154,11 @@ export function HealthDashboardScreen() {
   const [data, setData] = useState<HealthData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [defaultDueDate] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 1);
+    return date.toISOString().slice(0, 10);
+  });
   const load = () => {
     setBusy(true);
     void fetchJson<HealthData>("/api/health")
@@ -170,7 +175,7 @@ export function HealthDashboardScreen() {
         flagId,
         action,
         assigneeId: "rep-arjun",
-        dueDate: new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
+        dueDate: defaultDueDate,
       }),
     });
     load();

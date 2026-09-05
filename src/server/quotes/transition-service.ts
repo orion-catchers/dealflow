@@ -8,7 +8,6 @@ import type {
 import {
   InMemoryQuoteRepository,
   QuoteRepositoryError,
-  type CreateRevisionInput,
 } from "./quote-repository";
 
 export interface ProposalRecord {

@@ -91,7 +91,7 @@ describe("evaluatePolicy", () => {
       orderDiscountPct: "5",
       policySnapshot: policy,
     });
-    expect(result.requiredApprovalChain).toEqual(["MANAGER"]);
+    expect(result.requiredApprovalChain).toEqual(["MANAGER", "FINANCE"]);
     expect(result.breaches.map((breach) => breach.lineId)).toEqual(["yearly"]);
   });
 

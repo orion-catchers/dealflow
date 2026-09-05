@@ -26,7 +26,7 @@ function clone<T>(value: T): T {
 }
 
 function requireInternal(actor: Actor) {
-  if (!actor.active || actor.role === "CUSTOMER") {
+  if (actor.role === "CUSTOMER") {
     throw new ApiFailure("FORBIDDEN", "Customers may not manage deal health.");
   }
 }
