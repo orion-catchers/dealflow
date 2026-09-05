@@ -1,6 +1,6 @@
 import { handle } from "@/lib/api/respond";
 import { getActor } from "@/server/lib/auth/dev-actor";
-import { getFulfillmentService } from "@/server/inventory/live";
+import { getFulfillmentService } from "@/server/inventory/service";
 
 /** GET /api/fulfillment/:orderId/delivery — OrderDeliveryRead (Ruchir's invoice detail, Atharva's health). */
 export async function GET(request: Request, { params }: { params: Promise<{ orderId: string }> }) {

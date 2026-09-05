@@ -1,7 +1,7 @@
 import { handle } from "@/lib/api/respond";
 import { getActor } from "@/server/lib/auth/dev-actor";
 import { deliverBodySchema } from "@/features/inventory/api";
-import { getFulfillmentService } from "@/server/inventory/live";
+import { getFulfillmentService } from "@/server/inventory/service";
 
 /** POST /api/fulfillment/:orderId/deliver — SHIPPED shipment → DELIVERED (FINANCE/ADMIN). */
 export async function POST(request: Request, { params }: { params: Promise<{ orderId: string }> }) {

@@ -284,10 +284,3 @@ export function getInventoryRepository(): InventoryRepository {
   if (!g[GLOBAL_KEY]) g[GLOBAL_KEY] = new InMemoryInventoryRepository();
   return g[GLOBAL_KEY];
 }
-
-/** Swap the singleton (e.g. for a Prisma adapter or an isolated test instance). */
-export function setInventoryRepository(repo: InventoryRepository | undefined) {
-  const g = globalThis as GlobalWithRepo;
-  if (repo) g[GLOBAL_KEY] = repo;
-  else delete g[GLOBAL_KEY];
-}

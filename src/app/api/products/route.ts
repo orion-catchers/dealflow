@@ -2,7 +2,7 @@
 import { handle } from "@/lib/api/respond";
 import { getActor } from "@/server/lib/auth/dev-actor";
 import { queryFlag, readJson } from "@/features/catalog/api";
-import { getCatalogService } from "@/server/catalog/live";
+import { getCatalogService } from "@/server/catalog/service";
 
 export async function GET(request: Request) {
   return handle(async () => {
