@@ -34,9 +34,9 @@ Optional: `APP_URL=http://localhost:3000` — used in Google OAuth redirect and 
 | `RESEND_API_KEY` | Transactional email via Resend | Password reset / quote send / health nudge **log** in non-production |
 | `MAIL_FROM` | From-header for Resend | Default `DealFlow360 <noreply@nexa.example>` |
 | `MAIL_WEBHOOK_URL` | POST JSON instead of Resend | Same as missing email |
-| `STRIPE_SECRET_KEY` | Create PaymentIntent checkout | Invoice **Record payment** still works; **Card checkout** 503 |
-| `STRIPE_PUBLISHABLE_KEY` | Client Stripe.js (if wired) | Checkout button still needs secret |
-| `STRIPE_WEBHOOK_SECRET` | `/api/payments/stripe/webhook` | Webhook 503 / unsigned |
+| `STRIPE_SECRET_KEY` | Hosted Checkout Session + record payment on return | **Pay with card** 503; **Record payment** still works |
+| `STRIPE_PUBLISHABLE_KEY` | Dashboard / future Elements; not required for hosted Checkout | Optional |
+| `STRIPE_WEBHOOK_SECRET` | Signed `POST /api/payments/stripe/webhook` | Return-URL complete still records payment using the secret key |
 | `GOOGLE_CLIENT_ID` | `/api/auth/sso/google` | Login page hides Google link |
 | `GOOGLE_CLIENT_SECRET` | Google callback | SSO 503 |
 | `CRON_SECRET` | `POST /api/jobs/run` `Authorization: Bearer …` | Use `npm run jobs` locally instead |
@@ -45,11 +45,11 @@ Optional: `APP_URL=http://localhost:3000` — used in Google OAuth redirect and 
 | `CARRIER_QUOTE_URL` | Live HTTP courier quote overlay | Rate **card** still used; live quote 503 |
 | `CARRIER_API_KEY` | Optional `Authorization` to the carrier URL | Only if your carrier mock needs it |
 
-Google SSO: the Google account **email must already exist** as an ACTIVE user (seed emails, not arbitrary Gmail).
+Google SSO: the Google account **email must already exist** as an ACTIVE user (seed emails, not arbitrary Gmail). Authorized redirect URI: `{APP_URL}/api/auth/sso/google/callback`.
 
-Stripe webhook locally: `stripe listen --forward-to localhost:3000/api/payments/stripe/webhook` then put the CLI secret in `STRIPE_WEBHOOK_SECRET`.
+Stripe: **Pay with card** opens Stripe-hosted Checkout. After pay, `{APP_URL}/api/payments/stripe/complete?session_id=…` records the invoice using `STRIPE_SECRET_KEY`. Optional webhook: `stripe listen --forward-to localhost:3000/api/payments/stripe/webhook` then `STRIPE_WEBHOOK_SECRET`.
 
-Jobs without a vendor: `npm run jobs` (due invoices, health refresh, learned co-purchase scores).
+Jobs without a vendor: `npm run jobs` (due invoices, health refresh, learned co-purchase scores). `POST /api/jobs/run` needs `CRON_SECRET`.
 
 ---
 

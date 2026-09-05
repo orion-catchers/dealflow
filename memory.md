@@ -449,6 +449,16 @@ Checks: `npx tsc --noEmit`; browser E2E of the four ticks not recorded in this p
 
 Status: LIVE UI for Harsh ticks without Stripe/Resend/Google.
 
+## 2026-09-06T01:20:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Completed vendor paths so they 503 without keys and run when keys are in `.env`: Stripe Checkout Session + `/api/payments/stripe/complete` (webhook HMAC optional), Google SSO state cookie. Added `docs/detailed-project-understanding.md`.
+
+Files: `src/server/integrations/stripe.ts`, payments checkout/webhook/complete, Google SSO routes, `CardCheckoutButton`, `InvoiceDetail`, `docs/detailed-project-understanding.md`.
+
+Checks: focused vitest stripe + existing fail-closed tests; `npx tsc --noEmit`.
+
+Status: Local demo complete. Remaining human work: manual click-through + demo video.
+
 ---
 
 ## 5. Interface notes (cross-lane changes)

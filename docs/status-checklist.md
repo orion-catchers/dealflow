@@ -40,6 +40,9 @@ Updated 2026-09-06 (Asia/Kolkata). Branch: **`main`** (local work may be ahead o
 - [x] `docs/demo-walkthrough.md` marked LIVE
 - [x] Staff shell mounts Harsh fulfillment + reports (not App Router pages that `layout` never rendered)
 - [x] `docs/env-keys.md` — required DB/session vs optional vendor keys; no deploy required
+- [x] `docs/detailed-project-understanding.md` — stack, workflows, vendor key-gated paths
+- [x] Stripe hosted Checkout + return-URL payment record; signed webhook optional
+- [x] Google SSO `state` cookie; email/Resend/jobs/carrier already key-gated
 
 ### Remaining / out of scope as full products
 

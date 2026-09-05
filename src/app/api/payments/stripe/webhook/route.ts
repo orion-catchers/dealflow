@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/server/lib/db";
 import { getBillingService } from "@/server/billing/live";
 import type { Actor } from "@/contracts/harsh";
+import {
+  paidInvoiceFromStripeEvent,
+  stripeConfigured,
+  verifyStripeSignature,
+} from "@/server/integrations/stripe";
 
 async function financeActor(): Promise<Actor> {
   const user = await prisma.user.findFirst({
@@ -13,35 +18,35 @@ async function financeActor(): Promise<Actor> {
 }
 
 export async function POST(request: Request) {
-  if (!process.env.STRIPE_SECRET_KEY) {
+  if (!stripeConfigured()) {
     return NextResponse.json(
       { error: { code: "INTEGRATION_REQUIRED", message: "Stripe is not connected" } },
       { status: 503 },
     );
   }
-  const body = await request.text();
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (secret) {
-    const header = request.headers.get("stripe-signature");
-    if (!header) return NextResponse.json({ error: { code: "UNAUTHENTICATED", message: "Missing Stripe signature" } }, { status: 401 });
+  if (!secret) {
+    return NextResponse.json(
+      { error: { code: "INTEGRATION_REQUIRED", message: "Set STRIPE_WEBHOOK_SECRET to accept Stripe webhooks" } },
+      { status: 503 },
+    );
   }
-  const event = JSON.parse(body) as {
-    type?: string;
-    data?: { object?: { id?: string; amount_received?: number; metadata?: { invoiceId?: string } } };
-  };
-  if (event.type !== "payment_intent.succeeded") return NextResponse.json({ data: { ignored: true } });
-  const intent = event.data?.object;
-  const invoiceId = intent?.metadata?.invoiceId;
-  const amount = ((intent?.amount_received ?? 0) / 100).toFixed(2);
-  if (!invoiceId) return NextResponse.json({ data: { ignored: true } });
+  const body = await request.text();
+  const header = request.headers.get("stripe-signature");
+  if (!header || !verifyStripeSignature(body, header, secret)) {
+    return NextResponse.json({ error: { code: "UNAUTHENTICATED", message: "Invalid Stripe signature" } }, { status: 401 });
+  }
+  const event = JSON.parse(body) as Parameters<typeof paidInvoiceFromStripeEvent>[0];
+  const paid = paidInvoiceFromStripeEvent(event);
+  if (!paid) return NextResponse.json({ data: { ignored: true } });
   const actor = await financeActor();
   const payment = await getBillingService().recordPayment(actor, {
-    invoiceId,
-    amount,
+    invoiceId: paid.invoiceId,
+    amount: paid.amount,
     method: "CARD",
-    reference: intent?.id ?? `stripe-${Date.now()}`,
+    reference: paid.reference,
     paidOn: new Date().toISOString().slice(0, 10),
-    requestKey: `stripe:${intent?.id ?? invoiceId}`,
+    requestKey: `stripe:${paid.reference}`,
   });
   return NextResponse.json({ data: { payment } });
 }

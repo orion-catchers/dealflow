@@ -52,16 +52,16 @@ export function InvoiceDetail({ id }: { id: string }) {
     if (!row) return;
     setNotice(null);
     const result = await mutation.run(() =>
-      api<{ paymentIntentId?: string }>("/api/payments/checkout", {
+      api<{ checkoutUrl?: string }>("/api/payments/checkout", {
         method: "POST",
         json: { invoiceId: id, amount: row.outstanding, currency: row.currency },
       }),
     );
-    if (result) {
-      setNotice(
-        `Preview: Stripe PaymentIntent ${result.paymentIntentId ?? ""} created. Invoice stays unpaid until the webhook records the card payment.`,
-      );
+    if (result?.checkoutUrl) {
+      window.location.assign(result.checkoutUrl);
+      return;
     }
+    if (result) setNotice("Stripe did not return a checkout URL.");
   }
 
   const row = invoice.data;

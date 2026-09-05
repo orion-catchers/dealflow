@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/server/lib/db";
 import { createSession, setSessionCookie } from "@/server/lib/auth/session";
 
+const STATE_COOKIE = "dealflow_sso_state";
+
 export async function GET(request: Request) {
   const id = process.env.GOOGLE_CLIENT_ID;
   const secret = process.env.GOOGLE_CLIENT_SECRET;
@@ -12,8 +14,17 @@ export async function GET(request: Request) {
       { status: 503 },
     );
   }
-  const code = new URL(request.url).searchParams.get("code");
+  const incoming = new URL(request.url);
+  const code = incoming.searchParams.get("code");
+  const state = incoming.searchParams.get("state");
+  const expected = request.headers
+    .get("cookie")
+    ?.split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${STATE_COOKIE}=`))
+    ?.slice(STATE_COOKIE.length + 1);
   if (!code) return NextResponse.redirect(`${origin}/login?sso=missing_code`);
+  if (!state || !expected || state !== expected) return NextResponse.redirect(`${origin}/login?sso=bad_state`);
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -38,5 +49,6 @@ export async function GET(request: Request) {
   const { token } = await createSession(user.id);
   const response = NextResponse.redirect(`${origin}${user.role === "CUSTOMER" ? "/portal" : "/home"}`);
   setSessionCookie(response, token);
+  response.cookies.set(STATE_COOKIE, "", { path: "/", maxAge: 0 });
   return response;
 }

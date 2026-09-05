@@ -24,15 +24,16 @@ export function CardCheckoutButton({
         void (async () => {
           setBusy(true);
           try {
-            const result = await api<{ paymentIntentId?: string; clientSecret?: string }>("payments/checkout", {
+            const result = await api<{ checkoutUrl?: string; sessionId?: string }>("payments/checkout", {
               invoiceId,
               amount,
               currency,
             });
-            onNotice(
-              `Preview: Stripe PaymentIntent ${result.paymentIntentId ?? ""} created. The invoice is not marked paid until the Stripe webhook records the card payment.`,
-            );
-            void result.clientSecret;
+            if (result.checkoutUrl) {
+              window.location.assign(result.checkoutUrl);
+              return;
+            }
+            onNotice("Stripe did not return a checkout URL.");
           } catch (reason) {
             onNotice(reason instanceof Error ? reason.message : "Card checkout is not connected");
           } finally {
@@ -41,7 +42,7 @@ export function CardCheckoutButton({
         })();
       }}
     >
-      {busy ? "Starting Stripe…" : "Card checkout (Stripe)"}
+      {busy ? "Opening Stripe…" : "Pay with card (Stripe)"}
     </Button>
   );
 }

@@ -516,6 +516,7 @@ See [docs/OPERATIONS.md](docs/OPERATIONS.md) for backup/restore, rollback, log t
 | [docs/deploy.md](docs/deploy.md) | Environments, migrate, host |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Runbooks, backup, incidents |
 | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Branches, migrations, review |
+| [docs/detailed-project-understanding.md](docs/detailed-project-understanding.md) | Stack fundamentals, workflows, vendor keys |
 | [docs/env-keys.md](docs/env-keys.md) | Required `.env` + optional vendor keys (no deploy) |
 | [docs/team-integration-handoff.md](docs/team-integration-handoff.md) | Krishna UI + adapter seams |
 | [docs/krishna-manual-qa.md](docs/krishna-manual-qa.md) | Manual UI checklist (fixture-oriented) |
