@@ -2,13 +2,14 @@
 
 import {useCallback,useEffect,useState} from 'react';
 import {usePathname,useRouter} from 'next/navigation';
-import {ArrowUpRight,BarChart3,Boxes,CreditCard,FileText,HeartPulse,LayoutDashboard,LogOut,Menu,Package,PanelLeft,PanelLeftClose,Repeat,Settings,ShieldCheck} from 'lucide-react';
+import {BarChart3,Boxes,CircleCheck,CreditCard,FileText,HeartPulse,LayoutDashboard,LogOut,Menu,Package,PanelLeft,PanelLeftClose,Repeat,Settings,Settings2,ShieldCheck,UsersRound} from 'lucide-react';
 import type {Actor,DataState,Role} from '../../contracts/application';
 import {api,Button,Heading,Input,Link,Money,Section,StatusBadge,Table,type Context} from './shared';
 import Quotes from './Quotes';
 import Operations from './Operations';
 import Setup from './Setup';
 import CustomerPortal from './CustomerPortal';
+import PublicHeader from './PublicHeader';
 
 const navigation=[
   ['/home','Overview',LayoutDashboard],
@@ -100,7 +101,7 @@ export default function Application(){
       <div className="sidebar-head">
         <Link className="brand wordmark" href={actor.role==='CUSTOMER'?'/portal':'/home'} aria-label="DealFlow360 home">DealFlow<span>360</span></Link>
         <button className="sidebar-toggle" type="button" aria-expanded={!collapsed} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'} title={collapsed?'Expand sidebar':'Collapse sidebar'} onClick={()=>setSidebarCollapsed(!collapsed)}>
-          {collapsed?<PanelLeft size={18}/>:<PanelLeftClose size={18}/>} 
+          {collapsed?<PanelLeft size={18}/>:<PanelLeftClose size={18}/>}
         </button>
       </div>
       <p className="nav-caption">{actor.role==='CUSTOMER'?'YOUR BUSINESS':'WORKSPACE'}</p>
@@ -135,26 +136,27 @@ function Auth({path,error,onLogin}:{path:string;error:string;onLogin:(actor:Acto
   const [issue,setIssue]=useState(error);
   const [busy,setBusy]=useState(false);
   const [done,setDone]=useState(false);
+  const [publicMenuOpen,setPublicMenuOpen]=useState(false);
   const [recovery,setRecovery]=useState<'none'|'request'|'confirm'>('none');
   const [resetToken,setResetToken]=useState('');
   const [resetPassword,setResetPassword]=useState('');
   const [recoveryMsg,setRecoveryMsg]=useState('');
   const [recoveryOk,setRecoveryOk]=useState(false);
   const landing=path==='/';
-  return <div className={`auth-page ${landing?'auth-landing':''}`}>
-    <header className="auth-topbar">
-      <Link className="wordmark" href="/" aria-label="DealFlow360 home">DealFlow<span>360</span></Link>
-      {landing?<nav className="landing-nav" aria-label="Landing page navigation"><a href="#product">Product</a><a href="#process">How it works</a><Link href="/login">Access</Link><Link href="/login">Sign in</Link><Link className="header-cta" href="/login">Get started</Link></nav>:<Link className="auth-back" href="/">Back to home</Link>}
-    </header>
-    {landing?<main className="auth-body landing-body" id="product">
+  return <div className={`auth-page ${landing?'auth-landing':''}`} data-public-panel-open={publicMenuOpen}>
+    <PublicHeader key={path} landing={landing} onOpenChange={setPublicMenuOpen}/>
+    {landing?<main className="auth-body landing-body" id="product" inert={publicMenuOpen}>
       <div className="auth-copy">
-        <span className="eyebrow">CONNECTED SALES OPERATIONS</span>
         <h1>Every deal.<br/>Every detail.<br/><em>In sync.</em></h1>
         <p>Unify people, process, and data across your revenue engine so deals move forward with clarity and confidence.</p>
-        <Link className="primary-link" href="/login">Open your workspace <ArrowUpRight size={18}/></Link>
-        <div className="auth-facts" id="process"><span><b>01</b>Configure</span><span><b>02</b>Agree</span><span><b>03</b>Deliver</span></div>
+        <Link className="primary-link" href="/login">Open your workspace</Link>
+        <div className="auth-facts" id="process">
+          <article className="auth-step"><b className="auth-step-number">01</b><div className="auth-step-detail"><div className="auth-step-icon"><Settings2 size={22} strokeWidth={1.6}/></div><div className="auth-step-copy"><strong>Configure</strong><small>Tailor your pipeline, stages, and workflows to your go-to-market.</small></div></div></article>
+          <article className="auth-step"><b className="auth-step-number">02</b><div className="auth-step-detail"><div className="auth-step-icon"><UsersRound size={22} strokeWidth={1.6}/></div><div className="auth-step-copy"><strong>Agree</strong><small>Align teams and stakeholders with shared visibility.</small></div></div></article>
+          <article className="auth-step"><b className="auth-step-number">03</b><div className="auth-step-detail"><div className="auth-step-icon"><CircleCheck size={22} strokeWidth={1.6}/></div><div className="auth-step-copy"><strong>Deliver</strong><small>Execute with confidence and keep deals moving forward.</small></div></div></article>
+        </div>
       </div>
-    </main>:<main className="auth-body login-body" id="access">
+    </main>:<main className="auth-body login-body" id="access" inert={publicMenuOpen}>
       <div className="auth-form">
         <span className="eyebrow">DEALFLOW360 WORKSPACE</span>
         <h1>{path==='/signup'?'Request an account':'Welcome back'}</h1>
