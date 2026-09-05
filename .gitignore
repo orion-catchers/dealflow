@@ -43,3 +43,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local implementation notes
+ATHARVA_IMPLEMENTATION_PROMPT.md
