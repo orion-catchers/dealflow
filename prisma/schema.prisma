@@ -916,6 +916,7 @@ model SubscriptionPlan {
   name         String
   interval     BillingInterval
   cancelPolicy CancelPolicy
+  listPrice    Decimal         @default(0) @db.Decimal(14, 2)
   archivedAt   DateTime?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt

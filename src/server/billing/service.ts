@@ -112,6 +112,7 @@ export class BillingService {
         name: input.name,
         interval: input.interval,
         cancelPolicy: input.cancelPolicy,
+        listPrice: input.listPrice ?? "0.00",
         archivedAt: null,
       });
     });
@@ -124,6 +125,9 @@ export class BillingService {
       const plan = await tx.getPlan(id);
       if (!plan) throw new ApiFailure("NOT_FOUND", "Plan not found");
       if (input.name !== undefined) plan.name = input.name;
+      if (input.interval !== undefined) plan.interval = input.interval;
+      if (input.cancelPolicy !== undefined) plan.cancelPolicy = input.cancelPolicy;
+      if (input.listPrice !== undefined) plan.listPrice = input.listPrice;
       if (input.archived === true) plan.archivedAt = tx.now();
       if (input.archived === false) plan.archivedAt = null;
       return tx.savePlan(plan);

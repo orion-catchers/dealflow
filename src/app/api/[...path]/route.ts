@@ -37,6 +37,17 @@ async function handle(req:NextRequest) {
     }
     if(path[0]==='actions'&&req.method==='POST')return ok(await adapter.command(actor,String(body.action),body));
     throw new AppError(404,'NOT_FOUND','Endpoint unavailable');
-  } catch(error) {const e=error instanceof AppError?error:new AppError(500,'INTERNAL','The request could not be completed');return NextResponse.json({error:{code:e.code,message:e.message,details:e.details}},{status:e.status});}
+  } catch (error) {
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: { code: error.code, message: error.message, details: error.details } }, { status: error.status });
+    }
+    if (error && typeof error === "object" && "status" in error && "code" in error && typeof (error as { status: unknown }).status === "number") {
+      const e = error as AppError;
+      return NextResponse.json({ error: { code: e.code, message: e.message, details: e.details } }, { status: e.status });
+    }
+    console.error(error);
+    const e = new AppError(500, "INTERNAL", "The request could not be completed");
+    return NextResponse.json({ error: { code: e.code, message: e.message, details: e.details } }, { status: e.status });
+  }
 }
 export const GET=handle;export const POST=handle;

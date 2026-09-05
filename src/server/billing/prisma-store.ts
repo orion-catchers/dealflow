@@ -32,8 +32,11 @@ import type {
 
 type Client = Db | Tx;
 
-function moneyOf(value: { toString(): string }): Money {
+function moneyOf(value: { toString(): string } | null | undefined): Money {
+  if (value == null) return "0.00";
   const raw = value.toString();
+  const n = Number(raw);
+  if (Number.isFinite(n)) return n.toFixed(2);
   return fromCents(toCents(raw.includes(".") ? raw : `${raw}.00`));
 }
 
@@ -186,6 +189,7 @@ function toPlan(row: {
   name: string;
   interval: SubscriptionPlanRecord["interval"];
   cancelPolicy: SubscriptionPlanRecord["cancelPolicy"];
+  listPrice: unknown;
   archivedAt: Date | null;
 }): SubscriptionPlanRecord {
   return {
@@ -194,6 +198,7 @@ function toPlan(row: {
     name: row.name,
     interval: row.interval,
     cancelPolicy: row.cancelPolicy,
+    listPrice: moneyOf(row.listPrice ?? 0),
     archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
   };
 }
@@ -292,22 +297,19 @@ export class PrismaBillingStore implements BillingStore {
   }
 
   async savePlan(plan: SubscriptionPlanRecord): Promise<SubscriptionPlanRecord> {
+    const data = {
+      name: plan.name,
+      interval: plan.interval,
+      cancelPolicy: plan.cancelPolicy,
+      archivedAt: plan.archivedAt ? new Date(plan.archivedAt) : null,
+    };
     const row = await this.db.subscriptionPlan.upsert({
       where: { id: plan.id },
-      create: {
-        id: plan.id,
-        code: plan.code,
-        name: plan.name,
-        interval: plan.interval,
-        cancelPolicy: plan.cancelPolicy,
-        archivedAt: plan.archivedAt ? new Date(plan.archivedAt) : null,
-      },
-      update: {
-        name: plan.name,
-        archivedAt: plan.archivedAt ? new Date(plan.archivedAt) : null,
-      },
+      create: { id: plan.id, code: plan.code, ...data },
+      update: data,
     });
-    return toPlan(row);
+    await this.db.$executeRaw`UPDATE "SubscriptionPlan" SET "listPrice" = CAST(${plan.listPrice} AS DECIMAL(14, 2)) WHERE "id" = ${plan.id}`;
+    return { ...toPlan(row), listPrice: plan.listPrice };
   }
 
   async listSubscriptions(filter?: { customerId?: string; status?: SubscriptionStatus }): Promise<StoredSubscription[]> {

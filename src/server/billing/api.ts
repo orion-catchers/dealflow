@@ -36,11 +36,15 @@ export const planCreateSchema = z.object({
   name: z.string().trim().min(1).max(200),
   interval: billingIntervalSchema,
   cancelPolicy: cancelPolicySchema,
+  listPrice: moneySchema.optional(),
 });
 
 export const planPatchSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   archived: z.boolean().optional(),
+  interval: billingIntervalSchema.optional(),
+  cancelPolicy: cancelPolicySchema.optional(),
+  listPrice: moneySchema.optional(),
 });
 
 export const paymentBodySchema = z.object({

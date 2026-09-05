@@ -56,9 +56,13 @@ export function wrapError(error: unknown): never {
     }
     throw new AppError(422, "VALIDATION", driver || "The record could not be saved", { prisma: error.code });
   }
+  if (error instanceof Error && (error.name === "PrismaClientValidationError" || /Unknown arg|Unknown field/i.test(error.message))) {
+    throw new AppError(422, "VALIDATION", "The record could not be saved", { reason: error.message });
+  }
   if (error instanceof Error && /not found/i.test(error.message)) {
     throw new AppError(404, "NOT_FOUND", error.message);
   }
+  console.error("[live]", error);
   throw new AppError(500, "INTERNAL", "The request could not be completed");
 }
 

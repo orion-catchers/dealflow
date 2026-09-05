@@ -69,6 +69,7 @@ export interface SubscriptionPlanRecord {
   name: string;
   interval: BillingInterval;
   cancelPolicy: CancelPolicy;
+  listPrice: Money;
   archivedAt: IsoTimestamp | null;
 }
 

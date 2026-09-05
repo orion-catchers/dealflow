@@ -45,6 +45,20 @@ describe.skipIf(!dbAvailable)("UserAdminService", () => {
     expect(neha?.customerIds.length).toBeGreaterThan(0);
   });
 
+  it("admin can change a customer membership", async () => {
+    const rows = await listUsers(admin);
+    const neha = rows.find((u) => u.email === "neha@acme.example");
+    const beta = await prisma.customer.findFirst({ where: { contactEmail: "rohan@beta.example" } });
+    expect(neha && beta).toBeTruthy();
+    const previous = neha!.customerIds;
+    try {
+      const updated = await patchUser(admin, neha!.id, { customerIds: [beta!.id] });
+      expect(updated.customerIds).toEqual([beta!.id]);
+    } finally {
+      await patchUser(admin, neha!.id, { customerIds: previous });
+    }
+  });
+
   it("patch status on unknown user is NOT_FOUND", async () => {
     const err = await failure(patchUser(admin, "missing-user-id", { status: "ACTIVE" }));
     expect(err.code).toBe("NOT_FOUND");

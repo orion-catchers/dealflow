@@ -469,6 +469,66 @@ Checks: `npx prisma validate`; `npx prisma migrate deploy`; `npx tsc --noEmit` (
 
 Status: Preview still does not reserve. Allocate remains the only reservation command.
 
+## 2026-09-06T04:10:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Users & roles no longer shows raw customer CUIDs: workspace mapping passes membership email into `publicCustomerId`, and Setup sourced columns show company names only. Pay with card still 503s Stripe without a key; the invoice screen now opens a labeled Preview checkout and records CARD via `POST /api/payments`. No commit.
+
+Files: `src/server/live/state.ts`, `src/components/application/{Setup,CardCheckoutButton,Operations}.tsx`, `src/features/billing/ui/InvoiceDetail.tsx`, `src/app/globals.css`.
+
+Checks: `npx tsc --noEmit` on this pass; Stripe hosted Checkout still requires `STRIPE_SECRET_KEY`. Browser click-through of Preview pay not recorded here.
+
+Status: LIVE Stripe remains NOT CONNECTED without env. Preview card UI does not charge a network.
+
+## 2026-09-06T04:20:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Receive stock variant dropdown now lists `Product · variant` names instead of raw variant CUIDs. Setup still submits the variant id.
+
+Files: `src/components/application/{shared,Setup}.tsx`.
+
+Checks: lints clean on the two files. Browser click of Receive stock not recorded here.
+
+Status: Labels only; receipt still uses variantId.
+
+## 2026-09-06T04:26:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Plan Setup now persists list price (was hardcoded `0.00` and `patchPlan` ignored price). User edit always writes `customerIds` (empty when not CUSTOMER) so customer association updates. Frequency/cancellation labels are humanized in the plan table.
+
+Files: `prisma/schema.prisma`, `prisma/migrations/20260906043000_plan_list_price/`, `src/contracts/ruchir.ts`, `src/server/billing/{api,service,prisma-store,repository}.ts`, `src/server/live/{commands,state}.ts`, `src/components/application/Setup.tsx`, `src/server/users/service.test.ts`.
+
+Checks: `npx prisma migrate deploy`; vitest billing + users services (18 passed). Browser edit click-through not recorded here.
+
+Status: LIVE `SubscriptionPlan.listPrice`. Existing subscriptions keep their own `unitPrice`.
+
+## 2026-09-06T04:32:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Sidebar DealFlow360 wordmark is extra-bold with a light drop shadow. User association now saves for every role (not only CUSTOMER); edit dialogs post the selected company from the form.
+
+Files: `src/app/globals.css`, `src/components/application/shared.tsx`, `src/components/ui/select-control.tsx`, `src/server/live/commands.ts`.
+
+Checks: association save path reviewed against the users table. Browser restyle check not recorded here.
+
+Status: Membership is the association shown in Users & roles.
+
+## 2026-09-06T04:45:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Edit subscription plan `POST /api/actions` was 500 INTERNAL. `savePlan` retried after a failed `listPrice` upsert inside an open Prisma transaction (aborted). Save now upserts plan fields then `UPDATE`s `listPrice` in the same transaction so a stale Next Prisma client cannot pass an unknown arg.
+
+Files: `src/server/billing/prisma-store.ts`, `src/server/live/ids.ts`, `src/app/api/[...path]/route.ts`, `src/server/live/commands.ts`.
+
+Checks: admin `saveRecord` for Support Yearly returned 200 `listPrice: "546.00"`. Billing service vitest 13 passed. Browser Confirm click not recorded here.
+
+Status: Plan price save on LIVE `/api/actions`. Billing `createPlan` remains ADMIN-only.
+
+## 2026-09-06T04:50:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Workspace Setup was not showing saved plan prices (₹0.00 after a successful Confirm) because list price was written in SQL but not merged on workspace read. Frequency/cancellation no longer reset when a select posts empty.
+
+Files: `src/server/live/state.ts`, `src/server/live/commands.ts`, `src/components/application/shared.tsx`.
+
+Checks: save Support Yearly to `543.00` then `GET /api/workspace` returned interval YEARLY, cancellation PERIOD_END, price `543.00`.
+
+Status: Plan table now reflects stored list price.
+
 ---
 
 ## 5. Interface notes (cross-lane changes)
@@ -478,6 +538,7 @@ Status: Preview still does not reserve. Allocate remains the only reservation co
 - **2026-09-05, merge `origin/main` into Krishna UI PR:** Conflicted files were Krishna-owned UI/theme plus Ruchir-owned scaffold. Kept Krishna `globals.css`/login/home/portal/builder screens and seed+harness exports in `src/fixtures/krishna.ts`. Kept main `package.json`/Prisma/auth/CI/`@/*` tsconfig, and appended Krishna's `memory.md` log instead of overwriting teammate entries. Removed root `[[...path]]` page so teammate App Router screens keep their URLs.
 - **2026-09-05, Atharva live quotes:** `confirmOrder` persists `Order`/`OrderLine` then calls `initializeBilling(tx, …)` and `initializeFulfillment(tx, orderReady)` in one transaction. Fulfillment is `CONNECTED` only if the Order row exists. Krishna portal confirm maps `{orderId, quoteId, revision, created, fulfillmentInitialization}`. Approvals POST now runs `LiveQuoteService.decideApproval` then returns Ruchir's UI detail. Consumers: Krishna portal/builder HTTP, Harsh fulfillment, Ruchir billing.
 - **2026-09-06, Harsh, Deal schema:** Fulfillment maps `OrderLine` → operational ids/qty; labels, billing kind, and money on workspace orders come from `sourceDealLine` (`DealLine`). Confirm copies `quote.dealId` onto `Order`. Consumers: Atharva confirm, Ruchir billing init, Krishna workspace.
+- **2026-09-06, Harsh, plan list price:** `SubscriptionPlan.listPrice` (decimal string on `SubscriptionPlanRecord`). `createPlan`/`patchPlan` accept optional `listPrice`. Workspace Setup maps it to plan `price`. Consumers: Krishna Setup plans tab, Ruchir billing plan APIs.
 
 ---
 

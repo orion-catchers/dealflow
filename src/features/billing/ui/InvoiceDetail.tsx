@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { OrderDeliveryRead } from "@/contracts/harsh";
 import type { InvoiceRecord, PaymentMethod, PaymentRecord } from "@/contracts/ruchir";
+import { CardCheckoutButton } from "@/components/application/CardCheckoutButton";
 import { Button, Card, Dialog, ErrorState, Input, Money, PageHeader, Select, StatusBadge } from "@/dev-adapter/ui";
 import { useApi, useMutation } from "@/features/catalog/ui/useApi";
 import { api, newRequestKey } from "@/lib/api/client";
@@ -18,7 +19,6 @@ function invoiceListTitle(row: InvoiceRecord): string {
 
 export function InvoiceDetail({ id }: { id: string }) {
   const invoice = useApi<InvoiceRecord>(`/api/invoices/${id}`);
-  const integrations = useApi<{ flags: { stripe: boolean } }>("/api/integrations/status");
   const deliveryPath = invoice.data?.orderId ? `/api/fulfillment/${invoice.data.orderId}/delivery` : null;
   const delivery = useApi<OrderDeliveryRead>(deliveryPath);
   const mutation = useMutation();
@@ -55,22 +55,6 @@ export function InvoiceDetail({ id }: { id: string }) {
     }
   }
 
-  async function startCardCheckout() {
-    if (!row) return;
-    setNotice(null);
-    const result = await mutation.run(() =>
-      api<{ checkoutUrl?: string }>("/api/payments/checkout", {
-        method: "POST",
-        json: { invoiceId: id, amount: row.outstanding, currency: row.currency },
-      }),
-    );
-    if (result?.checkoutUrl) {
-      window.location.assign(result.checkoutUrl);
-      return;
-    }
-    if (result) setNotice("Stripe did not return a checkout URL.");
-  }
-
   const row = invoice.data;
 
   return (
@@ -83,10 +67,16 @@ export function InvoiceDetail({ id }: { id: string }) {
             <a href={`/api/invoices/${id}/pdf`} className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50">
               Download PDF
             </a>
-            {integrations.data?.flags.stripe && Number(row?.outstanding ?? 0) > 0 ? (
-              <Button type="button" variant="secondary" disabled={mutation.pending} onClick={() => void startCardCheckout()}>
-                Card checkout (Stripe)
-              </Button>
+            {Number(row?.outstanding ?? 0) > 0 ? (
+              <CardCheckoutButton
+                invoiceId={id}
+                amount={row!.outstanding}
+                currency={row!.currency}
+                onNotice={setNotice}
+                onPaid={() => {
+                  void invoice.reload();
+                }}
+              />
             ) : null}
             <Button type="button" onClick={() => setOpen(true)}>
               Record payment

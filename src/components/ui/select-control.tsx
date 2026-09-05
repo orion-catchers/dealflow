@@ -258,7 +258,6 @@ export function GlassSelect({
         tabIndex={-1}
         aria-hidden
         className="df-select-native"
-        name={name}
         required={required}
         disabled={disabled}
         value={current}
@@ -266,6 +265,7 @@ export function GlassSelect({
       >
         {children}
       </select>
+      {name ? <input type="hidden" name={name} value={current} /> : null}
       {error ? <span id={errorId} className="df-field-error">{error}</span> : null}
       {menu}
     </div>

@@ -276,15 +276,19 @@ export async function loadDataState(): Promise<DataState> {
   const reservations = await prisma.reservation.findMany({ include: { orderLine: true } });
   const backorders = await prisma.backorder.findMany({ include: { orderLine: true } });
 
-  const appUsers = users.map((u) => ({
-    id: publicUserId(u),
-    name: u.name,
-    email: u.email,
-    role: toAppRole(u.role),
-    active: u.status === "ACTIVE",
-    companyId: u.companyId,
-    customerId: u.role === "CUSTOMER" ? (u.memberships[0] ? publicCustomerId({ id: u.memberships[0].customerId }) : undefined) : undefined,
-  }));
+  const appUsers = users.map((u) => {
+    const membership = u.memberships[0];
+    const linked = membership ? customers.find((c) => c.id === membership.customerId) : undefined;
+    return {
+      id: publicUserId(u),
+      name: u.name,
+      email: u.email,
+      role: toAppRole(u.role),
+      active: u.status === "ACTIVE",
+      companyId: u.companyId,
+      customerId: membership ? publicCustomerId(linked ?? { id: membership.customerId }) : undefined,
+    };
+  });
 
   const appCustomers: Customer[] = customers.map((c) => ({
     id: publicCustomerId(c),
@@ -331,14 +335,28 @@ export async function loadDataState(): Promise<DataState> {
     threshold: s.reorderAt,
   }));
 
-  const appPlans: Plan[] = plans.map((p) => ({
-    id: p.id,
-    name: p.name,
-    interval: p.interval,
-    prorate: true,
-    cancellation: p.cancelPolicy === "PERIOD_END" ? "PERIOD_END" : "IMMEDIATE_CREDIT",
-    price: "0.00",
-  }));
+  let listPriceById = new Map<string, unknown>();
+  try {
+    const listPriceRows = await prisma.$queryRaw<Array<{ id: string; listPrice: unknown }>>`
+      SELECT id, "listPrice" FROM "SubscriptionPlan"
+    `;
+    listPriceById = new Map(listPriceRows.map((row) => [row.id, row.listPrice]));
+  } catch {
+    /* Client or schema without listPrice still loads the rest of the workspace. */
+  }
+  const appPlans: Plan[] = plans.map((p) => {
+    const linked = products.find((product) => product.defaultPlanId === p.id);
+    const stored = listPriceById.has(p.id) ? listPriceById.get(p.id) : p.listPrice;
+    const listed = stored == null || stored === "" ? Number.NaN : Number(stored);
+    return {
+      id: p.id,
+      name: p.name,
+      interval: p.interval,
+      prorate: true,
+      cancellation: p.cancelPolicy === "PERIOD_END" ? "PERIOD_END" : "IMMEDIATE_CREDIT",
+      price: money(Number.isFinite(listed) ? stored : (linked?.basePrice ?? 0)),
+    };
+  });
 
   const appQuotes: Quote[] = quotes.map((q) => {
     const current = q.revisions.find((r) => r.id === q.currentRevisionId) ?? q.revisions.at(-1);

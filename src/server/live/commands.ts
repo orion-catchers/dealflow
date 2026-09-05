@@ -9,6 +9,7 @@ import { getFulfillmentService } from "@/server/inventory/live";
 import { ApprovalUiService } from "@/server/approval-ui/service";
 import { findHealthCandidates } from "@/server/health/deal-health";
 import { patchUser } from "@/server/users/service";
+import { moneyOf } from "@/server/lib/db/map";
 import { harshActor, prismaCustomerId, prismaUserId, prismaVariantId, prismaWarehouseId, wrapError } from "./ids";
 import { applyAtharvaEvaluation, event, newRevision } from "./pricing";
 import { persistQuote, type Dirty, liveCanonical } from "./canonical";
@@ -223,24 +224,51 @@ export async function runLiveCommand(
       }
       if (collection === "plans") {
         roles(actor, "ADMIN", "FINANCE_OPS");
-        if (key) return await getBillingService().patchPlan(harsh, key, { name: String(r.name ?? "") });
-        return await getBillingService().createPlan(harsh, {
-          code: String(r.name ?? randomUUID()).slice(0, 40),
-          name: String(r.name ?? ""),
-          interval: String(r.interval ?? "MONTHLY"),
-          cancelPolicy: String(r.cancellation) === "PERIOD_END" ? "PERIOD_END" : "IMMEDIATE",
-        });
+        const intervalRaw = String(r.interval ?? "").trim().toUpperCase().replace(/\s+/g, "_");
+        const interval =
+          intervalRaw === "QUARTERLY" || intervalRaw === "YEARLY" || intervalRaw === "MONTHLY" ? intervalRaw : undefined;
+        const cancelRaw = String(r.cancellation ?? "").trim().toUpperCase().replace(/\s+/g, "_");
+        const cancelPolicy =
+          cancelRaw === "PERIOD_END" || cancelRaw === "PERIODEND" || cancelRaw === "AT_PERIOD_END"
+            ? "PERIOD_END"
+            : cancelRaw === "IMMEDIATE" || cancelRaw === "IMMEDIATE_CREDIT"
+              ? "IMMEDIATE"
+              : undefined;
+        const listPrice = moneyOf(r.price ?? 0);
+        const name = String(r.name ?? "");
+        const saved = key
+          ? await getBillingService().patchPlan(harsh, key, {
+              name,
+              listPrice,
+              ...(interval ? { interval } : {}),
+              ...(cancelPolicy ? { cancelPolicy } : {}),
+            })
+          : await getBillingService().createPlan(harsh, {
+              code: `P-${randomUUID().slice(0, 8)}`,
+              name,
+              interval: interval ?? "MONTHLY",
+              cancelPolicy: cancelPolicy ?? "PERIOD_END",
+              listPrice,
+            });
+        await prisma.product.updateMany({ where: { defaultPlanId: saved.id }, data: { basePrice: listPrice } });
+        return saved;
       }
       if (collection === "users") {
         roles(actor, "ADMIN");
         requireValue(key, "Users request accounts through signup");
         const role = String(r.role) === "FINANCE_OPS" ? "FINANCE" : String(r.role);
         const id = await prismaUserId(key);
-        return await patchUser(harsh, id, {
+        const rawCustomer = String(r.customerId ?? "").trim();
+        if (role === "CUSTOMER") requireValue(rawCustomer, "Customer membership required");
+        const customerIds = rawCustomer ? [await prismaCustomerId(rawCustomer)] : [];
+        const saved = await patchUser(harsh, id, {
           status: r.active === false ? "DISABLED" : "ACTIVE",
           role,
-          customerIds: r.customerId ? [await prismaCustomerId(String(r.customerId))] : undefined,
+          customerIds,
         });
+        const user = state.users.find((row) => row.id === key);
+        if (user) user.customerId = rawCustomer || undefined;
+        return saved;
       }
       if (collection === "priceRules") {
         roles(actor, "ADMIN");
