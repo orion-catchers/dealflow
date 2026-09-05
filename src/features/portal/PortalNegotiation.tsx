@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import type { ConfirmationResult, PortalMessage, PortalConfirmationInput, PortalNegotiationView, PortalProposalInput, ProposalResult } from '../../contracts/krishna';
 import { revisionTitle } from '../../components/application/shared';
+import { Button, Card, DataTable, EmptyState, ErrorState, Input, Money, Select, StatusBadge, Tabs, Timeline } from '../../components/ui';
 import { createRequestKey } from '../recommendations/service';
 
 type LineDraft = { comment: string; quantity: string; discountPct: string };

@@ -75,6 +75,7 @@ export function GlassSelect({
   const [active, setActive] = useState(0);
   const activeRef = useRef(0);
   const [menuBox, setMenuBox] = useState<{ top: number; left: number; width: number; maxHeight: number; openUp: boolean } | null>(null);
+  const [menuRoot, setMenuRoot] = useState<HTMLElement | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const selected = options.find(option => option.value === current);
@@ -108,6 +109,15 @@ export function GlassSelect({
   useEffect(() => {
     activeRef.current = active;
   }, [active]);
+
+  useEffect(() => {
+    if (!open) {
+      setMenuRoot(null);
+      return;
+    }
+    const root = wrapRef.current?.closest('dialog');
+    setMenuRoot(root instanceof HTMLElement ? root : document.body);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -190,9 +200,7 @@ export function GlassSelect({
       </div>
     );
   }
-
   const describedBy = [ariaDescribedBy, error ? errorId : null].filter(Boolean).join(' ') || undefined;
-  const menuRoot = wrapRef.current?.closest('dialog') ?? (typeof document !== 'undefined' ? document.body : null);
   const menu = open && menuBox && menuRoot
     ? createPortal(
       <ul
