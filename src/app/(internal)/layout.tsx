@@ -1,15 +1,6 @@
-import { AppShell } from "@/dev-adapter/ui";
-import { DevActorSwitcher } from "@/dev-adapter/dev-actor-switcher";
+import type { ReactNode } from "react";
 
-/**
- * Internal route group layout. Wraps Harsh's screens in the shared AppShell
- * (dev adapter now; Krishna's `@/components/shell` later by import change).
- */
-export default function InternalLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <AppShell>
-      <DevActorSwitcher />
-      {children}
-    </AppShell>
-  );
+/** Shell is mounted once in the root layout so login → workspace does not remount. */
+export default function InternalLayout({ children }: { children: ReactNode }) {
+  return children;
 }

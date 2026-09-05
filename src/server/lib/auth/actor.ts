@@ -6,6 +6,17 @@ import { ApiFailure } from "@/lib/api/respond";
 import { userToActor, userToSessionUser } from "./actor-helpers";
 import { findUserBySessionToken, parseSessionCookie } from "./session";
 
+// Fixture impersonation via the `x-dev-actor` header is opt-in only:
+// DEALFLOW_DEV_IMPERSONATION=1 in a non-production environment. Without the
+// flag every caller must present a real session cookie.
+function impersonationEnabled(): boolean {
+  return (
+    process.env.DEALFLOW_DEV_IMPERSONATION === "1" &&
+    process.env.NODE_ENV !== "production" &&
+    process.env.DEALFLOW_ADAPTER === "development"
+  );
+}
+
 function devFixtureToActor(id: string): Actor {
   const u = fixtureUsers.find((x) => x.id === id);
   if (!u) throw new ApiFailure("UNAUTHENTICATED", `Unknown dev actor '${id}'`);
@@ -38,13 +49,19 @@ async function actorFromSession(request: Request): Promise<Actor | null> {
   return userToActor(user);
 }
 
+function impersonatedActor(request: Request): Actor | null {
+  const id = request.headers.get("x-dev-actor");
+  if (!id) return null;
+  return devFixtureToActor(id);
+}
+
 export async function getActor(request: Request): Promise<Actor> {
   const fromSession = await actorFromSession(request);
   if (fromSession) return fromSession;
 
-  if (process.env.NODE_ENV !== "production") {
-    const id = request.headers.get("x-dev-actor") ?? "admin-dev";
-    return devFixtureToActor(id);
+  if (impersonationEnabled()) {
+    const impersonated = impersonatedActor(request);
+    if (impersonated) return impersonated;
   }
 
   throw new ApiFailure("UNAUTHENTICATED", "Not authenticated");
@@ -57,9 +74,9 @@ export async function getSessionUser(request: Request): Promise<SessionUser> {
     if (user) return userToSessionUser(user);
   }
 
-  if (process.env.NODE_ENV !== "production") {
-    const actor = devFixtureToActor(request.headers.get("x-dev-actor") ?? "admin-dev");
-    return devFixtureToSessionUser(actor);
+  if (impersonationEnabled()) {
+    const impersonated = impersonatedActor(request);
+    if (impersonated) return devFixtureToSessionUser(impersonated);
   }
 
   throw new ApiFailure("UNAUTHENTICATED", "Not authenticated");

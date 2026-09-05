@@ -3,12 +3,38 @@ import { readJson } from "@/features/catalog/api";
 import { ApiFailure, fail, ok } from "@/lib/api/respond";
 import { loginWithPassword, parseLoginBody } from "@/server/lib/auth/credentials";
 import { setSessionCookie } from "@/server/lib/auth/session";
+import { developmentEnabled, getAdapter } from "@/server/adapters";
 
 export async function POST(request: Request) {
   try {
+    if (developmentEnabled()) {
+      const input = parseLoginBody(await readJson(request));
+      const result = await (await getAdapter()).login(input.email, input.password);
+      const response = ok({ actor: result.actor, mode: "DEV FIXTURE" });
+      response.cookies.set("dealflow-session", result.token, {
+        httpOnly: true,
+        sameSite: "strict",
+        secure: false,
+        path: "/",
+        maxAge: 8 * 60 * 60,
+      });
+      return response;
+    }
     const input = parseLoginBody(await readJson(request));
     const { user, token } = await loginWithPassword(input);
-    const response = ok(user);
+    const mode =
+      process.env.NODE_ENV !== "production" && process.env.DEALFLOW_ADAPTER === "development"
+        ? "DEV FIXTURE"
+        : "LIVE";
+    const actor = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role === "FINANCE" ? "FINANCE_OPS" : user.role,
+      active: user.active !== false && user.status === "ACTIVE",
+      customerId: user.customerId,
+    };
+    const response = NextResponse.json({ data: { actor }, mode });
     setSessionCookie(response, token);
     return response;
   } catch (e) {

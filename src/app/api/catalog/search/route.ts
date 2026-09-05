@@ -3,13 +3,13 @@
  * → CatalogSearchItem[] priced for that customer. DEV FIXTURE data.
  */
 import { handle } from "@/lib/api/respond";
-import { getActor } from "@/server/lib/auth/dev-actor";
+import { getAuthorizedActor } from "@/server/lib/auth/permissions";
 import { queryFlag } from "@/features/catalog/api";
 import { getCatalogService } from "@/server/catalog/live";
 
 export async function GET(request: Request) {
   return handle(async () => {
-    const actor = await getActor(request);
+    const actor = await getAuthorizedActor(request);
     const sp = new URL(request.url).searchParams;
     return getCatalogService().search(actor, {
       customerId: sp.get("customerId") ?? "",

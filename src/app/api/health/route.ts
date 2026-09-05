@@ -1,15 +1,11 @@
 import { handle } from "@/lib/api/respond";
-import { getActor } from "@/server/lib/auth/dev-actor";
-import { healthService } from "@/server/health/service-instance";
+import { getAuthorizedActor } from "@/server/lib/auth/permissions";
+import { getLiveHealthService } from "@/server/health/live-service";
 
 export async function GET(request: Request) {
-  return handle(async () => healthService.list(await getActor(request)));
+  return handle(async () => getLiveHealthService().list(await getAuthorizedActor(request)));
 }
 
 export async function POST(request: Request) {
-  return handle(async () => {
-    const actor = await getActor(request);
-    const body = await request.json();
-    return healthService.refresh(actor, body);
-  });
+  return handle(async () => getLiveHealthService().refresh(await getAuthorizedActor(request)));
 }
