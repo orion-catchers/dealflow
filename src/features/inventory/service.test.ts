@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Actor, OrderForFulfillment } from "@/contracts/harsh";
-import { orderAcmeFlowA, orderBetaCompeting, orderServiceOnly } from "@/fixtures/harsh";
+import { orderAcmeFlowA, orderBetaCompeting, orderServiceOnly } from "@/fixtures/harsh-dev";
 import { ApiFailure } from "@/lib/api/respond";
 import { InMemoryInventoryRepository } from "./repository";
 import { FulfillmentService } from "./service";

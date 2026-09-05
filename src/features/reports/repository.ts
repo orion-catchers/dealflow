@@ -11,7 +11,7 @@
  * `globalThis` so Next.js dev hot-reloads reuse one instance.
  */
 import type { Product, ProductCategory, ReportQuoteRecord, SalesTeam } from "@/contracts/harsh";
-import { fixtureUsers, products, reportQuoteRecords, salesTeams } from "@/fixtures/harsh";
+import { fixtureUsers, products, reportQuoteRecords, salesTeams } from "@/fixtures/harsh-dev";
 
 export interface ReportRepInfo {
   id: string;

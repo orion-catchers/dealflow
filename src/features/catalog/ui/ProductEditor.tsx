@@ -14,7 +14,7 @@ import type { Customer, PlanRef, PriceList, PriceRule, Product, ProductCategory,
 import { Button, Card, DataTable, Dialog, EmptyState, ErrorState, Input, Money, PageHeader, Select, StatusBadge, type Column } from "@/dev-adapter/ui";
 import { api } from "@/lib/api/client";
 import { CATEGORY_OPTIONS, CheckboxField, FormField, TEXTAREA_CLASS, UNIT_OPTIONS, tierLabel } from "./form";
-import { PriceRuleDialog, priceListLabel } from "./PriceRuleDialog";
+import { PriceRuleDialog } from "./PriceRuleDialog";
 import { marginPct, normalizeMoney, useApi, useApiMany, useMutation } from "./useApi";
 import { VariantDialog } from "./VariantDialog";
 

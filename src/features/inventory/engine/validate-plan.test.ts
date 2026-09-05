@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Reservation } from "@/contracts/harsh";
-import { orderBetaCompeting, stockLevels, warehouses } from "@/fixtures/harsh";
+import { orderBetaCompeting, stockLevels, warehouses } from "@/fixtures/harsh-dev";
 import { validatePlan } from "./validate-plan";
 
 const remaining = new Map([["ol-1002-1", 4]]);

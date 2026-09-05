@@ -9,7 +9,7 @@ import type { Currency, Customer, CustomerTier, PriceList } from "@/contracts/ha
 import { Button, DataTable, Dialog, EmptyState, ErrorState, Input, PageHeader, Select, StatusBadge, type Column } from "@/dev-adapter/ui";
 // DEV FIXTURE: rep names come from the fixture user list. Ruchir's users API replaces this
 // lookup (same `{ id, name }` shape) once it is live.
-import { fixtureUsers } from "@/fixtures/harsh";
+import { fixtureUsers } from "@/fixtures/harsh-dev";
 import { api } from "@/lib/api/client";
 import { CURRENCY_OPTIONS, CheckboxField, FormField, TIER_OPTIONS, tierLabel } from "./form";
 import { useApi, useMutation } from "./useApi";

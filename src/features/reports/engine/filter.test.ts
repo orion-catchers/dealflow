@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ReportFilters } from "@/contracts/harsh";
-import { reportQuoteRecords, salesTeams } from "@/fixtures/harsh";
+import { reportQuoteRecords, salesTeams } from "@/fixtures/harsh-dev";
 import { filterRecords, selectLines } from "./filter";
 import { resolvePeriod } from "./period";
 

@@ -7,7 +7,7 @@
  * NEVER enable this in production: it is gated on NODE_ENV !== "production".
  */
 import type { Actor } from "@/contracts/harsh";
-import { fixtureUsers } from "@/fixtures/harsh";
+import { fixtureUsers } from "@/fixtures/harsh-dev";
 import { ApiFailure } from "@/lib/api/respond";
 
 export async function getActor(request: Request): Promise<Actor> {

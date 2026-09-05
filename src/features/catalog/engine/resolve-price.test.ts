@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PriceRule, Product } from "@/contracts/harsh";
 import { ApiFailure } from "@/lib/api/respond";
-import { customers, priceLists, priceRules, products, taxRates, variants } from "@/fixtures/harsh";
+import { customers, priceLists, priceRules, products, taxRates, variants } from "@/fixtures/harsh-dev";
 import { resolvePrice, searchCatalog } from "./resolve-price";
 
 const byId = <T extends { id: string }>(list: T[], id: string): T => {

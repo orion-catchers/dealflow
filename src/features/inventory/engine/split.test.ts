@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OrderForFulfillment, StockLevel } from "@/contracts/harsh";
-import { orderAcmeFlowA, orderBetaCompeting, orderServiceOnly, stockLevels, warehouses } from "@/fixtures/harsh";
+import { orderAcmeFlowA, orderBetaCompeting, orderServiceOnly, stockLevels, warehouses } from "@/fixtures/harsh-dev";
 import { aggregateDemand } from "./demand";
 import { ESTIMATE_NOTE, estimateShipmentCost, previewSplit } from "./split";
 import { available, buildWorkingStock, takeFromWorking } from "./availability";

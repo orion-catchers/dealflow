@@ -6,7 +6,7 @@
  * the transaction. A Prisma adapter will implement the same interface with `tx` bound to
  * the Prisma transaction client.
  *
- * DEV FIXTURE: `InMemoryInventoryRepository` is seeded from `@/fixtures/harsh`. It
+ * DEV FIXTURE: `InMemoryInventoryRepository` is seeded from `@/fixtures/harsh-dev`. It
  * serializes transactions with a promise-chain mutex and snapshots/restores state so a
  * thrown error inside a transaction leaves no partial writes. Never a production fallback.
  */
@@ -22,7 +22,7 @@ import type {
   Variant,
   Warehouse,
 } from "@/contracts/harsh";
-import * as fixtures from "@/fixtures/harsh";
+import * as fixtures from "@/fixtures/harsh-dev";
 
 export interface FulfillmentRecord {
   order: OrderForFulfillment;

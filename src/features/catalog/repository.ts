@@ -1,13 +1,13 @@
 /**
  * Catalog repository — interface + in-memory DEV FIXTURE implementation.
  *
- * The in-memory store is seeded from `@/fixtures/harsh` (deep-cloned so fixtures stay
+ * The in-memory store is seeded from `@/fixtures/harsh-dev` (deep-cloned so fixtures stay
  * immutable). A Prisma adapter implementing `CatalogRepository` replaces it later; the
  * service only talks to the interface. Singleton lives on `globalThis` so it survives
  * Next dev HMR; `reset()` restores fixture state for tests.
  */
 import type { Customer, PlanRef, PriceList, PriceRule, Product, SalesTeam, TaxRate, Variant } from "@/contracts/harsh";
-import * as fixtures from "@/fixtures/harsh";
+import * as fixtures from "@/fixtures/harsh-dev";
 
 export interface CatalogRepository {
   // customers / teams

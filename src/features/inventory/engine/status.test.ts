@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Backorder, Reservation, Shipment } from "@/contracts/harsh";
-import { orderAcmeFlowA, orderServiceOnly } from "@/fixtures/harsh";
+import { orderAcmeFlowA, orderServiceOnly } from "@/fixtures/harsh-dev";
 import { deriveStatus, remainingByLine, summarizeLines, totalUnits } from "./status";
 
 const rsv = (id: string, orderLineId: string, variantId: string, quantity: number, status: Reservation["status"], shipmentId?: string): Reservation => ({

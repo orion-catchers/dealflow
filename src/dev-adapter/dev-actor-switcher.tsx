@@ -5,7 +5,7 @@
  * Ruchir's session auth is live; the component renders nothing in production.
  */
 import { useEffect, useState } from "react";
-import { fixtureUsers } from "@/fixtures/harsh";
+import { fixtureUsers } from "@/fixtures/harsh-dev";
 import { getDevActor, setDevActor } from "@/lib/api/client";
 
 export function DevActorSwitcher() {

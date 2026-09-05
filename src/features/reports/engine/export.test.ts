@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 import type { ReportFilters } from "@/contracts/harsh";
-import { reportQuoteRecords, salesTeams } from "@/fixtures/harsh";
+import { reportQuoteRecords, salesTeams } from "@/fixtures/harsh-dev";
 import { aggregateReport } from "./aggregate";
 import { buildPdf } from "./export-pdf";
 import { buildXlsx } from "./export-xlsx";
