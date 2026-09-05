@@ -1,0 +1,40 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dealflow
+          POSTGRES_PASSWORD: dealflow
+          POSTGRES_DB: dealflow
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U dealflow -d dealflow"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://dealflow:dealflow@localhost:5432/dealflow?schema=public
+      SESSION_SECRET: ci-only-secret
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/setup@v1
+        with:
+          runtime: node@24
+          cache: true
+          install: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma validate
+      - run: pnpm db:deploy
+      - name: seed twice (idempotency)
+        run: pnpm db:seed && pnpm db:seed
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build

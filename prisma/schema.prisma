@@ -1,0 +1,1123 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  SALES_REP
+  SALES_MANAGER
+  FINANCE
+  CUSTOMER
+}
+
+enum AccountStatus {
+  PENDING
+  ACTIVE
+  DISABLED
+}
+
+enum DiscountTier {
+  STANDARD
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+enum QuoteStage {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  UNDER_NEGOTIATION
+  CONFIRMED
+  REJECTED
+}
+
+enum RevisionApprovalStatus {
+  NOT_REQUIRED
+  PENDING
+  APPROVED
+  REJECTED
+  SUPERSEDED
+}
+
+enum ApprovalDecisionKind {
+  APPROVE
+  REJECT
+  RETURN
+}
+
+enum ApprovalStepStatus {
+  PENDING
+  APPROVED
+  BLOCKED
+}
+
+enum RiskLevel {
+  NONE
+  MANAGER
+  FINANCE
+}
+
+enum LineBillingKind {
+  ONE_TIME
+  RECURRING
+}
+
+enum BillingInterval {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum FulfillmentStatus {
+  PENDING
+  PARTIAL
+  ALLOCATED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum ReservationStatus {
+  ACTIVE
+  SHIPPED
+  RELEASED
+}
+
+enum ShipmentStatus {
+  PLANNED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
+enum SubscriptionChangeKind {
+  QUANTITY
+  PLAN
+  PAUSE
+  RESUME
+  CANCEL
+}
+
+enum CancelPolicy {
+  IMMEDIATE
+  PERIOD_END
+}
+
+enum InvoiceKind {
+  ONE_TIME
+  RECURRING
+  ADJUSTMENT
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CARD
+  CHEQUE
+  CASH
+  OTHER
+}
+
+enum CreditReason {
+  CANCELLATION
+  PRORATION
+  GOODWILL
+}
+
+enum HealthFlagType {
+  STALLED
+  DISCOUNT_ANOMALY
+  DELIVERY_RISK
+}
+
+enum TaskAction {
+  NUDGE
+  ESCALATE
+}
+
+enum TaskStatus {
+  OPEN
+  DONE
+  CANCELLED
+}
+
+enum RuleStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum PortalMessageStatus {
+  OPEN
+  INCORPORATED
+  DECLINED
+  SUPERSEDED
+}
+
+enum RequestScope {
+  CONFIRM_ORDER
+  BILLING_INIT
+  PAYMENT
+  CREDIT_APPLY
+  ALLOCATION_ACCEPT
+  DUE_BILLING
+  STOCK_RECEIPT
+}
+
+enum RequestResultKind {
+  ORDER
+  INVOICE
+  PAYMENT
+  CREDIT_APPLICATION
+  ALLOCATION
+  SUBSCRIPTION_SET
+  STOCK_RECEIPT
+}
+
+/// Internal actor or customer-portal login. Account status is the sole activation state, and customer access is granted only through memberships.
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  passwordHash String
+  name         String
+  role         Role
+  status       AccountStatus @default(PENDING)
+  teamId       String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  team                  SalesTeam?           @relation(fields: [teamId], references: [id])
+  sessions              Session[]
+  memberships           CustomerMembership[]
+  assignedCustomers     Customer[]           @relation("CustomerRep")
+  quotesAsRep           Quote[]              @relation("QuoteRep")
+  ordersAsRep           Order[]              @relation("OrderRep")
+  revisionsAuthored     QuoteRevision[]      @relation("RevisionAuthor")
+  approvalDecisions     ApprovalDecision[]
+  acceptances           CustomerAcceptance[]
+  portalMessages        PortalMessage[]
+  paymentsRecorded      Payment[]
+  creditNotesIssued     CreditNote[]
+  tasksAssigned         Task[]               @relation("TaskAssignee")
+  tasksCreated          Task[]               @relation("TaskCreator")
+  auditEvents           AuditEvent[]
+  policyVersionsCreated PolicyVersion[]
+  stockReceipts         StockReceipt[]
+  requestKeys           RequestKey[]
+}
+
+/// Server session credential. The stored token is a hash, and expiry is the sole time boundary for validity.
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+/// Sales team used for quote ownership and report filters. A user belongs to at most one team.
+model SalesTeam {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members   User[]
+  customers Customer[]
+  quotes    Quote[]
+  orders    Order[]
+}
+
+/// Binds a CUSTOMER-role user to exactly the customers they may see. Portal queries start here.
+model CustomerMembership {
+  id         String   @id @default(cuid())
+  userId     String
+  customerId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@unique([userId, customerId])
+  @@index([customerId])
+}
+
+/// Buying account. Discount tier and price list are the inputs Atharva's pricing reads. Currency is the quote currency.
+model Customer {
+  id            String       @id @default(cuid())
+  name          String
+  contactName   String
+  contactEmail  String
+  discountTier  DiscountTier
+  currency      String       @default("INR")
+  priceListId   String
+  assignedRepId String
+  teamId        String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  priceList     PriceList            @relation(fields: [priceListId], references: [id])
+  assignedRep   User                 @relation("CustomerRep", fields: [assignedRepId], references: [id])
+  team          SalesTeam?           @relation(fields: [teamId], references: [id])
+  memberships   CustomerMembership[]
+  quotes        Quote[]
+  orders        Order[]
+  invoices      Invoice[]
+  creditNotes   CreditNote[]
+  subscriptions Subscription[]
+
+  @@index([name])
+  @@index([assignedRepId])
+  @@index([discountTier])
+}
+
+/// Admin-managed catalog classification. Stable rows keep product and policy history addressable after a category is deactivated.
+model Category {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products       Product[]
+  policyCeilings PolicyCategoryCeiling[]
+  quoteLines     QuoteLine[]
+
+  @@index([active, name])
+}
+
+/// Catalog parent with a natural SKU and admin-managed category. Archiving preserves every historical financial and commercial reference.
+model Product {
+  id            String    @id @default(cuid())
+  sku           String    @unique
+  name          String
+  categoryId    String
+  unit          String
+  description   String    @default("")
+  taxPct        Decimal   @db.Decimal(5, 2)
+  basePrice     Decimal   @db.Decimal(14, 2)
+  baseCost      Decimal   @db.Decimal(14, 2)
+  stockTracked  Boolean
+  defaultPlanId String?
+  archivedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  category            Category             @relation(fields: [categoryId], references: [id])
+  defaultPlan         SubscriptionPlan?    @relation("ProductDefaultPlan", fields: [defaultPlanId], references: [id])
+  variants            Variant[]
+  priceRules          PriceRule[]
+  quoteLines          QuoteLine[]
+  orderLines          OrderLine[]
+  recRulesAsBase      RecommendationRule[] @relation("RecBase")
+  recRulesAsCandidate RecommendationRule[] @relation("RecCandidate")
+
+  @@index([categoryId, archivedAt])
+  @@index([name])
+}
+
+/// Sellable SKU. extraPrice is added to the resolved list price. cost is the margin input snapshotted onto lines at revision time.
+model Variant {
+  id             String    @id @default(cuid())
+  productId      String
+  sku            String    @unique
+  name           String
+  extraPrice     Decimal   @default(0) @db.Decimal(14, 2)
+  cost           Decimal   @db.Decimal(14, 2)
+  shippingWeight Decimal?  @db.Decimal(10, 3)
+  attributes     Json?
+  archivedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  product      Product        @relation(fields: [productId], references: [id])
+  priceRules   PriceRule[]
+  quoteLines   QuoteLine[]
+  orderLines   OrderLine[]
+  stock        Stock[]
+  reservations Reservation[]
+  backorders   Backorder[]
+  receipts     StockReceipt[]
+
+  @@index([productId])
+}
+
+/// Named price book selected by customer configuration. Its natural code gives seed and admin flows a stable resolver.
+model PriceList {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  currency  String   @default("INR")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customers Customer[]
+  rules     PriceRule[]
+}
+
+/// Active product-level or variant-level price override. Partial unique indexes ensure resolution finds at most one active rule at either specificity.
+model PriceRule {
+  id          String       @id @default(cuid())
+  priceListId String
+  productId   String
+  variantId   String?
+  tier        DiscountTier
+  currency    String
+  unitPrice   Decimal      @db.Decimal(14, 2)
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  priceList PriceList @relation(fields: [priceListId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+  variant   Variant?  @relation(fields: [variantId], references: [id])
+
+  @@index([priceListId, productId, variantId, tier, currency, active])
+}
+
+/// Immutable published policy. Atharva points a QuoteRevision at this id and never edits the row. Thresholds and chain live as child rows so the approval editor has real fields.
+model PolicyVersion {
+  id                       String   @id @default(cuid())
+  name                     String
+  createdById              String
+  anyExcessRequiresManager Boolean
+  managerWorstExcessPct    Decimal  @db.Decimal(5, 2)
+  managerWeightedExcessPct Decimal  @db.Decimal(5, 2)
+  financeWorstExcessPct    Decimal  @db.Decimal(5, 2)
+  financeWeightedExcessPct Decimal  @db.Decimal(5, 2)
+  totalDiscountBudgetPct   Decimal? @db.Decimal(5, 2)
+  createdAt                DateTime @default(now())
+
+  createdBy        User                    @relation(fields: [createdById], references: [id])
+  tierCeilings     PolicyTierCeiling[]
+  categoryCeilings PolicyCategoryCeiling[]
+  chainSteps       PolicyChainStep[]
+  revisions        QuoteRevision[]
+}
+
+/// Max discount percent for a customer tier when no category ceiling applies.
+model PolicyTierCeiling {
+  id              String       @id @default(cuid())
+  policyVersionId String
+  tier            DiscountTier
+  ceilingPct      Decimal      @db.Decimal(5, 2)
+  createdAt       DateTime     @default(now())
+
+  policyVersion PolicyVersion @relation(fields: [policyVersionId], references: [id])
+
+  @@unique([policyVersionId, tier])
+}
+
+/// Immutable category override inside one policy version. The line evaluator combines it with the tier ceiling by taking the stricter value.
+model PolicyCategoryCeiling {
+  id              String       @id @default(cuid())
+  policyVersionId String
+  tier            DiscountTier
+  categoryId      String
+  ceilingPct      Decimal      @db.Decimal(5, 2)
+  createdAt       DateTime     @default(now())
+
+  policyVersion PolicyVersion @relation(fields: [policyVersionId], references: [id])
+  category      Category      @relation(fields: [categoryId], references: [id])
+
+  @@unique([policyVersionId, tier, categoryId])
+}
+
+/// Ordered internal approvers for this policy. The evaluator copies this manager-or-finance sequence onto each revision.
+model PolicyChainStep {
+  id              String   @id @default(cuid())
+  policyVersionId String
+  stepIndex       Int
+  role            Role
+  createdAt       DateTime @default(now())
+
+  policyVersion PolicyVersion @relation(fields: [policyVersionId], references: [id])
+
+  @@unique([policyVersionId, stepIndex])
+}
+
+/// Mutable deal head and search projection. Commercial activity alone advances lastActivityAt, while reads leave it unchanged.
+model Quote {
+  id                String     @id @default(cuid())
+  customerId        String
+  repId             String
+  teamId            String?
+  currentRevisionId String?    @unique
+  stage             QuoteStage @default(DRAFT)
+  lastActivityAt    DateTime   @default(now())
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  customer        Customer        @relation(fields: [customerId], references: [id])
+  rep             User            @relation("QuoteRep", fields: [repId], references: [id])
+  team            SalesTeam?      @relation(fields: [teamId], references: [id])
+  currentRevision QuoteRevision?  @relation("CurrentRevision", fields: [currentRevisionId], references: [id])
+  revisions       QuoteRevision[] @relation("QuoteRevisions")
+  portalMessages  PortalMessage[]
+  healthFlags     HealthFlag[]
+  tasks           Task[]
+
+  @@index([customerId, stage])
+  @@index([repId, stage])
+  @@index([stage, lastActivityAt])
+}
+
+/// Immutable commercial snapshot and stored policy evaluation. Approvals and acceptance always target this exact set of terms.
+model QuoteRevision {
+  id                 String                 @id @default(cuid())
+  quoteId            String
+  revisionNumber     Int
+  policyVersionId    String
+  riskLevel          RiskLevel
+  weightedExcessPct  Decimal                @db.Decimal(5, 2)
+  worstLineExcessPct Decimal                @db.Decimal(5, 2)
+  evaluationReasons  Json
+  approvalStatus     RevisionApprovalStatus
+  orderDiscountPct   Decimal                @db.Decimal(5, 2)
+  currency           String
+  promisedDate       DateTime?              @db.Date
+  oneTimeSubtotal    Decimal                @db.Decimal(14, 2)
+  oneTimeTax         Decimal                @db.Decimal(14, 2)
+  oneTimeTotal       Decimal                @db.Decimal(14, 2)
+  recurringMonthly   Decimal                @default(0) @db.Decimal(14, 2)
+  recurringQuarterly Decimal                @default(0) @db.Decimal(14, 2)
+  recurringYearly    Decimal                @default(0) @db.Decimal(14, 2)
+  totalCost          Decimal                @db.Decimal(14, 2)
+  marginPct          Decimal                @db.Decimal(5, 2)
+  createdById        String
+  supersededAt       DateTime?
+  createdAt          DateTime               @default(now())
+
+  quote          Quote                       @relation("QuoteRevisions", fields: [quoteId], references: [id])
+  currentFor     Quote?                      @relation("CurrentRevision")
+  createdBy      User                        @relation("RevisionAuthor", fields: [createdById], references: [id])
+  policyVersion  PolicyVersion               @relation(fields: [policyVersionId], references: [id])
+  lines          QuoteLine[]
+  approvalSteps  QuoteRevisionApprovalStep[]
+  decisions      ApprovalDecision[]
+  acceptances    CustomerAcceptance[]
+  portalMessages PortalMessage[]             @relation("MessageBaseRevision")
+  spawnedFrom    PortalMessage[]             @relation("SpawnedRevision")
+  order          Order?
+
+  @@unique([quoteId, revisionNumber])
+  @@index([quoteId, createdAt])
+  @@index([policyVersionId])
+}
+
+/// Immutable priced line snapshot. Catalog references support search while category, stock, money, tax, and billing fields preserve evaluated history.
+model QuoteLine {
+  id                   String           @id @default(cuid())
+  revisionId           String
+  productId            String
+  variantId            String?
+  planId               String?
+  billingKind          LineBillingKind
+  interval             BillingInterval?
+  quantity             Int
+  unitPrice            Decimal          @db.Decimal(14, 2)
+  unitCost             Decimal          @db.Decimal(14, 2)
+  lineDiscountPct      Decimal          @db.Decimal(5, 2)
+  effectiveDiscountPct Decimal          @db.Decimal(5, 2)
+  ceilingPct           Decimal          @db.Decimal(5, 2)
+  excessPct            Decimal          @db.Decimal(5, 2)
+  excessAmount         Decimal          @db.Decimal(14, 2)
+  taxPct               Decimal          @db.Decimal(5, 2)
+  lineSubtotal         Decimal          @db.Decimal(14, 2)
+  taxAmount            Decimal          @db.Decimal(14, 2)
+  lineTotal            Decimal          @db.Decimal(14, 2)
+  categoryId           String
+  stockTracked         Boolean
+  position             Int
+  createdAt            DateTime         @default(now())
+
+  revision QuoteRevision     @relation(fields: [revisionId], references: [id])
+  product  Product           @relation(fields: [productId], references: [id])
+  variant  Variant?          @relation(fields: [variantId], references: [id])
+  plan     SubscriptionPlan? @relation(fields: [planId], references: [id])
+  category Category          @relation(fields: [categoryId], references: [id])
+  messages PortalMessage[]
+
+  @@unique([revisionId, position])
+  @@index([productId])
+  @@index([variantId])
+  @@index([revisionId])
+}
+
+/// Required sequential approval copied from policy at evaluation. The UI reads these stored rows instead of recomputing the chain.
+model QuoteRevisionApprovalStep {
+  id         String             @id @default(cuid())
+  revisionId String
+  stepIndex  Int
+  role       Role
+  status     ApprovalStepStatus @default(PENDING)
+  decisionId String?            @unique
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  revision QuoteRevision     @relation(fields: [revisionId], references: [id])
+  decision ApprovalDecision? @relation(fields: [decisionId], references: [id])
+
+  @@unique([revisionId, stepIndex])
+  @@index([revisionId, status])
+}
+
+/// Immutable yes, no, or return decision on one revision. Superseded revisions retain every decision while the service enforces step order.
+model ApprovalDecision {
+  id         String               @id @default(cuid())
+  revisionId String
+  actorId    String
+  actorRole  Role
+  stepIndex  Int
+  kind       ApprovalDecisionKind
+  reason     String
+  createdAt  DateTime             @default(now())
+
+  revision QuoteRevision              @relation(fields: [revisionId], references: [id])
+  actor    User                       @relation(fields: [actorId], references: [id])
+  step     QuoteRevisionApprovalStep?
+
+  @@index([revisionId, createdAt])
+  @@index([actorId])
+}
+
+/// Immutable customer agreement to one exact revision. Confirmation links the resulting order to this acceptance instead of inferring consent from quote state.
+model CustomerAcceptance {
+  id         String   @id @default(cuid())
+  revisionId String
+  actorId    String
+  createdAt  DateTime @default(now())
+
+  revision QuoteRevision @relation(fields: [revisionId], references: [id])
+  actor    User          @relation(fields: [actorId], references: [id])
+  order    Order?
+
+  @@unique([revisionId, actorId])
+  @@index([revisionId])
+}
+
+/// Portal timeline. A comment, line question, or counter (discount, qty, date) is one row. Numeric counters set spawnedRevisionId after Atharva inserts the proposed revision.
+model PortalMessage {
+  id                   String              @id @default(cuid())
+  quoteId              String
+  baseRevisionId       String
+  lineId               String?
+  authorId             String
+  body                 String              @default("")
+  status               PortalMessageStatus @default(OPEN)
+  proposedDiscountPct  Decimal?            @db.Decimal(5, 2)
+  proposedQty          Int?
+  proposedPromisedDate DateTime?           @db.Date
+  spawnedRevisionId    String?
+  createdAt            DateTime            @default(now())
+
+  quote           Quote          @relation(fields: [quoteId], references: [id])
+  baseRevision    QuoteRevision  @relation("MessageBaseRevision", fields: [baseRevisionId], references: [id])
+  line            QuoteLine?     @relation(fields: [lineId], references: [id])
+  author          User           @relation(fields: [authorId], references: [id])
+  spawnedRevision QuoteRevision? @relation("SpawnedRevision", fields: [spawnedRevisionId], references: [id])
+
+  @@index([quoteId, createdAt])
+}
+
+/// Commitment created from one accepted revision. Unique revision and acceptance links make confirmation converge under retries.
+model Order {
+  id                String            @id @default(cuid())
+  sourceRevisionId  String            @unique
+  acceptanceId      String            @unique
+  customerId        String
+  repId             String
+  teamId            String?
+  currency          String
+  promisedDate      DateTime?         @db.Date
+  fulfillmentStatus FulfillmentStatus @default(PENDING)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  sourceRevision QuoteRevision      @relation(fields: [sourceRevisionId], references: [id])
+  acceptance     CustomerAcceptance @relation(fields: [acceptanceId], references: [id])
+  customer       Customer           @relation(fields: [customerId], references: [id])
+  rep            User               @relation("OrderRep", fields: [repId], references: [id])
+  team           SalesTeam?         @relation(fields: [teamId], references: [id])
+  lines          OrderLine[]
+  shipments      Shipment[]
+  invoices       Invoice[]
+  healthFlags    HealthFlag[]
+  tasks          Task[]
+
+  @@index([customerId])
+  @@index([fulfillmentStatus])
+  @@index([promisedDate, fulfillmentStatus])
+}
+
+/// Immutable accepted line copied from the source QuoteLine. Fulfillment, reservations, and subscriptions hang off this row so warehouse code never joins quotes.
+model OrderLine {
+  id                String           @id @default(cuid())
+  orderId           String
+  sourceQuoteLineId String           @unique
+  productId         String
+  variantId         String?
+  quantity          Int
+  unitPrice         Decimal          @db.Decimal(14, 2)
+  unitCost          Decimal          @db.Decimal(14, 2)
+  lineDiscountPct   Decimal          @db.Decimal(5, 2)
+  taxPct            Decimal          @db.Decimal(5, 2)
+  lineTotal         Decimal          @db.Decimal(14, 2)
+  billingKind       LineBillingKind
+  interval          BillingInterval?
+  planId            String?
+  stockTracked      Boolean
+  createdAt         DateTime         @default(now())
+
+  order         Order             @relation(fields: [orderId], references: [id])
+  product       Product           @relation(fields: [productId], references: [id])
+  variant       Variant?          @relation(fields: [variantId], references: [id])
+  plan          SubscriptionPlan? @relation(fields: [planId], references: [id])
+  reservations  Reservation[]
+  backorders    Backorder[]
+  shipmentLines ShipmentLine[]
+  subscription  Subscription?
+
+  @@index([orderId])
+  @@index([variantId])
+}
+
+/// Physical stock location and shipping-cost input. A natural code gives seed and fulfillment flows a stable resolver.
+model Warehouse {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  name         String
+  shippingCost Decimal  @db.Decimal(14, 2)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  stock        Stock[]
+  reservations Reservation[]
+  receipts     StockReceipt[]
+  shipments    Shipment[]
+
+  @@index([active, name])
+}
+
+/// On-hand and reserved counts for one variant in one warehouse. The unique pair is the oversell lock row, and available stock is derived rather than stored.
+model Stock {
+  id          String   @id @default(cuid())
+  warehouseId String
+  variantId   String
+  onHand      Int
+  reserved    Int
+  reorderAt   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  variant   Variant   @relation(fields: [variantId], references: [id])
+
+  @@unique([warehouseId, variantId])
+}
+
+/// Immutable goods receipt with a unique request key. Replays converge without automatically committing eligible backorders.
+model StockReceipt {
+  id           String   @id @default(cuid())
+  warehouseId  String
+  variantId    String
+  quantity     Int
+  receivedById String
+  requestKeyId String   @unique
+  createdAt    DateTime @default(now())
+
+  warehouse  Warehouse  @relation(fields: [warehouseId], references: [id])
+  variant    Variant    @relation(fields: [variantId], references: [id])
+  receivedBy User       @relation(fields: [receivedById], references: [id])
+  requestKey RequestKey @relation(fields: [requestKeyId], references: [id])
+}
+
+/// Warehouse claim against an order line. Release time and status form one coherent transition record, while shortages remain separate backorders.
+model Reservation {
+  id          String            @id @default(cuid())
+  orderLineId String
+  variantId   String
+  warehouseId String
+  quantity    Int
+  status      ReservationStatus @default(ACTIVE)
+  releasedAt  DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  orderLine     OrderLine      @relation(fields: [orderLineId], references: [id])
+  variant       Variant        @relation(fields: [variantId], references: [id])
+  warehouse     Warehouse      @relation(fields: [warehouseId], references: [id])
+  shipmentLines ShipmentLine[]
+
+  @@index([orderLineId, status])
+  @@index([warehouseId, variantId, status])
+}
+
+/// Demand that still has no warehouse. qty across ACTIVE reservations + open backorders equals remaining uncancelled order-line demand.
+model Backorder {
+  id          String    @id @default(cuid())
+  orderLineId String
+  variantId   String
+  quantity    Int
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  orderLine OrderLine @relation(fields: [orderLineId], references: [id])
+  variant   Variant   @relation(fields: [variantId], references: [id])
+
+  @@index([orderLineId])
+  @@index([variantId, resolvedAt])
+}
+
+/// Outbound package from one warehouse with ordered lifecycle timestamps. Consolidation creates another shipment rather than rewriting dispatched history.
+model Shipment {
+  id                   String         @id @default(cuid())
+  orderId              String
+  warehouseId          String
+  status               ShipmentStatus @default(PLANNED)
+  shippingCostSnapshot Decimal        @db.Decimal(14, 2)
+  shippedAt            DateTime?
+  deliveredAt          DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  order     Order          @relation(fields: [orderId], references: [id])
+  warehouse Warehouse      @relation(fields: [warehouseId], references: [id])
+  lines     ShipmentLine[]
+
+  @@index([orderId, status])
+}
+
+/// Immutable quantity assigned to a shipment. Reservation linkage preserves the stock claim consumed by that dispatch.
+model ShipmentLine {
+  id            String   @id @default(cuid())
+  shipmentId    String
+  orderLineId   String
+  reservationId String
+  quantity      Int
+  createdAt     DateTime @default(now())
+
+  shipment    Shipment    @relation(fields: [shipmentId], references: [id])
+  orderLine   OrderLine   @relation(fields: [orderLineId], references: [id])
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+
+  @@index([shipmentId])
+}
+
+/// Configurable recurring offer. Code is its natural resolver, while interval and cancellation policy define future billing behavior.
+model SubscriptionPlan {
+  id           String          @id @default(cuid())
+  code         String          @unique
+  name         String
+  interval     BillingInterval
+  cancelPolicy CancelPolicy
+  archivedAt   DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  products      Product[]            @relation("ProductDefaultPlan")
+  quoteLines    QuoteLine[]
+  orderLines    OrderLine[]
+  subscriptions Subscription[]       @relation("CurrentPlan")
+  pendingFor    Subscription[]       @relation("PendingPlan")
+  changesBefore SubscriptionChange[] @relation("BeforePlan")
+  changesAfter  SubscriptionChange[] @relation("AfterPlan")
+}
+
+/// Mutable recurring billing schedule created once from an order line. Calendar boundaries, cancellation intent, and pending plan state are explicit and independently searchable.
+model Subscription {
+  id                       String             @id @default(cuid())
+  sourceOrderLineId        String             @unique
+  customerId               String
+  planId                   String
+  status                   SubscriptionStatus @default(ACTIVE)
+  quantity                 Int
+  unitPrice                Decimal            @db.Decimal(14, 2)
+  interval                 BillingInterval
+  anchorDay                Int
+  currentPeriodStart       DateTime           @db.Date
+  currentPeriodEnd         DateTime           @db.Date
+  nextBillingDate          DateTime?          @db.Date
+  cancelPolicy             CancelPolicy
+  cancelEffectiveDate      DateTime?          @db.Date
+  pausedAt                 DateTime?
+  pendingPlanId            String?
+  pendingPlanEffectiveDate DateTime?          @db.Date
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+
+  sourceOrderLine OrderLine            @relation(fields: [sourceOrderLineId], references: [id])
+  customer        Customer             @relation(fields: [customerId], references: [id])
+  plan            SubscriptionPlan     @relation("CurrentPlan", fields: [planId], references: [id])
+  pendingPlan     SubscriptionPlan?    @relation("PendingPlan", fields: [pendingPlanId], references: [id])
+  changes         SubscriptionChange[]
+  invoices        Invoice[]
+
+  @@index([status, nextBillingDate])
+  @@index([customerId])
+}
+
+/// Immutable subscription mutation and proration ledger. Before and after values plus the linked adjustment invoice make every effective change reproducible.
+model SubscriptionChange {
+  id                  String                 @id @default(cuid())
+  subscriptionId      String
+  kind                SubscriptionChangeKind
+  beforeQuantity      Int?
+  afterQuantity       Int?
+  beforePlanId        String?
+  afterPlanId         String?
+  effectiveDate       DateTime               @db.Date
+  remainingDays       Int?
+  periodDays          Int?
+  adjustmentAmount    Decimal?               @db.Decimal(14, 2)
+  adjustmentInvoiceId String?                @unique
+  createdAt           DateTime               @default(now())
+
+  subscription      Subscription      @relation(fields: [subscriptionId], references: [id])
+  beforePlan        SubscriptionPlan? @relation("BeforePlan", fields: [beforePlanId], references: [id])
+  afterPlan         SubscriptionPlan? @relation("AfterPlan", fields: [afterPlanId], references: [id])
+  adjustmentInvoice Invoice?          @relation("AdjustmentSource", fields: [adjustmentInvoiceId], references: [id])
+
+  @@index([subscriptionId, createdAt])
+}
+
+/// Receivable header with immutable snapshot lines. Partial unique indexes enforce one-time and subscription-period identities without nullable-column loopholes.
+model Invoice {
+  id             String        @id @default(cuid())
+  customerId     String
+  orderId        String?
+  subscriptionId String?
+  kind           InvoiceKind
+  status         InvoiceStatus @default(UNPAID)
+  currency       String
+  issueDate      DateTime      @db.Date
+  periodStart    DateTime?     @db.Date
+  periodEnd      DateTime?     @db.Date
+  dueDate        DateTime      @db.Date
+  subtotal       Decimal       @db.Decimal(14, 2)
+  taxTotal       Decimal       @db.Decimal(14, 2)
+  total          Decimal       @db.Decimal(14, 2)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  customer      Customer            @relation(fields: [customerId], references: [id])
+  order         Order?              @relation(fields: [orderId], references: [id])
+  subscription  Subscription?       @relation(fields: [subscriptionId], references: [id])
+  lines         InvoiceLine[]
+  payments      Payment[]
+  creditNotes   CreditNote[]
+  creditApps    CreditApplication[]
+  sourcedChange SubscriptionChange? @relation("AdjustmentSource")
+
+  @@index([customerId, status])
+  @@index([orderId])
+  @@index([subscriptionId, periodStart])
+  @@index([status, dueDate])
+}
+
+/// Immutable billed line snapshot. Quantity, price, discount, and tax remain fixed after invoice creation.
+model InvoiceLine {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(14, 2)
+  discountPct Decimal  @db.Decimal(5, 2)
+  taxPct      Decimal  @db.Decimal(5, 2)
+  lineTotal   Decimal  @db.Decimal(14, 2)
+  createdAt   DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
+}
+
+/// Immutable credit document for one source invoice. Separate applications let a credit split across invoices without rewriting this row.
+model CreditNote {
+  id              String       @id @default(cuid())
+  customerId      String
+  sourceInvoiceId String
+  reason          CreditReason
+  amount          Decimal      @db.Decimal(14, 2)
+  issuedById      String
+  createdAt       DateTime     @default(now())
+
+  customer      Customer            @relation(fields: [customerId], references: [id])
+  sourceInvoice Invoice             @relation(fields: [sourceInvoiceId], references: [id])
+  issuedBy      User                @relation(fields: [issuedById], references: [id])
+  applications  CreditApplication[]
+}
+
+/// Immutable finance receipt against one invoice with a unique request key. The service rejects aggregate cash and credit beyond the invoice total.
+model Payment {
+  id           String        @id @default(cuid())
+  invoiceId    String
+  amount       Decimal       @db.Decimal(14, 2)
+  method       PaymentMethod
+  reference    String
+  paidOn       DateTime      @db.Date
+  recordedById String
+  requestKeyId String        @unique
+  createdAt    DateTime      @default(now())
+
+  invoice    Invoice    @relation(fields: [invoiceId], references: [id])
+  recordedBy User       @relation(fields: [recordedById], references: [id])
+  requestKey RequestKey @relation(fields: [requestKeyId], references: [id])
+
+  @@index([invoiceId])
+}
+
+/// Immutable use of credit against one invoice. Unique request linkage prevents applying the same credit command twice.
+model CreditApplication {
+  id           String   @id @default(cuid())
+  creditNoteId String
+  invoiceId    String
+  amount       Decimal  @db.Decimal(14, 2)
+  requestKeyId String   @unique
+  createdAt    DateTime @default(now())
+
+  creditNote CreditNote @relation(fields: [creditNoteId], references: [id])
+  invoice    Invoice    @relation(fields: [invoiceId], references: [id])
+  requestKey RequestKey @relation(fields: [requestKeyId], references: [id])
+
+  @@unique([creditNoteId, invoiceId])
+}
+
+/// Seeded co-purchase or promotion pairing. Add-to-quote still creates a revision, while transient dismissal stays in the browser session.
+model RecommendationRule {
+  id                 String     @id @default(cuid())
+  baseProductId      String
+  candidateProductId String
+  copurchaseScore    Decimal    @db.Decimal(8, 4)
+  promotionTag       String?
+  minMarginPct       Decimal    @db.Decimal(5, 2)
+  status             RuleStatus @default(ACTIVE)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  baseProduct      Product @relation("RecBase", fields: [baseProductId], references: [id])
+  candidateProduct Product @relation("RecCandidate", fields: [candidateProductId], references: [id])
+
+  @@unique([baseProductId, candidateProductId])
+}
+
+/// Single-row Engine 5 configuration. The id is fixed so reads and admin edits target one row; defaults are the blueprint's sample values.
+model HealthSettings {
+  id                   String   @id @default("default")
+  stalledAfterDays     Int      @default(5)
+  anomalyMinSamples    Int      @default(3)
+  anomalyExcessPoints  Decimal  @default(10) @db.Decimal(5, 2)
+  deliveryRiskLeadDays Int      @default(3)
+  updatedAt            DateTime @updatedAt
+}
+
+/// Persistent finding tied to exactly one quote or order. An unresolved fingerprint is unique, and resolvedAt alone determines whether the finding is active.
+model HealthFlag {
+  id          String         @id @default(cuid())
+  type        HealthFlagType
+  fingerprint String
+  quoteId     String?
+  orderId     String?
+  reason      String
+  detectedAt  DateTime
+  resolvedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  quote Quote? @relation(fields: [quoteId], references: [id])
+  order Order? @relation(fields: [orderId], references: [id])
+  tasks Task[]
+
+  @@index([resolvedAt, type])
+  @@index([quoteId, resolvedAt])
+  @@index([orderId, resolvedAt])
+}
+
+/// Actionable nudge or escalation tied to one quote or order. The action key deduplicates refreshes, and completedAt agrees with terminal work status.
+model Task {
+  id          String     @id @default(cuid())
+  actionKey   String     @unique
+  flagId      String
+  quoteId     String?
+  orderId     String?
+  assigneeId  String
+  createdById String
+  action      TaskAction
+  status      TaskStatus @default(OPEN)
+  dueDate     DateTime   @db.Date
+  completedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  flag      HealthFlag @relation(fields: [flagId], references: [id])
+  quote     Quote?     @relation(fields: [quoteId], references: [id])
+  order     Order?     @relation(fields: [orderId], references: [id])
+  assignee  User       @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdBy User       @relation("TaskCreator", fields: [createdById], references: [id])
+
+  @@index([assigneeId, status])
+}
+
+/// Append-only business event with optional revision context. Required metadata preserves structured facts without mutating prior events.
+model AuditEvent {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  revisionId String?
+  actorId    String?
+  action     String
+  reason     String?
+  metadata   Json
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+}
+
+/// Durable idempotency claim and result envelope. A scope-key pair converges retried commands, including operations that return compound payloads.
+model RequestKey {
+  id            String             @id @default(cuid())
+  scope         RequestScope
+  key           String
+  actorId       String?
+  resultKind    RequestResultKind?
+  resultId      String?
+  resultPayload Json?
+  completedAt   DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  actor              User?               @relation(fields: [actorId], references: [id])
+  payments           Payment[]
+  creditApplications CreditApplication[]
+  receipts           StockReceipt[]
+
+  @@unique([scope, key])
+  @@index([resultKind, resultId])
+}

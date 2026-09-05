@@ -1,4 +1,4 @@
-import type { Recommendation, RecommendationInput } from '../../contracts/krishna.ts';
+import type { Recommendation, RecommendationInput } from '../../contracts/krishna';
 
 const compareId = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 

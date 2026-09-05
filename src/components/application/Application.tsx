@@ -3,7 +3,7 @@
 import {useCallback,useEffect,useState} from 'react';
 import {usePathname,useRouter} from 'next/navigation';
 import {ArrowUpRight,BarChart3,Boxes,CreditCard,FileText,HeartPulse,LayoutDashboard,LogOut,Menu,Package,PanelLeft,PanelLeftClose,Repeat,Settings,ShieldCheck} from 'lucide-react';
-import type {Actor,DataState} from '../../contracts/application';
+import type {Actor,DataState,Role} from '../../contracts/application';
 import {api,Button,Heading,Input,Link,Money,Section,StatusBadge,Table,type Context} from './shared';
 import Quotes from './Quotes';
 import Operations from './Operations';
@@ -22,6 +22,22 @@ const navigation=[
   ['/products','Catalog',Boxes],
   ['/settings/customers','Setup',Settings],
 ] as const;
+
+function sessionToActor(data: unknown): Actor | null {
+  if (!data || typeof data !== 'object') return null;
+  const value = data as Record<string, unknown>;
+  const nested = value.actor && typeof value.actor === 'object' ? (value.actor as Record<string, unknown>) : value;
+  if (typeof nested.id !== 'string' || typeof nested.role !== 'string') return null;
+  const role = (nested.role === 'FINANCE' ? 'FINANCE_OPS' : nested.role) as Role;
+  return {
+    id: nested.id,
+    name: typeof nested.name === 'string' ? nested.name : nested.id,
+    email: typeof nested.email === 'string' ? nested.email : '',
+    role,
+    active: nested.active !== false,
+    customerId: typeof nested.customerId === 'string' ? nested.customerId : undefined,
+  };
+}
 
 export default function Application(){
   const pathname=usePathname()??'/';
@@ -46,7 +62,7 @@ export default function Application(){
     fetch('/api/auth/me',{cache:'no-store'}).then(async response=>{
       const result=await response.json();
       if(cancelled)return;
-      if(response.ok){setActor(result.data.actor);setMode(result.mode??'NOT CONNECTED');}
+      if(response.ok){setActor(sessionToActor(result.data));setMode(result.mode??'LIVE');}
       else if(response.status!==401)setError(result.error?.message??'The session could not be checked.');
     }).catch(reason=>{if(!cancelled)setError(reason instanceof Error?reason.message:'The session could not be checked.');})
       .finally(()=>{if(!cancelled)setLoading(false);});
@@ -141,7 +157,7 @@ function Auth({path,error,onLogin}:{path:string;error:string;onLogin:(actor:Acto
         <p className="dev-copy">DEV FIXTURE · Local seeded accounts</p>
         {done?<div className="notice" role="status">Account requested. Your administrator must activate access.<Link href="/login">Return to sign in</Link></div>:<form onSubmit={async event=>{
           event.preventDefault();setBusy(true);setIssue('');
-          try{if(path==='/signup'){await api('auth/signup',{name,email,password});setDone(true);}else{const result=await api<{actor:Actor;mode?:string}>('auth/login',{email,password});onLogin(result.actor,result.mode);}}
+          try{if(path==='/signup'){await api('auth/signup',{name,email,password});setDone(true);}else{const result=await api<{actor?:Actor;mode?:string;id?:string;name?:string;email?:string;role?:Role;active?:boolean;customerId?:string}>('auth/login',{email,password});const actor=result.actor??sessionToActor(result);if(!actor)throw new Error('Sign in could not be completed.');onLogin(actor,result.mode??'LIVE');}}
           catch(reason){setIssue(reason instanceof Error?reason.message:'Sign in could not be completed.');}
           finally{setBusy(false);}
         }}>
