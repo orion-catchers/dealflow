@@ -1,5 +1,5 @@
 /**
- * DEV FIXTURE actor resolver. Ruchir owns real session auth (`src/lib/auth/*`,
+ * DEV FIXTURE actor resolver. Ruchir owns real session auth (`src/server/lib/auth/*`,
  * `/api/auth/*`). Until his middleware lands, Harsh's routes read an `x-dev-actor`
  * header (a fixture user id) and map it to an Actor. This file is replaced by
  * Ruchir's `getActor(request)`; the call signature is kept identical.

@@ -1,8 +1,8 @@
 /** Customer master — DEV FIXTURE (in-memory repository). GET list, POST create. */
 import { handle } from "@/lib/api/respond";
-import { getActor } from "@/lib/auth/dev-actor";
+import { getActor } from "@/server/lib/auth/dev-actor";
 import { readJson } from "@/features/catalog/api";
-import { getCatalogService } from "@/features/catalog/service";
+import { getCatalogService } from "@/server/catalog/service";
 
 export async function GET(request: Request) {
   return handle(async () => {

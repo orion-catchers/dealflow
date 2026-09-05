@@ -41,7 +41,7 @@ import type {
   Warehouse,
 } from "@/contracts/harsh";
 import { ApiFailure } from "@/lib/api/respond";
-import { requireRole } from "@/lib/auth/dev-actor";
+import { requireRole } from "@/server/lib/auth/dev-actor";
 import {
   available,
   deriveStatus,

@@ -7,7 +7,7 @@ import type {
   PricedQuoteLine,
   Quote,
   QuoteRevision,
-} from "../contracts/atharva";
+} from "@/contracts/atharva";
 
 const policy: PolicySnapshot = {
   policyVersionId: "policy-v1",

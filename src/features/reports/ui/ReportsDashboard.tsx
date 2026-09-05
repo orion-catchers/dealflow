@@ -20,7 +20,7 @@ import type {
 } from "@/contracts/harsh";
 import { Button, Card, DataTable, EmptyState, ErrorState, Input, Money, PageHeader, Select, StatusBadge, type Column } from "@/dev-adapter/ui";
 import { api, ApiClientError, getDevActor } from "@/lib/api/client";
-import type { ReportFilterOptions } from "../service";
+import type { ReportFilterOptions } from "@/server/reports/service";
 
 // ---------------------------------------------------------------------------
 // Constants

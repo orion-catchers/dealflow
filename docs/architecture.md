@@ -124,9 +124,13 @@ products archived, never deleted.
 ```
 src/contracts/harsh.ts        types shared with other lanes (catalog, inventory, reports)
 src/fixtures/harsh.ts         §13 demo numbers (DEV FIXTURE)
-src/features/catalog/         engine/resolve-price · repository · service · api (zod)
-src/features/inventory/       engine/{demand,availability,split,validate-plan,status} · repository · service
-src/features/reports/         engine/{period,filter,aggregate,export-xlsx,export-pdf} · repository · service
+src/features/catalog/ui/      catalog UI screens and hooks
+src/features/inventory/ui/    fulfillment and warehouse UI screens and hooks
+src/features/reports/ui/      reports dashboard UI
+src/features/{catalog,inventory,reports}/api.ts  zod schemas + API helpers
+src/server/catalog/           engine/resolve-price · repository · service
+src/server/inventory/         engine/{demand,availability,split,validate-plan,status} · repository · service
+src/server/reports/           engine/{period,filter,aggregate,export-xlsx,export-pdf} · repository · service
 src/app/api/{customers,products,price-lists,catalog,warehouses,stock,fulfillment,reports}
 src/app/(internal)/{products,customers,warehouses,fulfillment,reports}
 ```

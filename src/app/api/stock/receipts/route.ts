@@ -1,7 +1,7 @@
 import { handle } from "@/lib/api/respond";
-import { getActor } from "@/lib/auth/dev-actor";
+import { getActor } from "@/server/lib/auth/dev-actor";
 import { receiptBodySchema } from "@/features/inventory/api";
-import { getFulfillmentService } from "@/features/inventory/service";
+import { getFulfillmentService } from "@/server/inventory/service";
 
 /** POST /api/stock/receipts — ReceiptInput → ReceiptResult (FINANCE/ADMIN). Idempotent by requestKey. */
 export async function POST(request: Request) {
