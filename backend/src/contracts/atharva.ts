@@ -58,6 +58,7 @@ export interface Actor {
 export interface QuoteLineInput {
   productId: Id;
   variantId?: Id;
+  category?: string;
   description: string;
   quantity: number;
   unitPrice: DecimalString;
