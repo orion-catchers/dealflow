@@ -130,3 +130,16 @@ dialog.df-dialog{position:fixed;inset:0;margin:auto;width:min(640px,calc(100% - 
 a.df-button{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;white-space:nowrap}
 a.df-button:hover{text-decoration:none}
 a.df-button--primary{color:#fff}
+.view-toggle{display:inline-flex;gap:8px;margin:0 0 20px;flex-wrap:wrap}
+.view-toggle .df-button{min-width:118px}
+.pipeline{display:grid;grid-template-columns:repeat(7,minmax(196px,1fr));gap:12px;align-items:stretch;overflow:auto;padding-bottom:8px}
+.pipeline>section{min-width:0;min-height:320px;display:flex;flex-direction:column;background:#edf2f4;border:1px solid #e1e8ed;border-radius:10px;padding:12px;flex:unset}
+.pipeline h2{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;letter-spacing:.4px;text-transform:uppercase;margin:0;min-height:28px}
+.pipeline h2 small{display:inline-flex;align-items:center;justify-content:center;margin:0;min-width:22px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:11px;color:var(--ink);font-weight:700}
+.pipeline-empty{margin:14px 0 0;font-size:12px;color:var(--muted)}
+.pipeline-deal{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:14px;margin-top:10px;min-height:156px}
+.pipeline-deal>span{margin-top:0}
+.pipeline-deal .df-button{margin-top:auto}
+.home-guides .panel{display:flex;flex-direction:column;min-height:200px}
+.home-guides .panel>p{flex:1}
+.home-guides .df-button{align-self:flex-start;margin-top:12px}

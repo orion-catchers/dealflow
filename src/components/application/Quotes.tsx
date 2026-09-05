@@ -91,7 +91,9 @@ export default function Quotes({ ctx }: { ctx: Context }) {
         description={
           approval
             ? "Review the exact revision and follow the assigned approval sequence."
-            : "Build clear proposals and keep every revision in view."
+            : path === "/pipeline"
+              ? "Same quotations as the list, arranged by stage so you can see what is waiting, stuck, or ready to confirm."
+              : "Build clear proposals and keep every revision in view."
         }
       >
         {!approval && ["ADMIN", "SALES_REP"].includes(actor.role) && (
@@ -101,14 +103,11 @@ export default function Quotes({ ctx }: { ctx: Context }) {
         )}
       </Heading>
       {!approval && (
-        <div className="tabs">
-          <Link className={path === "/quotes" ? "selected" : ""} href="/quotes">
+        <div className="view-toggle" role="tablist" aria-label="Quotation layout">
+          <Link className={`df-button ${path === "/quotes" ? "df-button--primary" : "df-button--secondary"}`} href="/quotes">
             List view
           </Link>
-          <Link
-            className={path === "/pipeline" ? "selected" : ""}
-            href="/pipeline"
-          >
+          <Link className={`df-button ${path === "/pipeline" ? "df-button--primary" : "df-button--secondary"}`} href="/pipeline">
             Pipeline
           </Link>
         </div>
@@ -132,15 +131,15 @@ export default function Quotes({ ctx }: { ctx: Context }) {
             "APPROVED",
             "CONFIRMED",
             "REJECTED",
-          ].map((stage) => (
+          ].map((stage) => {
+            const cards = rows.filter((q) => q.stage === stage);
+            return (
             <section key={stage}>
               <h2>
-                {stage.replaceAll("_", " ")}{" "}
-                <small>{rows.filter((q) => q.stage === stage).length}</small>
+                {stage.replaceAll("_", " ")}
+                <small>{cards.length}</small>
               </h2>
-              {rows
-                .filter((q) => q.stage === stage)
-                .map((q) => (
+              {cards.length ? cards.map((q) => (
                   <article className="pipeline-deal" key={q.id}>
                     <strong>{quoteTitle(q)}</strong>
                     <span>
@@ -149,14 +148,15 @@ export default function Quotes({ ctx }: { ctx: Context }) {
                     {q.totals.map((t) => (
                       <small key={t.interval}>
                         <Money amount={t.total} currency={q.currency} /> ·{" "}
-                        {t.interval}
+                        {t.interval.replaceAll("_", " ").toLowerCase()}
                       </small>
                     ))}
                     <OpenLink href={"/quotes/" + q.id} />
                   </article>
-                ))}
+              )) : <p className="pipeline-empty">No deals in this stage</p>}
             </section>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <Section title={approval ? "Requests" : "All quotations"}>

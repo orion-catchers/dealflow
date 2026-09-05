@@ -344,6 +344,15 @@ function Home({ctx}:{ctx:Context}){
     <Heading title={`Good to see you, ${actor.name.split(' ')[0]}`} description="A clear view of your pipeline and the work that needs you next."><Link className="primary-link" href="/quotes/new">New quotation</Link></Heading>
     <div className="metrics">{metrics.map(([name,value,url])=><Link className="metric" href={String(url)} key={name}><span>{name}</span><strong>{value}</strong><small>View details</small></Link>)}</div>
     <Section title="Your recent quotations" actions={<Link href="/quotes">View all</Link>}><Table head={['Quotation','Customer','Status','One-time total','Next step','']} rows={d.quotes.slice(0,5).map(q=>[quoteTitle(q),d.customers.find(c=>c.id===q.customerId)?.name,<StatusBadge status={q.stage}/>,<Money amount={q.totals.find(t=>t.interval==='ONE_TIME')?.total??'0.00'} currency={q.currency}/>,q.stage==='CONFIRMED'?'Allocate stock':q.evaluation.status==='PENDING'?'Review approval':q.sent?'Await customer acceptance':'Review and send',<OpenLink key={q.id} href={'/quotes/'+q.id}/>])}/></Section>
-    <div className="two-columns"><Section title="Commitments at a glance"><p>Warehouse and billing previews do not commit your business. Confirm the current, approved terms with your customer first.</p><Link href="/fulfillment">Review fulfillment</Link></Section><Section title="Team follow-ups">{d.tasks.filter(t=>t.status==='OPEN').length?d.tasks.filter(t=>t.status==='OPEN').map(t=>{const q=d.quotes.find(item=>item.id===t.quoteId);return <p key={t.id}>{t.text} · {t.dueDate} {q?<OpenLink href={'/quotes/'+t.quoteId} variant="secondary">Open</OpenLink>:null}</p>;}):<p>No open follow-ups. Deal health will help you spot the next action.</p>}<Link href="/health">Open deal health</Link></Section></div>
+    <div className="two-columns home-guides">
+      <Section title="Warehouse and delivery">
+        <p>After a customer accepts, this is where stock is received, split across warehouses, and shipped. Previews do not reserve inventory until you allocate.</p>
+        <OpenLink href="/fulfillment">Open fulfillment</OpenLink>
+      </Section>
+      <Section title="Deals that need attention">
+        {d.tasks.filter(t=>t.status==='OPEN').length?d.tasks.filter(t=>t.status==='OPEN').map(t=>{const q=d.quotes.find(item=>item.id===t.quoteId);return <p key={t.id}>{t.text} · {t.dueDate} {q?<OpenLink href={'/quotes/'+t.quoteId} variant="secondary">Open</OpenLink>:null}</p>;}):<p>Stalled quotes and owner-assigned follow-ups show here so a deal does not sit without a next step.</p>}
+        <OpenLink href="/health">Open deal health</OpenLink>
+      </Section>
+    </div>
   </>;
 }
