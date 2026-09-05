@@ -1,7 +1,7 @@
 import { handle } from "@/lib/api/respond";
 import { getActor } from "@/server/lib/auth/dev-actor";
 import { cancelBodySchema } from "@/features/inventory/api";
-import { getFulfillmentService } from "@/server/inventory/service";
+import { getFulfillmentService } from "@/server/inventory/live";
 
 /** POST /api/fulfillment/:orderId/cancel — release unshipped allocation; SHIPPED untouched (FINANCE/ADMIN). */
 export async function POST(request: Request, { params }: { params: Promise<{ orderId: string }> }) {
