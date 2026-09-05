@@ -108,6 +108,7 @@ export interface PolicyRule {
   managerThresholdPct: DecimalString;
   financeWorstLineThresholdPct: DecimalString;
   financeWeightedThresholdPct: DecimalString;
+  totalDiscountBudgetPct?: DecimalString;
   minimumHistorySamples: number;
 }
 
