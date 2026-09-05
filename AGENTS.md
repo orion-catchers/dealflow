@@ -1,5 +1,9 @@
 # DealFlow360 implementation guidance
 
+## Expanded frontend ownership (Krishna authorized, 2026-09-05)
+
+Krishna now owns the full 18-screen frontend and supplementary setup screens. Preserve future teammate UI contributions and coordinate overlaps. Backend ownership below is unchanged. The minimal Next.js runtime/package/config files are provisionally authorized because no Ruchir scaffold exists; Ruchir reconciles them during integration. Run `npm ci`, `npm run dev:fixture` (http://127.0.0.1:3000), `npm run typecheck`, `npm test`, `npm run build`. Development adapters are explicit, server-only, and prohibited when NODE_ENV=production. Missing live services return 503; never fall back. See docs/team-integration-handoff.md for the current delivery and adapter map; earlier memory entries are historical checkpoints.
+
 Read the execution blueprint before implementation. Preserve existing work and coordinate cross-owner interfaces. Stack: Next.js, TypeScript, Tailwind, PostgreSQL, Prisma; one application and database.
 
 - Krishna: shared UI/theme/shell, entry/auth presentation, sales home, builder, recommendations, restricted portal. Paths: `src/components/ui`, `src/components/shell`, `src/styles`, `src/features/{builder,recommendations,portal}`, `src/contracts/krishna.ts`.
