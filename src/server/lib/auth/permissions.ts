@@ -69,7 +69,7 @@ const RULES: readonly Rule[] = [
   { prefix: "/api/customers", access: ["ADMIN"] },
 
   { prefix: "/api/health/actions", access: ["ADMIN"] },
-  { prefix: "/api/health", access: "PUBLIC" },
+  { prefix: "/api/health", access: "INTERNAL" },
 ];
 
 export function accessFor(pathname: string, method: string): Access {
@@ -114,7 +114,14 @@ export function assertCanAccess(actor: Actor, pathname: string, method: string):
 // Single entry point for API routes: resolves the session actor and enforces the
 // role matrix for the request's path + method.
 export async function getAuthorizedActor(request: Request): Promise<Actor> {
+  const pathname = pathnameOf(request);
+  const method = methodOf(request);
+  if (accessFor(pathname, method) === "PUBLIC") {
+    // Route-authoring bug, not a client error: PUBLIC rules serve anonymous
+    // callers, so the route must not resolve an actor at all.
+    throw new Error(`${method} ${pathname} is PUBLIC: serve it without resolving an actor`);
+  }
   const actor = await getActor(request);
-  assertCanAccess(actor, pathnameOf(request), methodOf(request));
+  assertCanAccess(actor, pathname, method);
   return actor;
 }

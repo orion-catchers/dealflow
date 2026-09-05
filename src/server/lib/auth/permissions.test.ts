@@ -7,7 +7,6 @@ describe("accessFor", () => {
   it("keeps auth entry points public", () => {
     expect(accessFor("/api/auth/login", "POST")).toBe("PUBLIC");
     expect(accessFor("/api/auth/signup", "POST")).toBe("PUBLIC");
-    expect(accessFor("/api/health", "GET")).toBe("PUBLIC");
   });
 
   it("requires any session for auth self endpoints", () => {
@@ -17,6 +16,13 @@ describe("accessFor", () => {
 
   it("defaults unknown api paths to internal", () => {
     expect(accessFor("/api/something-new", "GET")).toBe("INTERNAL");
+  });
+
+  it("deal health is staff-only data, not a public probe", () => {
+    expect(accessFor("/api/health", "GET")).toBe("INTERNAL");
+    expect(accessFor("/api/health/actions", "POST")).toEqual(["ADMIN"]);
+    expect(canAccess("CUSTOMER", "/api/health", "GET")).toBe(false);
+    expect(canAccess("SALES_REP", "/api/health", "GET")).toBe(true);
   });
 });
 
