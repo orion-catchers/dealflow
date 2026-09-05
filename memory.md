@@ -207,6 +207,16 @@ _No entries yet._
     quotes DataTables; PDF/XLSX export via `/api/reports/export` using the same applied
     filters. Smoke: `GET /reports` 200, `GET /api/reports?period=THIS_MONTH` 200 (3 rows,
     range 2026-09-01 → 2026-10-01), export XLSX 200 with correct Content-Disposition.
+16. **Screens 07–08 Fulfillment UI landed (subagent, Grok 4.6 Medium) — DEV FIXTURE.**
+    `src/features/inventory/ui/{useApi,FulfillmentList,FulfillmentDetailView,OverrideEditor}.tsx`
+    + `src/app/(internal)/fulfillment/{page,[orderId]/page}.tsx`. List: Orders + Stock
+    tabs, status filter, backorder highlight. Detail: recommended split (Accept with
+    requestKey generated once at dialog open), Manual Override editor (credits own
+    RESERVED stock), Consolidate Remaining Backorder prompt when `consolidationAvailable`,
+    ship/deliver per shipment, cancel unshipped with reason. 403 shown, buttons not hidden.
+    Smoke: `/fulfillment` 200, `/fulfillment/order-acme-1001` 200, preview matches
+    Main 6 laptops + 10 docks / East 3 laptops / 1 backorder. Accept/override not posted
+    against shared in-memory state.
 
 **Status legend for Harsh's lane:** everything is **DEV FIXTURE** (in-memory repositories)
 until Ruchir's Prisma schema lands; then the repository adapters swap to Prisma.
