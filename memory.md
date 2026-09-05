@@ -72,9 +72,9 @@ need a short interface note (before/after) in this file under "Interface notes".
 |---|---|---|---|
 | Auth session → Actor | Ruchir | LIVE | Cookie `dealflow_session`; `getActor` from `@/server/lib/auth/dev-actor`. Dev still falls back to `x-dev-actor`. |
 | Catalog resolve | Harsh | DEV FIXTURE | Live API + Screens 16/17; in-memory repo until Prisma. |
-| Quote pricing / policy / revisions | Atharva | NOT STARTED | — |
-| Suggestions / customer proposal | Krishna | NOT STARTED | — |
-| Customer confirmation → orderReady | Atharva | NOT STARTED | Harsh consumes `OrderForFulfillment` (defined in harsh.ts) — Atharva to confirm field mapping. |
+| Quote pricing / policy / revisions | Atharva | LIVE | Prisma `LiveQuoteService` + HTTP `/api/quotes/*`. Fixture GET removed. |
+| Suggestions / customer proposal | Krishna | LIVE (portal mutations) | `POST /api/quotes/:id/proposals` and `/api/portal/quotes/:id/proposals`. Fixture portal still used when `DEALFLOW_ADAPTER=development`. |
+| Customer confirmation → orderReady | Atharva | LIVE | `POST /api/quotes/:id/confirm` and portal confirm. Same tx: Order + `initializeBilling` + `initializeFulfillment`. |
 | Split preview/commit | Harsh | DEV FIXTURE | Screens 07/08 + Engine 2 tests; in-memory until Prisma. |
 | Fulfillment initializer (inside confirmOrder tx) | Harsh | DEV FIXTURE | `InitializeFulfillmentInput/Result` in harsh.ts. DB-only, no reservation. |
 | Billing initializer | Ruchir | LIVE | `initializeBilling(tx, order, requestKey)` from `@/server/billing/initialize`. First recurring invoice is due-run, not init. |
@@ -347,11 +347,27 @@ until Ruchir's Prisma schema lands; then the repository adapters swap to Prisma.
 
 ---
 
+## 2026-09-05T17:32:00+05:30 (Asia/Kolkata) - Owner: Atharva (landed by Ruchir)
+
+Wired Atharva engines to Prisma and HTTP so quotes, policy versions, health, dashboard, audit, and confirmOrder are live.
+
+Files: `src/server/quotes/live-service.ts`, `src/server/quotes/http.ts`, `src/app/api/quotes/**`, `src/app/api/portal/quotes/**`, `src/server/governance/live-policy-service.ts`, `src/app/api/policies/route.ts`, `src/server/audit/prisma-repository.ts`, `src/server/health/live-service.ts`, `src/app/api/health/**`, `src/app/api/dashboard/route.ts`, `src/app/api/approvals/[revisionId]/route.ts`, `src/features/atharva/ui/AtharvaScreens.tsx`.
+
+Checks:
+- `npx tsc --noEmit`: clean
+- `npx vitest run`: 221 passed
+- Browser: not verified this session (API/typecheck only)
+
+Status: LIVE for dedicated Atharva HTTP (`/api/quotes/*`, policies, health, dashboard, confirm). Krishna Application `/api/workspace` and `/api/actions` still 503 unless `DEALFLOW_ADAPTER=development`. End-to-end authenticated quote→approve→accept→confirm against Postgres not run here.
+
+---
+
 ## 5. Interface notes (cross-lane changes)
 
 - **2026-09-05, Ruchir, `src/server/billing/initialize.ts`:** Atharva's `confirmOrder` should call `initializeBilling(tx, order, requestKey)` inside the same Prisma transaction as order insert. Replay with the same key returns `{ replayed: true }` and the original invoice/subscription ids. Does not create the first recurring invoice. Consumers: Atharva.
 - **2026-09-05, Ruchir, `GET /api/plans`:** still `{ id, name, interval }[]` for Harsh's product editor. Extra Prisma plans may appear with cuid ids; fixture ids `plan-support-monthly` etc. remain from the catalog merge. `POST /api/plans` is ADMIN. Consumers: Harsh ProductEditor.
 - **2026-09-05, merge `origin/main` into Krishna UI PR:** Conflicted files were Krishna-owned UI/theme plus Ruchir-owned scaffold. Kept Krishna `globals.css`/login/home/portal/builder screens and seed+harness exports in `src/fixtures/krishna.ts`. Kept main `package.json`/Prisma/auth/CI/`@/*` tsconfig, and appended Krishna's `memory.md` log instead of overwriting teammate entries. Removed root `[[...path]]` page so teammate App Router screens keep their URLs.
+- **2026-09-05, Atharva live quotes:** `confirmOrder` persists `Order`/`OrderLine` then calls `initializeBilling(tx, …)` and `initializeFulfillment(tx, orderReady)` in one transaction. Fulfillment is `CONNECTED` only if the Order row exists. Krishna portal confirm maps `{orderId, quoteId, revision, created, fulfillmentInitialization}`. Approvals POST now runs `LiveQuoteService.decideApproval` then returns Ruchir's UI detail. Consumers: Krishna portal/builder HTTP, Harsh fulfillment, Ruchir billing.
 
 ---
 
