@@ -457,26 +457,19 @@ function QuoteDetail({ q, ctx }: { q: Quote; ctx: Context }) {
   };
 
   const sendAction = (variant: "primary" | "secondary") => (
-    <FormAction
-      title={`Send to ${customerName}`}
-      button={`Send to ${customerName}`}
+    <Button
       variant={variant}
-      confirmLabel="Send quotation"
-      description={
-        approvalOk(q)
-          ? `${customerName} will see ${version} in their portal and can accept it, ask a question, or propose changes.`
-          : `${customerName} will see ${version} in their portal and can ask questions or propose changes, but cannot accept until it is approved.`
-      }
-      initial={{ customerTier: TIERS.find((t) => t.toLowerCase() === customer?.tier.toLowerCase()) ?? "" }}
-      fields={[{ key: "customerTier", label: "Commercial tier for this customer", type: "select", options: [...TIERS], required: true }]}
-      onSubmit={(v) =>
-        run(
+      disabled={busy}
+      onClick={() => {
+        void act(
           "sendQuote",
-          { ...v, id: q.id, expectedRevision: q.revision, customerTier: v.customerTier },
+          { customerTier: tierName },
           `Sent ${version} to ${customerName}. It is now in their customer portal${approvalOk(q) ? " and they can accept it." : "; they can review it, but acceptance waits for approval."}`,
-        )
-      }
-    />
+        );
+      }}
+    >
+      {busy ? "Sendingâ€¦" : `Send to ${customerName}`}
+    </Button>
   );
 
   const replyAction = (

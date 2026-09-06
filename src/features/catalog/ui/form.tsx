@@ -93,11 +93,11 @@ export function CheckboxField({
   id?: string;
 }) {
   return (
-    <label className="inline-flex items-center gap-2 text-sm text-slate-800" htmlFor={id}>
+    <label className="catalog-checkbox-field inline-flex items-center gap-2 text-sm text-slate-800" htmlFor={id}>
       <input
         id={id}
         type="checkbox"
-        className="h-4 w-4 rounded border-slate-300"
+        className="catalog-checkbox h-4 w-4 rounded border-slate-300"
         checked={checked}
         disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}

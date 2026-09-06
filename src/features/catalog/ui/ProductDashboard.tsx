@@ -52,30 +52,33 @@ export function ProductDashboard() {
     {
       key: "name",
       header: "Product",
+      className: "catalog-col-product",
       render: (p) => (
         <div>
-          <Link href={`/products/${p.id}`} className="font-medium hover:underline">
+          <Link href={`/products/${p.id}`} className="catalog-product-link font-medium hover:underline">
             {p.name}
           </Link>
         </div>
       ),
     },
-    { key: "category", header: "Category", render: (p) => categoryLabel(p.category) },
-    { key: "unit", header: "Unit", render: (p) => unitLabel(p.unit) },
-    { key: "basePrice", header: "Base price", align: "right", render: (p) => <Money amount={p.basePrice} currency={CURRENCY} /> },
-    { key: "baseCost", header: "Base cost", align: "right", render: (p) => <Money amount={p.baseCost} currency={CURRENCY} /> },
+    { key: "category", header: "Category", className: "catalog-col-category", render: (p) => categoryLabel(p.category) },
+    { key: "unit", header: "Unit", className: "catalog-col-unit", render: (p) => unitLabel(p.unit) },
+    { key: "basePrice", header: "Base price", className: "catalog-col-price", align: "right", render: (p) => <Money amount={p.basePrice} currency={CURRENCY} /> },
+    { key: "baseCost", header: "Base cost", className: "catalog-col-cost", align: "right", render: (p) => <Money amount={p.baseCost} currency={CURRENCY} /> },
     {
       key: "tax",
       header: "Tax",
+      className: "catalog-col-tax",
       render: (p) => {
         const t = taxById.get(p.taxRateId);
         return t ? `${t.name} (${t.ratePct}%)` : <span className="text-slate-500">{p.taxRateId}</span>;
       },
     },
-    { key: "stock", header: "Stock-tracked", render: (p) => (p.stockTracked ? "Yes" : "No") },
+    { key: "stock", header: "Stock-tracked", className: "catalog-col-stock", render: (p) => (p.stockTracked ? "Yes" : "No") },
     {
       key: "subscription",
       header: "Subscription",
+      className: "catalog-col-subscription",
       render: (p) => {
         if (!p.isSubscription) return <span className="text-slate-500">No</span>;
         const plan = p.planId ? planById.get(p.planId) : undefined;
@@ -85,23 +88,25 @@ export function ProductDashboard() {
     {
       key: "status",
       header: "Status",
+      className: "catalog-col-status",
       render: (p) => (p.archivedAt ? <StatusBadge status="ARCHIVED" /> : p.active ? <StatusBadge status="ACTIVE" /> : <StatusBadge status="INACTIVE" />),
     },
     {
       key: "actions",
       header: "Actions",
+      className: "catalog-col-actions",
       align: "right",
       render: (p) => (
-        <div className="flex justify-end gap-1">
-          <Link href={`/products/${p.id}`} className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50">
+        <div className="catalog-row-actions flex justify-end gap-1">
+          <Link href={`/products/${p.id}`} className="catalog-action-button catalog-action-button--secondary">
             Edit
           </Link>
           {p.archivedAt ? (
-            <Button variant="secondary" onClick={() => setConfirm({ product: p, action: "restore" })}>
+            <Button className="catalog-action-button catalog-action-button--secondary" variant="secondary" onClick={() => setConfirm({ product: p, action: "restore" })}>
               Restore
             </Button>
           ) : (
-            <Button variant="danger" onClick={() => setConfirm({ product: p, action: "archive" })}>
+            <Button className="catalog-action-button catalog-action-button--danger" variant="danger" onClick={() => setConfirm({ product: p, action: "archive" })}>
               Archive
             </Button>
           )}
@@ -111,31 +116,32 @@ export function ProductDashboard() {
   ];
 
   return (
-    <div>
+    <div className="catalog-page catalog-products-page">
       <PageHeader
         title="Products"
         description="Catalog, variants and price lists. Products are archived, never deleted."
         actions={
-          <>
-            <StatusBadge status="DEV FIXTURE" label="DEV FIXTURE data" />
-            <Link href="/price-lists" className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50">
+          <div className="catalog-header-actions">
+            <Link href="/price-lists" className="catalog-button catalog-button--secondary">
               Manage Price Lists
             </Link>
-            <Link href="/products/new" className="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
+            <Link href="/products/new" className="catalog-button catalog-button--primary">
               New Product
             </Link>
-          </>
+          </div>
         }
       />
 
-      <SummaryCards summary={summary} />
+      <div className="catalog-summary-grid">
+        <SummaryCards summary={summary} />
+      </div>
 
-      <div className="mb-3 mt-6 flex flex-wrap items-center gap-3">
-        <div className="w-72">
+      <div className="catalog-product-toolbar mb-3 mt-6 flex flex-wrap items-center gap-3">
+        <div className="catalog-search-control w-72">
           <Input placeholder="Search by name or category…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search products" />
         </div>
         <CheckboxField id="show-archived" label="Show archived" checked={showArchived} onChange={setShowArchived} />
-        <span className="ml-auto text-xs text-slate-500">
+        <span className="catalog-results-count ml-auto text-xs text-slate-500">
           {products.data ? `${filtered.length} of ${products.data.length} products` : null}
         </span>
       </div>
@@ -145,7 +151,9 @@ export function ProductDashboard() {
       ) : !products.loading && (products.data?.length ?? 0) === 0 ? (
         <EmptyState message="No products yet. Create the first one with “New Product”." />
       ) : (
-        <DataTable columns={columns} rows={filtered} loading={products.loading} rowKey={(p) => p.id} emptyMessage="No products match your search." />
+        <div className="catalog-table-shell catalog-products-table">
+          <DataTable columns={columns} rows={filtered} loading={products.loading} rowKey={(p) => p.id} emptyMessage="No products match your search." />
+        </div>
       )}
       {taxRates.error ? <p className="mt-2 text-xs text-rose-700">Tax names unavailable: {taxRates.error}</p> : null}
       {plans.error ? <p className="mt-2 text-xs text-rose-700">Plan names unavailable: {plans.error}</p> : null}
@@ -193,7 +201,7 @@ function SummaryCards({ summary }: { summary: ReturnType<typeof useApi<CatalogDa
   if (summary.error) return <ErrorState message={`Could not load summary: ${summary.error}`} onRetry={summary.reload} />;
   const s = summary.data;
   const tile = (label: string, value: ReactNode, sub?: string) => (
-    <Card key={label}>
+    <Card key={label} className="catalog-summary-card">
       <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
       <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{summary.loading || !s ? "…" : value}</div>
       {sub ? <div className="text-xs text-slate-500">{sub}</div> : null}
@@ -206,7 +214,7 @@ function SummaryCards({ summary }: { summary: ReturnType<typeof useApi<CatalogDa
       {tile("Price lists", s?.priceListCount ?? "")}
       {tile("Price rules", s?.priceRuleCount ?? "")}
       {tile("Subscription products", s?.subscriptionProductCount ?? "")}
-      <Card>
+      <Card className="catalog-summary-card catalog-category-card">
         <div className="text-xs uppercase tracking-wide text-slate-500">By category</div>
         {summary.loading || !s ? (
           <div className="mt-1 text-2xl font-semibold text-slate-900">…</div>

@@ -29,6 +29,11 @@
   color: #0d2436;
 }
 .wordmark:hover { text-decoration: none; }
+.landing .wordmark {
+  grid-column: 1;
+  justify-self: start;
+  text-align: left;
+}
 .navigation {
   grid-column: 3;
   grid-row: 1;

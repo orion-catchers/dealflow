@@ -36,7 +36,7 @@ export function ProductEditor({ productId }: { productId: string | null }) {
 
   if (!isNew && detail.error) {
     return (
-      <div>
+      <div className="catalog-page catalog-editor-page">
         <PageHeader title="Product" actions={<BackLink />} />
         <ErrorState message={`Could not load product: ${detail.error}`} onRetry={detail.reload} />
       </div>
@@ -44,24 +44,23 @@ export function ProductEditor({ productId }: { productId: string | null }) {
   }
 
   return (
-    <div>
+    <div className="catalog-page catalog-editor-page">
       <PageHeader
         title={isNew ? "New product" : product ? product.name : "Product"}
         description={isNew ? "General info first; variants and price rules become available after the first save." : product ? `Updated ${new Date(product.updatedAt).toLocaleString()}` : undefined}
         actions={
-          <>
-            <StatusBadge status="DEV FIXTURE" label="DEV FIXTURE data" />
+          <div className="catalog-header-actions">
             {product?.archivedAt ? <StatusBadge status="ARCHIVED" /> : product ? <StatusBadge status={product.active ? "ACTIVE" : "INACTIVE"} /> : null}
             <BackLink />
-          </>
+          </div>
         }
       />
 
       {!isNew && detail.loading && !product ? (
         <div className="py-6 text-sm text-slate-500">Loading product…</div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="space-y-6 lg:col-span-2">
+        <div className="catalog-editor-layout grid gap-6 lg:grid-cols-3">
+          <div className="catalog-editor-main space-y-6 lg:col-span-2">
             <GeneralInfoForm
               key={product?.id ?? "new"}
               product={product ?? null}
@@ -86,8 +85,8 @@ export function ProductEditor({ productId }: { productId: string | null }) {
               </>
             ) : null}
           </div>
-          <div className="space-y-6">
-            {product ? <ResolvePreviewCard product={product} variants={detail.data?.variants ?? []} refreshKey={previewKey} /> : <Card title="Resolved price preview">
+          <div className="catalog-editor-aside space-y-6">
+            {product ? <ResolvePreviewCard product={product} variants={detail.data?.variants ?? []} refreshKey={previewKey} /> : <Card className="catalog-preview-card" title="Resolved price preview">
               <p className="text-sm text-slate-500">Save the product to preview how it prices for a customer.</p>
             </Card>}
           </div>
@@ -99,7 +98,7 @@ export function ProductEditor({ productId }: { productId: string | null }) {
 
 function BackLink() {
   return (
-    <Link href="/products" className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50">
+    <Link href="/products" className="catalog-button catalog-button--secondary catalog-back-link">
       ← Products
     </Link>
   );
@@ -242,8 +241,8 @@ function GeneralInfoForm({
   const activeTaxRates = (taxRates.data ?? []).filter((t) => t.active || t.id === form.taxRateId);
 
   return (
-    <Card title="General info">
-      <div className="grid gap-3 md:grid-cols-2">
+    <Card title="General info" className="catalog-form-card">
+      <div className="catalog-form-grid grid gap-3 md:grid-cols-2">
         <FormField label="Name" htmlFor="p-name" error={errors.name} className="md:col-span-2">
           <Input id="p-name" value={form.name} disabled={busy} onChange={(e) => update({ name: e.target.value })} />
         </FormField>
@@ -269,7 +268,7 @@ function GeneralInfoForm({
         </FormField>
 
         <FormField label="Description" htmlFor="p-description" error={errors.description} className="md:col-span-2">
-          <textarea id="p-description" className={TEXTAREA_CLASS} rows={3} value={form.description} disabled={busy} onChange={(e) => update({ description: e.target.value })} />
+          <textarea id="p-description" className={`${TEXTAREA_CLASS} catalog-textarea`} rows={3} value={form.description} disabled={busy} onChange={(e) => update({ description: e.target.value })} />
         </FormField>
 
         <FormField label={`Base price (${CURRENCY})`} htmlFor="p-price" error={errors.basePrice}>
@@ -299,11 +298,11 @@ function GeneralInfoForm({
           ) : null}
         </FormField>
 
-        <div className="flex flex-col justify-end gap-2 pb-1">
+        <div className="catalog-check-standalone flex flex-col justify-end gap-2 pb-1">
           <CheckboxField id="p-active" label="Active (visible in the quote builder)" checked={form.active} disabled={busy} onChange={(v) => update({ active: v })} />
         </div>
 
-        <div className="rounded-md border border-slate-200 p-3 md:col-span-2">
+        <div className="catalog-check-section rounded-md border border-slate-200 p-3 md:col-span-2">
           <CheckboxField id="p-stock" label="Stock-tracked (physical good handled by fulfillment)" checked={form.stockTracked} disabled={busy} onChange={(v) => update({ stockTracked: v })} />
           {form.stockTracked ? (
             <div className="mt-3 max-w-xs">
@@ -314,7 +313,7 @@ function GeneralInfoForm({
           ) : null}
         </div>
 
-        <div className="rounded-md border border-slate-200 p-3 md:col-span-2">
+        <div className="catalog-check-section rounded-md border border-slate-200 p-3 md:col-span-2">
           <CheckboxField
             id="p-subscription"
             label="Subscription (recurring; billed against a plan)"
@@ -353,8 +352,8 @@ function GeneralInfoForm({
         </div>
       ) : null}
 
-      <div className="mt-4 flex items-center gap-3 border-t border-slate-200 pt-3">
-        <Button disabled={busy} onClick={submit}>
+      <div className="catalog-save-bar mt-4 flex items-center gap-3 border-t border-slate-200 pt-3">
+        <Button className="catalog-save-button" disabled={busy} onClick={submit}>
           {busy ? "Saving…" : product ? "Save changes" : "Create product"}
         </Button>
         {savedAt ? <span className="text-sm text-emerald-700">Saved {savedAt.toLocaleTimeString()}</span> : null}
@@ -416,12 +415,12 @@ function VariantsSection({ product, variants, onChanged }: { product: Product; v
       header: "Actions",
       align: "right",
       render: (v) => (
-        <div className="flex justify-end gap-1">
-          <Button variant="secondary" onClick={() => setDialog({ open: true, variant: v })}>
+        <div className="catalog-row-actions flex justify-end gap-1">
+          <Button className="catalog-action-button catalog-action-button--secondary" variant="secondary" onClick={() => setDialog({ open: true, variant: v })}>
             Edit
           </Button>
           {v.active ? (
-            <Button variant="danger" onClick={() => setDeactivating(v)}>
+            <Button className="catalog-action-button catalog-action-button--danger" variant="danger" onClick={() => setDeactivating(v)}>
               Deactivate
             </Button>
           ) : null}
@@ -431,8 +430,8 @@ function VariantsSection({ product, variants, onChanged }: { product: Product; v
   ];
 
   return (
-    <Card>
-      <div className="mb-3 flex items-center justify-between">
+    <Card className="catalog-section-card">
+      <div className="catalog-section-header mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-700">Variants ({variants.length})</h3>
         <Button variant="secondary" disabled={Boolean(product.archivedAt)} onClick={() => setDialog({ open: true, variant: null })}>
           Add Variant
@@ -441,7 +440,9 @@ function VariantsSection({ product, variants, onChanged }: { product: Product; v
       {variants.length === 0 ? (
         <EmptyState message="No variants. Quotes will use the product's base price and cost." />
       ) : (
-        <DataTable columns={columns} rows={variants} rowKey={(v) => v.id} />
+        <div className="catalog-table-shell">
+          <DataTable columns={columns} rows={variants} rowKey={(v) => v.id} />
+        </div>
       )}
       {product.archivedAt ? <p className="mt-2 text-xs text-slate-500">Variants cannot be added to an archived product.</p> : null}
 
@@ -553,11 +554,11 @@ function ProductRulesSection({ product, variants, onChanged }: { product: Produc
       header: "Actions",
       align: "right",
       render: (r) => (
-        <div className="flex justify-end gap-1">
-          <Button variant="secondary" onClick={() => setDialog({ open: true, rule: r })}>
+        <div className="catalog-row-actions flex justify-end gap-1">
+          <Button className="catalog-action-button catalog-action-button--secondary" variant="secondary" onClick={() => setDialog({ open: true, rule: r })}>
             Edit
           </Button>
-          <Button variant="danger" onClick={() => setDeleting(r)}>
+          <Button className="catalog-action-button catalog-action-button--danger" variant="danger" onClick={() => setDeleting(r)}>
             Delete
           </Button>
         </div>
@@ -569,11 +570,11 @@ function ProductRulesSection({ product, variants, onChanged }: { product: Produc
   const loading = lists.loading || rules.loading;
 
   return (
-    <Card>
-      <div className="mb-3 flex items-center justify-between">
+    <Card className="catalog-section-card">
+      <div className="catalog-section-header mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-700">Price rules for this product</h3>
-        <div className="flex gap-2">
-          <Link href="/price-lists" className="inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100">
+        <div className="catalog-section-actions flex gap-2">
+          <Link href="/price-lists" className="catalog-action-button catalog-action-button--secondary">
             Manage Price Lists
           </Link>
           <Button variant="secondary" disabled={!lists.data || lists.data.length === 0} onClick={() => setDialog({ open: true, rule: null })}>
@@ -592,7 +593,9 @@ function ProductRulesSection({ product, variants, onChanged }: { product: Produc
       ) : !loading && productRules.length === 0 ? (
         <EmptyState message="No price rules. Every customer pays the base price (plus variant extras) for this product." />
       ) : (
-        <DataTable columns={columns} rows={productRules} loading={loading} rowKey={(r) => r.id} />
+        <div className="catalog-table-shell">
+          <DataTable columns={columns} rows={productRules} loading={loading} rowKey={(r) => r.id} />
+        </div>
       )}
 
       <PriceRuleDialog
@@ -689,7 +692,7 @@ function ResolvePreviewCard({ product, variants, refreshKey }: { product: Produc
   const margin = result ? marginPct(result.unitPrice, result.unitCost) : null;
 
   return (
-    <Card title="Resolved price for customer">
+    <Card title="Resolved price for customer" className="catalog-preview-card">
       <p className="mb-3 text-xs text-slate-500">Live call to POST /api/catalog/resolve — the same boundary the quote builder uses. Refreshes after every save.</p>
       <div className="space-y-3">
         <FormField label="Customer" htmlFor="rp-customer">
