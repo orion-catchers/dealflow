@@ -175,6 +175,27 @@ describe("runLiveCommand saveQuote", () => {
       )
     ).rejects.toMatchObject({ status: 400, code: "INVALID_ARGUMENT" });
   });
+
+  it("throws AppError 400 INVALID_ARGUMENT when quantity is non-positive or invalid", async () => {
+    const { state, quote } = createMockState();
+    const dirty = { quotes: new Map(), rules: false, messages: false };
+
+    await expect(
+      runLiveCommand(
+        state,
+        repActor,
+        "saveQuote",
+        {
+          id: quote.id,
+          expectedRevision: "r1",
+          customerId: "c-1",
+          orderDiscountPct: 0,
+          lines: [{ id: "line-1", quantity: 0, discountPct: 10 }],
+        },
+        dirty
+      )
+    ).rejects.toMatchObject({ status: 400, code: "INVALID_ARGUMENT" });
+  });
 });
 
 describe("runLiveCommand task RBAC", () => {

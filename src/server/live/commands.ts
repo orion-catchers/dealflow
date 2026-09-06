@@ -483,7 +483,10 @@ export async function runLiveCommand(
           const c = changes.find((change) => change.id === l.id);
           if (!c) continue;
           const qty = Math.round(Number(c.quantity));
-          if (Number.isFinite(qty) && qty > 0) l.quantity = qty;
+          if (!Number.isFinite(qty) || qty <= 0) {
+            throw new AppError(400, "INVALID_ARGUMENT", "Quantity must be a positive number");
+          }
+          l.quantity = qty;
           const disc = Number(c.discountPct);
           if (!Number.isFinite(disc) || disc < 0 || disc > 100) {
             throw new AppError(400, "INVALID_ARGUMENT", "Discount must be between 0% and 100%");
