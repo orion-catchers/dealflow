@@ -701,3 +701,11 @@ Checks: Neha `/portal/orders/cmtokg4gi005o8stnhyrjpoym` showed Balance due ₹4,
 
 Limitations: Stripe checkout remains Preview / NOT CONNECTED.
 
+## 2026-09-06T11:28:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Catalog “Show archived” was a full-width 40px input because global `input` rules set `width:100%` and `min-height:40px`. Checkboxes/radios are now 16px; catalog uses the compact `.check` row.
+
+Checks: `/products` Show archived box measured 17×17.
+
+Limitations: none.
+

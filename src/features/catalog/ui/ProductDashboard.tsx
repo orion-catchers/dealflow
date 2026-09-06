@@ -144,8 +144,8 @@ export function ProductDashboard({ readOnly = false }: { readOnly?: boolean } = 
             </option>
           ))}
         </Select>
-        <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-          <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="rounded border-slate-300" />
+        <label className="check text-sm text-slate-700">
+          <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
           Show archived
         </label>
       </div>
