@@ -479,7 +479,7 @@ export class CatalogService {
       this.repo.listPriceRules(),
       this.repo.listTaxRates(),
     ]);
-    return searchCatalog(input, { customer, products, variants, priceLists, priceRules, taxRates });
+    return searchCatalog({ ...input, customerId }, { customer, products, variants, priceLists, priceRules, taxRates });
   }
 
   // -------------------------------------------------------------- dashboard

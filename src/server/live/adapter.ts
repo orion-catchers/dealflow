@@ -48,10 +48,10 @@ function isWorkspaceQuote(value: unknown): value is Quote {
   return typeof quote.id === "string" && typeof quote.revision === "string" && Array.isArray(quote.lines);
 }
 
-async function reloadPersistedQuote(result: unknown, dirty: Dirty): Promise<unknown> {
+async function reloadPersistedQuote<T>(result: T, dirty: Dirty): Promise<T> {
   if (!isWorkspaceQuote(result) || !dirty.quotes.has(result.id)) return result;
   const fresh = await loadDataState();
-  return fresh.quotes.find((quote) => quote.id === result.id) ?? result;
+  return (fresh.quotes.find((quote) => quote.id === result.id) ?? result) as T;
 }
 
 export const liveAdapter: ApplicationAdapter = {
