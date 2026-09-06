@@ -191,6 +191,7 @@ describe('Role-based route authorization guard (canAccessRoute)', () => {
       expect(canAccessRoute('FINANCE_OPS', '/home')).toBe(true);
       expect(canAccessRoute('FINANCE_OPS', '/approvals')).toBe(true);
       expect(canAccessRoute('FINANCE_OPS', '/approvals/Q-1042')).toBe(true);
+      expect(canAccessRoute('FINANCE_OPS', '/quotes/Q-1042')).toBe(true);
       expect(canAccessRoute('FINANCE_OPS', '/fulfillment')).toBe(true);
       expect(canAccessRoute('FINANCE_OPS', '/fulfillment/O-1001')).toBe(true);
       expect(canAccessRoute('FINANCE_OPS', '/subscriptions')).toBe(true);

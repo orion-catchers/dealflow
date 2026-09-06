@@ -709,3 +709,14 @@ Checks: `/products` Show archived box measured 17×17.
 
 Limitations: none.
 
+## 2026-09-06T15:33:00+05:30 (Asia/Kolkata) - Owner: Ruchir
+
+Fixed Finance route access for quote decision reviews: `canAccessRoute` previously forbade all `/quotes/*` paths for `FINANCE_OPS`, causing clicks on "Decide on [Customer] · Version [N]" from Home (and quote links from approvals/fulfillment) to bounce back to `/home`. Allowed `/quotes/:id` for Finance Ops while keeping `/quotes` and `/quotes/new` forbidden. Added role-aware `BackLink` in `Quotes.tsx` returning to `/approvals` for Finance.
+
+Files: `src/components/application/Application.tsx`, `src/components/application/Quotes.tsx`, `src/components/application/RoleAccess.test.ts`.
+
+Checks: `npx vitest run src/components/application/RoleAccess.test.ts` (14/14 passed); `npm test` (305/305 passed); `npm run test:krishna` (30/30 passed); `npm run typecheck` passed (0 errors); `npm run lint` passed (0 errors, 8 pre-existing warnings).
+
+Limitations: None. Quotation editing/creation remains restricted to Reps/Admin; Finance Ops has review/decision access only.
+
+

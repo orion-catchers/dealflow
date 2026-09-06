@@ -147,6 +147,9 @@ export function canAccessRoute(role: Role, path: string): boolean {
   }
 
   if (role === 'FINANCE_OPS') {
+    if (first === 'quotes') {
+      return Boolean(second && second !== 'new');
+    }
     if (first === 'approvals') return true;
     if (first === 'fulfillment') return true;
     if (first === 'subscriptions') return true;

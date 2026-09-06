@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 process.env.DEALFLOW_TEST_STORE='1';
 import {developmentAdapter as a} from '../src/development/adapter.ts';
+import {userPasswords} from '../src/development/seed.ts';
 import {propose,confirm,portalData,validateProposal} from '../src/features/portal/server.ts';
 import {suggestions,addSuggested} from '../src/features/recommendations/server.ts';
 import {plusPeriod} from '../src/development/pricing.ts';
@@ -10,7 +11,7 @@ import {exportFile} from '../src/server/export.ts';
 import {sameOrigin} from '../src/server/origin.ts';
 const command=(actor,action,body={})=>a.command(actor,action,{requestKey:randomUUID(),...body});
 test('real Krishna services against isolated persistent development adapter',async t=>{
- const admin=(await a.login('admin@dealflow.test','DealFlow2026!')).actor;
+ const admin=(await a.login('admin@dealflow.test',userPasswords['admin-dev'])).actor;
  await command(admin,'reset');
  const d=await a.read(),acme=d.users.find(u=>u.email==='acme@dealflow.test'),beta=d.users.find(u=>u.email==='beta@dealflow.test'),sales=d.users.find(u=>u.role==='SALES_REP'),manager=d.users.find(u=>u.role==='SALES_MANAGER'),finance=d.users.find(u=>u.role==='FINANCE_OPS');
  await t.test('read allowlists omit nested financial internals and unrelated records',async()=>{const before=await a.read();const safe=portalData(acme,await a.readCustomer(acme.customerId));assert.ok(safe.quotes.length);assert.ok(safe.quotes.every(q=>before.quotes.find(x=>x.id===q.id).customerId===acme.customerId));assert.doesNotMatch(JSON.stringify(safe),/unitCost|profit|margin|internalNotes|repId|customer-beta/);assert.deepEqual(await a.read(),before);await assert.rejects(()=>confirm(a,beta,'Q-1042',{expectedRevision:'r1',requestKey:randomUUID()}),e=>e.status===404);});
@@ -23,6 +24,7 @@ test('real Krishna services against isolated persistent development adapter',asy
  await t.test('signup cannot select privileged access and inactive login fails',async()=>{const email=`test-${randomUUID()}@dealflow.test`;await a.signup('Test applicant',email,'TestPassword123!');await assert.rejects(()=>a.login(email,'TestPassword123!'),e=>e.code==='ACCOUNT_PENDING');});
 });
 test('calendar month-end clamp',()=>{assert.equal(plusPeriod('2024-01-31','MONTHLY'),'2024-02-29');assert.equal(plusPeriod('2026-01-31','MONTHLY'),'2026-02-28');});
-test('fixture exports produce readable PDF and XLSX responses',async()=>{const admin=(await a.login('admin@dealflow.test','DealFlow2026!')).actor;const state=await a.read();for(const format of ['pdf','xlsx']){const response=await exportFile(admin,state,new URLSearchParams({format}), 'DEV FIXTURE');assert.equal(response.status,200);assert.match(response.headers.get('content-type')??'',format==='pdf'?/application\/pdf/:/spreadsheetml/);assert.ok((await response.arrayBuffer()).byteLength>100);}});
+test('fixture exports produce readable PDF and XLSX responses',async()=>{const admin=(await a.login('admin@dealflow.test',userPasswords['admin-dev'])).actor;const state=await a.read();for(const format of ['pdf','xlsx']){const response=await exportFile(admin,state,new URLSearchParams({format}), 'DEV FIXTURE');assert.equal(response.status,200);assert.match(response.headers.get('content-type')??'',format==='pdf'?/application\/pdf/:/spreadsheetml/);assert.ok((await response.arrayBuffer()).byteLength>100);}});
 test('sales reps cannot export invoices outside their quote scope',async()=>{const state=await a.read();const sales=state.users.find(u=>u.role==='SALES_REP');await assert.rejects(()=>exportFile({...sales,id:'another-rep'},state,new URLSearchParams({invoice:'INV-1001',format:'pdf'}),'DEV FIXTURE'),e=>e.status===404);});
-test('same-site development origin accepts loopback aliases and rejects cross-origin mutations',()=>{const headers={get(name){return ({host:'127.0.0.1:3000'})[name]??null;}};assert.equal(sameOrigin('http://localhost:3000/api/auth/login',headers,'http://127.0.0.1:3000'),true);assert.equal(sameOrigin('http://127.0.0.1:3000/api/auth/login',headers,'http://localhost:3000'),true);assert.equal(sameOrigin('http://127.0.0.1:3000/api/auth/login',headers,'http://evil.example'),false);assert.equal(sameOrigin('https://127.0.0.1:3000/api/auth/login',headers,'http://127.0.0.1:3000'),false);assert.equal(sameOrigin('http://127.0.0.1:3000/api/auth/login',headers,'http://127.0.0.1:3001'),false);});
+test('same-site development origin accepts loopback aliases and rejects cross-origin mutations',()=>{const headers={get(name){return ({host:'127.0.0.1:3000'})[name]??null;}};assert.equal(sameOrigin('http://localhost:3000/api/auth/login',headers,'http://127.0.0.1:3000'),true);assert.equal(sameOrigin('http://127.0.0.1:3000/api/auth/login',headers,'http://localhost:3000'),true);assert.equal(sameOrigin('http://127.0.0.1:3000/api/auth/login',headers,'http://evil.example'),false);assert.equal(httpsOriginCheck('https://127.0.0.1:3000/api/auth/login',headers,'http://127.0.0.1:3000'),false);assert.equal(sameOrigin('http://127.0.0.1:3000/api/auth/login',headers,'http://127.0.0.1:3001'),false);});
+function httpsOriginCheck(url,headers,origin){return sameOrigin(url,headers,origin);}

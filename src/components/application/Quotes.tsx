@@ -515,7 +515,9 @@ function QuoteDetail({ q, ctx }: { q: Quote; ctx: Context }) {
   return (
     <>
       <Heading title={quoteTitle(q)} description={`${customerName}${customer ? ` · ${customer.tier} tier` : ""} · ${version} saved ${new Date(q.at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`}>
-        <BackLink href="/quotes">Back to quotations</BackLink>
+        <BackLink href={actor.role === "FINANCE_OPS" ? "/approvals" : "/quotes"}>
+          {actor.role === "FINANCE_OPS" ? "Back to approvals" : "Back to quotations"}
+        </BackLink>
       </Heading>
       <div className="deal-flow">
         <FlowSteps steps={steps} />
