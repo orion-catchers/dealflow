@@ -671,3 +671,13 @@ Checks: landing header grid places the italic title in the center column; README
 
 Limitations: Stripe/Resend/Google/carrier remain key-gated 503. Isolated unit tests still do not prove a new browser cycle.
 
+## 2026-09-06T08:20:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Rewrote README for external review: reviewer entry + phase line, implemented-capabilities table without completeness claims, Known limitations (stock race, CSRF Origin-absent catch-all, session dual TTL, scrypt params, in-memory login limiter), API versioning, concurrency/scale, operations bullets, LICENSE (academic, not for reuse), seed/env tables reduced, roles+feature matrix merged, closing points at the checklist.
+
+Files: `README.md`, `LICENSE`.
+
+Checks: security claims matched `password.ts` (scrypt N=16384 default), `session.ts` (randomBytes 32, SHA-256, 7d Lax), catch-all cookie 8h Strict, `rate-limit.ts` (5/10min email), allocate `commitAllocations` read-then-increment in `$transaction` without FOR UPDATE.
+
+Limitations: `docs/SECURITY.md` was not rewritten to match the new README precision; they should be read together.
+
