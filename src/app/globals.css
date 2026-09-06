@@ -301,6 +301,10 @@ img{border-radius:12px}
 .table-wrap td .df-field{margin:0}
 .table-wrap td .df-field label{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .table-wrap td .df-field input{min-height:34px;padding:6px 10px;width:96px}
+.proposal-form .table-wrap td .df-field input{width:100%;min-width:108px}
+.quote-current{display:block;font-variant-numeric:tabular-nums;color:var(--ink)}
+.payable-strip{display:flex;flex-wrap:wrap;align-items:center;gap:16px 24px;margin:12px 0 4px}
+.payable-strip strong{font-size:22px}
 @media(max-width:900px){.form-grid--three{grid-template-columns:1fr}}
 .home-grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:18px;align-items:start}
 .attention{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}

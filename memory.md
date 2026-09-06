@@ -693,3 +693,11 @@ Checks (LIVE): Farah recorded ₹1,200 on Acme Wireless Mouse — UI amount fiel
 
 Limitations: Preview card does not charge a network. Isolated Vitest does not prove a new accept→invoice→pay browser cycle. Did not `db:reset`.
 
+## 2026-09-06T11:25:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Propose-a-change: quotation qty/discount stay in read-only columns; changed qty/discount start from those values; submit stays disabled until comment and delivery date are also filled. View order shows Amount to pay + Pay with card for open invoices on that order (same POST /api/payments finance already reads).
+
+Checks: Neha `/portal/orders/cmtokg4gi005o8stnhyrjpoym` showed Balance due ₹4,650.00 and Pay with card above delivery. Neha’s quotes in this DB are all CONFIRMED so propose columns were not clicked this pass.
+
+Limitations: Stripe checkout remains Preview / NOT CONNECTED.
+

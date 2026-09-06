@@ -20,9 +20,8 @@ export default function CustomerPortal({path}:{path:string}){
     setData(next);
   };
   useEffect(()=>{
-    if(readPortalCache())return;
     reload().catch(e=>setError(e.message));
-  },[]);
+  },[path]);
   if(!data)return <><Heading title="Your customer workspace"/>{error?<div className="error" role="alert">{error}<Button onClick={()=>reload().catch(e=>setError(e.message))}>Try again</Button></div>:<p role="status">Loading your records…</p>}</>;
   const parts=path.slice(1).split('/');
   const id=parts[2];
@@ -31,7 +30,7 @@ export default function CustomerPortal({path}:{path:string}){
   const order=data.orders.find(item=>item.id===id);
   if(id&&!q&&!invoice&&!order)return <><Heading title="Record unavailable" description="This record is not available to your account."/><BackLink href="/portal">Back to your deals</BackLink></>;
   const headingTitle=q?quoteTitle(q):invoice?invoiceTitle(invoice):order?orderTitle(order,data.quotes.find(item=>item.id===order.quoteId)):'Your deals';
-  const headingDescription=q?(q.stage==='CONFIRMED'?`You accepted ${revisionTitle(q.revision)}. Pay open invoices below, then follow delivery.`:`Current ${revisionTitle(q.revision)}. Review terms, ask a question, or accept when approval is complete.`):'Review quotations, follow deliveries, and pay invoices after you accept.';
+  const headingDescription=q?(q.stage==='CONFIRMED'?`You accepted ${revisionTitle(q.revision)}. Open your order to see the amount due and pay.`:`Current ${revisionTitle(q.revision)}. Review terms, ask a question, or accept when approval is complete.`):invoice?'Pay this invoice. Finance sees the same payment on their invoice record.':order?'Delivery is separate from payment. Amount due and pay are on this page.':'Review quotations, follow deliveries, and pay invoices after you accept.';
   return <>
     <Heading title={headingTitle} description={headingDescription}>{id&&<Link href="/portal" className="df-button df-button--secondary">All your records</Link>}</Heading>
     {notice&&<p className="notice" role="status">{notice}</p>}
@@ -86,6 +85,23 @@ function PortalHome({data}:{data:Portal}){
   </>;
 }
 
+function moneySum(amounts:string[]){
+  const cents=amounts.reduce((n,a)=>n+Math.round(Number(a)*100),0);
+  return (cents/100).toFixed(2);
+}
+
+function invoicesForOrder(data:Portal,order:PortalOrderRow){
+  const direct=data.invoices.filter(i=>i.orderId&&i.orderId===order.id);
+  if(direct.length)return direct;
+  const quote=data.quotes.find(q=>q.id===order.quoteId||q.orderId===order.id);
+  if(quote?.orderId){
+    const byQuote=data.invoices.filter(i=>i.orderId===quote.orderId);
+    if(byQuote.length)return byQuote;
+  }
+  const names=new Set(order.lines.map(l=>l.description));
+  return data.invoices.filter(i=>!i.orderId&&i.lines.some(l=>names.has(l.description)));
+}
+
 function PortalInvoice({invoice,reload,notice}:{invoice:PortalInvoiceRow;reload:()=>Promise<void>;notice:(s:string)=>void}){
   const due=Number(invoice.outstanding)>0;
   return <Section title="Invoice summary" actions={<a className="primary-link" href={'/api/export?format=pdf&invoice='+invoice.id}>Download PDF</a>}>
@@ -106,8 +122,22 @@ function PortalInvoice({invoice,reload,notice}:{invoice:PortalInvoiceRow;reload:
 }
 
 function PortalOrder({order,data,reload,notice}:{order:PortalOrderRow;data:Portal;reload:()=>Promise<void>;notice:(s:string)=>void}){
-  const invoices=data.invoices.filter(i=>i.orderId===order.id);
+  const invoices=invoicesForOrder(data,order);
+  const open=invoices.filter(i=>Number(i.outstanding)>0);
+  const due=moneySum((open.length?open:invoices).map(i=>i.outstanding));
+  const quote=data.quotes.find(q=>q.id===order.quoteId);
+  const currency=invoices[0]?.currency??quote?.currency??'INR';
+  const quoted=quote?.totals.find(t=>t.interval==='ONE_TIME')?.total??quote?.totals[0]?.total??'0.00';
   return <>
+    <Section title="Amount to pay">
+      {open.length?<div className="payable-strip">
+        <div>
+          <span>Balance due</span>
+          <strong><Money amount={due} currency={currency}/></strong>
+        </div>
+        {open.map(invoice=><CardCheckoutButton key={invoice.id} invoiceId={invoice.id} amount={invoice.outstanding} currency={invoice.currency} onNotice={notice} onPaid={reload}/>)}
+      </div>:invoices.length?<p>This order is paid. Finance sees the same payment on the invoice.</p>:<p>Invoice is still being prepared{quoted!=='0.00'?<> · quoted <Money amount={quoted} currency={currency}/></>:null}. Refresh if pay does not appear yet.</p>}
+    </Section>
     <Section title="Delivery progress">
       <StatusBadge status={order.status}/>
       <p>Promised delivery: {order.promisedDate??'Not yet agreed'}</p>
@@ -129,16 +159,28 @@ function portalSteps(q:PortalQuoteRow){
   ];
 }
 
+function relatedInvoicesForQuote(data:Portal,q:PortalQuoteRow){
+  if(!q.orderId)return [];
+  const order=data.orders.find(o=>o.id===q.orderId);
+  if(order)return invoicesForOrder(data,order);
+  return data.invoices.filter(i=>i.orderId===q.orderId);
+}
+
+function seedProposal(q:PortalQuoteRow){
+  return Object.fromEntries(q.lines.map(l=>[l.id,{quantity:l.quantity,discountPct:l.discountPct,comment:'' as string}]));
+}
+
 function proposalComplete(q:PortalQuoteRow,changes:Record<string,{quantity?:number;discountPct?:number;comment?:string}>,requestedDate:string){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(requestedDate))return false;
   return q.lines.every(l=>{
     const row=changes[l.id];
-    return Number.isFinite(row?.quantity)&&Number(row?.quantity)>0&&Number.isFinite(row?.discountPct)&&typeof row?.comment==='string'&&row.comment.trim().length>0;
+    const comment=row?.comment?.trim()??'';
+    return Number.isFinite(row?.quantity)&&Number(row?.quantity)>0&&Number.isFinite(row?.discountPct)&&Number(row?.discountPct)>=0&&comment.length>0;
   });
 }
 
 function PortalQuote({q,data,reload,notice}:{q:PortalQuoteRow;data:Portal;reload:()=>Promise<void>;notice:(s:string)=>void}){
-  const [changes,setChanges]=useState<Record<string,{quantity?:number;discountPct?:number;comment?:string}>>({});
+  const [changes,setChanges]=useState<Record<string,{quantity?:number;discountPct?:number;comment?:string}>>(()=>seedProposal(q));
   const [requestedDate,setDate]=useState('');
   const [key,setKey]=useState(newId());
   const [error,setError]=useState('');
@@ -148,7 +190,7 @@ function PortalQuote({q,data,reload,notice}:{q:PortalQuoteRow;data:Portal;reload
   const version=revisionTitle(q.revision);
   const canAccept=!locked&&['APPROVED','NOT_REQUIRED'].includes(q.approvalStatus)&&!q.dateReviewPending;
   const ready=proposalComplete(q,changes,requestedDate);
-  const relatedInvoices=data.invoices.filter(i=>q.orderId&&i.orderId===q.orderId);
+  const relatedInvoices=relatedInvoicesForQuote(data,q);
   const step=locked
     ?{title:`You accepted ${version}`,detail:'Your order has been created. Pay any open invoice below, then follow delivery.',tone:'done' as const}
     :canAccept
@@ -178,17 +220,17 @@ function PortalQuote({q,data,reload,notice}:{q:PortalQuoteRow;data:Portal;reload
     </Section>
     {locked&&relatedInvoices.map(invoice=><PortalInvoice key={invoice.id} invoice={invoice} reload={reload} notice={notice}/>)}
     {!locked&&<Section title="Ask a question or propose a change"><div id="propose"/>
-      <p className="lede">Current quantity and discount stay as the quotation. Enter the new quantity and discount, a comment on every line, and a requested delivery date. Submit stays unavailable until every field is filled.</p>
-      <form onSubmit={async e=>{e.preventDefault();if(!ready)return;setBusy(true);setError('');try{await api('portal/quotes/'+q.id+'/proposals',{expectedRevision:q.revision,requestKey:key,lineChanges:q.lines.map(l=>({lineId:l.id,quantity:changes[l.id]?.quantity,discountPct:changes[l.id]?.discountPct,comment:changes[l.id]?.comment?.trim()})),requestedDeliveryDate:requestedDate});await reload();setChanges({});setDate('');setKey(newId());notice('Your proposal has been recorded. Review the updated status before accepting.');}catch(err){setError((err as Error).message);}finally{setBusy(false);}}}>
+      <p className="lede">Quotation quantity and discount stay in the first columns. Use the next columns for the changed quantity and discount. Fill comment and delivery date as well. Submit stays off until every field is filled.</p>
+      <form className="proposal-form" onSubmit={async e=>{e.preventDefault();if(!ready)return;setBusy(true);setError('');try{await api('portal/quotes/'+q.id+'/proposals',{expectedRevision:q.revision,requestKey:key,lineChanges:q.lines.map(l=>({lineId:l.id,quantity:changes[l.id]?.quantity,discountPct:changes[l.id]?.discountPct,comment:changes[l.id]?.comment?.trim()})),requestedDeliveryDate:requestedDate});await reload();setChanges(seedProposal(q));setDate('');setKey(newId());notice('Your proposal has been recorded. Review the updated status before accepting.');}catch(err){setError((err as Error).message);}finally{setBusy(false);}}}>
         <Table
-          head={['Line','Current qty','New qty','Current discount','New discount (%)','Comment']}
+          head={['Line','Quotation qty','Changed qty','Quotation discount','Changed discount (%)','Comment']}
           rows={q.lines.map(l=>[
             l.description,
-            l.quantity,
-            <Input label={'New quantity '+l.description} type="number" min={0.01} step="any" value={changes[l.id]?.quantity??''} onChange={e=>update(l.id,'quantity',e.target.value===''?undefined:Number(e.target.value))}/>,
-            l.discountPct+'%',
-            <Input label={'New discount '+l.description} type="number" min={0} max={100} step="any" value={changes[l.id]?.discountPct??''} onChange={e=>update(l.id,'discountPct',e.target.value===''?undefined:Number(e.target.value))}/>,
-            <Input label={'Comment '+l.description} maxLength={2000} value={changes[l.id]?.comment??''} onChange={e=>update(l.id,'comment',e.target.value)}/>,
+            <span className="quote-current">{l.quantity}</span>,
+            <Input label={'Changed quantity '+l.description} type="number" min={0.01} step="any" required value={changes[l.id]?.quantity??''} onChange={e=>update(l.id,'quantity',e.target.value===''?undefined:Number(e.target.value))}/>,
+            <span className="quote-current">{l.discountPct}%</span>,
+            <Input label={'Changed discount '+l.description} type="number" min={0} max={100} step="any" required value={changes[l.id]?.discountPct??''} onChange={e=>update(l.id,'discountPct',e.target.value===''?undefined:Number(e.target.value))}/>,
+            <Input label={'Comment '+l.description} maxLength={2000} required value={changes[l.id]?.comment??''} onChange={e=>update(l.id,'comment',e.target.value)}/>,
           ])}
         />
         <Input label="Requested delivery date (subject to team review)" type="date" value={requestedDate} onChange={e=>{setDate(e.target.value);setKey(newId());}} required/>
