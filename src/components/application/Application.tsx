@@ -4,7 +4,8 @@ import {Suspense,useCallback,useEffect,useState} from 'react';
 import {usePathname,useRouter} from 'next/navigation';
 import {BarChart3,Boxes,CircleCheck,CreditCard,FileText,HeartPulse,LayoutDashboard,LogOut,Menu,Package,PanelLeft,PanelLeftClose,Repeat,Settings,Settings2,ShieldCheck,UsersRound} from 'lucide-react';
 import type {Actor,DataState,Role} from '../../contracts/application';
-import {api,Button,Heading,Input,Link,Money,Section,StatusBadge,Table,newId,quoteTitle,OpenLink,type Context} from './shared';
+import {api,Button,Heading,Input,Link,Section,StatusBadge,Table,newId,quoteTitle,OpenLink,type Context} from './shared';
+import {approvalOk,attentionItems,canDecide,nextStepHref,nextStepLabel} from './DealFlow';
 import Quotes from './Quotes';
 import Operations from './Operations';
 import Setup from './Setup';
@@ -212,10 +213,10 @@ export default function Application(){
     setCollapsed(value);
     try{window.localStorage.setItem('dealflow-sidebar',value?'collapsed':'expanded');}catch{/* local preference is optional */}
   };
-  const run=async(action:string,body:Record<string,unknown>={})=>{
+  const run=async(action:string,body:Record<string,unknown>={},notice?:string)=>{
     const result=await api('actions',{...body,action,requestKey:body.requestKey??newId()});
     await reload();
-    setMessage(mode==='DEV FIXTURE'?'Development record updated.':'Record updated.');
+    setMessage(notice??(mode==='DEV FIXTURE'?'Development record updated.':'Saved.'));
     return result;
   };
 
@@ -352,19 +353,27 @@ function GoogleSsoLink(){
 
 function Home({ctx}:{ctx:Context}){
   const {d,actor}=ctx;
-  const metrics=[['Active quotations',d.quotes.filter(q=>q.stage!=='CONFIRMED').length,'/quotes'],['Awaiting approval',d.quotes.filter(q=>q.evaluation.status==='PENDING').length,'/approvals'],['Open invoices',d.invoices.filter(i=>i.status!=='PAID').length,'/invoices'],['Deals needing attention',d.flags.filter(f=>f.status==='OPEN').length,'/health']];
+  const canQuote=['ADMIN','SALES_REP'].includes(actor.role);
+  const approver=['SALES_MANAGER','FINANCE_OPS','ADMIN'].includes(actor.role);
+  const finance=['FINANCE_OPS','ADMIN'].includes(actor.role);
+  const awaitingMe=d.quotes.filter(q=>q.stage==='PENDING_APPROVAL'&&canDecide(q,actor)).length;
+  const metrics:[string,number,string][]=[
+    ['Open quotations',d.quotes.filter(q=>q.stage!=='CONFIRMED'&&q.stage!=='REJECTED').length,'/quotes'],
+    approver?['Awaiting my decision',awaitingMe,'/approvals']:['Waiting on customers',d.quotes.filter(q=>q.sent&&q.stage!=='CONFIRMED'&&approvalOk(q)).length,'/quotes'],
+    finance?['Orders to allocate',d.orders.filter(o=>!['SHIPPED','DELIVERED','CANCELLED'].includes(o.status)&&o.allocations.length===0).length,'/fulfillment']:['Open invoices',d.invoices.filter(i=>i.status!=='PAID').length,'/invoices'],
+    ['Health flags',d.flags.filter(f=>f.status==='OPEN').length,'/health'],
+  ];
+  const attention=attentionItems(d,actor);
+  const recent=[...d.quotes].sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)).slice(0,6);
   return <>
-    <Heading title={`Good to see you, ${actor.name.split(' ')[0]}`} description="A clear view of your pipeline and the work that needs you next."><Link className="primary-link" href="/quotes/new">New quotation</Link></Heading>
-    <div className="metrics">{metrics.map(([name,value,url])=><Link className="metric" href={String(url)} key={name}><span>{name}</span><strong>{value}</strong><small>View details</small></Link>)}</div>
-    <Section title="Your recent quotations" actions={<OpenLink href="/quotes" variant="secondary">View all</OpenLink>}><Table head={['Quotation','Customer','Status','One-time total','Next step','']} rows={[...d.quotes].sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)).slice(0,5).map(q=>[quoteTitle(q),d.customers.find(c=>c.id===q.customerId)?.name,<StatusBadge status={q.stage}/>,<Money amount={q.totals.find(t=>t.interval==='ONE_TIME')?.total??'0.00'} currency={q.currency}/>,q.stage==='CONFIRMED'?'Allocate stock':q.evaluation.status==='PENDING'?'Review approval':q.sent?'Await customer acceptance':'Review and send',<OpenLink key={q.id} href={'/quotes/'+q.id}/>])}/></Section>
-    <div className="two-columns home-guides">
-      <Section title="Warehouse and delivery">
-        <p>After a customer accepts, this is where stock is received, split across warehouses, and shipped. Previews do not reserve inventory until you allocate.</p>
-        <OpenLink href="/fulfillment">Open fulfillment</OpenLink>
+    <Heading title={`Good to see you, ${actor.name.split(' ')[0]}`} description={attention.length?`${attention.length} item${attention.length===1?'':'s'} need${attention.length===1?'s':''} you. Everything else is moving.`:'Nothing is waiting on you right now.'}>{canQuote&&<Link className="primary-link" href="/quotes/new">New quotation</Link>}</Heading>
+    <div className="metrics">{metrics.map(([name,value,url])=><Link className="metric" href={url} key={name}><span>{name}</span><strong>{value}</strong><small>Open</small></Link>)}</div>
+    <div className="home-grid">
+      <Section title="Needs you">
+        {attention.length?<ol className="attention">{attention.map(item=><li key={item.id}><Link href={item.href}><span className={`attention-kind is-${item.kind}`} aria-hidden="true"/><span className="attention-text"><strong>{item.title}</strong><small>{item.detail}</small></span><span className="attention-go" aria-hidden="true">→</span></Link></li>)}</ol>:<p className="empty">Nothing is waiting on you. New requests appear here as soon as a customer, approver, or teammate acts.</p>}
       </Section>
-      <Section title="Deals that need attention">
-        {d.tasks.filter(t=>t.status==='OPEN').length?d.tasks.filter(t=>t.status==='OPEN').map(t=>{const q=d.quotes.find(item=>item.id===t.quoteId);return <p key={t.id}>{t.text} · {t.dueDate} {q?<OpenLink href={'/quotes/'+t.quoteId} variant="secondary">Open</OpenLink>:null}</p>;}):<p>Stalled quotes and owner-assigned follow-ups show here so a deal does not sit without a next step.</p>}
-        <OpenLink href="/health">Open deal health</OpenLink>
+      <Section title="Recent quotations" actions={<OpenLink href="/quotes" variant="secondary">All quotations</OpenLink>}>
+        <Table head={['Quotation','Customer','Stage','Next step','']} rows={recent.map(q=>[quoteTitle(q),d.customers.find(c=>c.id===q.customerId)?.name,<StatusBadge status={q.stage}/>,nextStepLabel(q,actor),<OpenLink key={q.id} href={nextStepHref(q,actor)}/>])}/>
       </Section>
     </div>
   </>;

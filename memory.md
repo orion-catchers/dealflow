@@ -593,3 +593,42 @@ all normalized enum values are valid; zero one-time lines carry recurring interv
 shipment lines lack reservations; zero payments lack a generated request key. Full typecheck
 continues to have only the known password-reset Prisma-client drift. Database insertion was not
 run because it requires an operator-provided database and `--reset` is destructive.
+
+## 2026-09-06T06:35:00+05:30 (Asia/Kolkata) - Owner: Ruchir (UI flow pass; Krishna lane files touched with coordination)
+
+Made the deal workflow read as one flow. New `src/components/application/DealFlow.tsx` is the
+single vocabulary for "where is this deal and what happens next": `dealNextStep` (role-aware
+state machine), `flowSteps`/`FlowSteps` (Draft → Approval → Customer → Order stepper),
+`NextStepCard`, `attentionItems`, `canDecide`. Home, the quotation list, the pipeline cards
+and the quotation page all read from it.
+
+Changes: `Application.tsx` Home is role-aware ("Needs you" list + role-specific tiles;
+`run(action, body, notice)` gives action-specific notices). `Quotes.tsx` rewritten: inline
+`/quotes/new` (no modal; deal-name field removed because LIVE reloads `name` as the customer
+name), stepper + next-step card at the top of the quotation page, `Unsaved changes` indicator
+with Save/Discard, add/remove line saves pending edits first (`saveThen`) so edits are never
+lost, inline approver `DecisionCard` (reason required, Approve/Return/Reject) on the quotation
+page, sections reordered (lines → totals/policy with approval-chain → suggestions →
+conversation → versions → stock preview). `/approvals` branch removed from `Quotes.tsx`
+(Ruchir's `ApprovalsList`/`ApprovalDetail` now own it; added cross-links to `/quotes/:id`).
+`CustomerPortal.tsx`: customer stepper, "Your next step" card, actionable quotations sorted
+first, plain-language "What happens next" column. `shared.tsx`: `Table.empty`,
+`FormAction` `variant`/`confirmLabel`/Cancel. `ui/index.tsx` + `contracts/krishna.ts`:
+`Dialog footer={null}` suppresses the default Close footer. `globals.css`: flow/stepper/
+decision/attention styles; hover-lift only on clickable cards; button hover −1px + active
+press; table-cell input labels visually hidden (still read by screen readers).
+
+Checks (LIVE Postgres, `npm run dev`, Cursor browser): rep created Q-0d9c4374 → added line →
+40% discount showed unsaved state → save re-evaluated (PENDING, chain Sales manager, Finance)
+→ submit; manager saw "Decide on Acme Studio · Version 3" on Home, empty-reason guard focused
+the textarea, approve recorded; customer saw "Ready for your acceptance", Accept dialog
+(Accept these terms / Cancel), acceptance created the order; Finance Home listed the order
+under "Needs you". `tsc --noEmit`: 0 errors in touched files; `eslint`: 0 errors.
+
+Limitations / findings for owners: (1) pulled main has two pre-existing type errors in
+`src/server/catalog/service.ts:482` and `src/server/live/adapter.ts:106` (not mine).
+(2) LIVE derives `sent = stage !== 'DRAFT'`, so submitting for approval also shares the quote
+in the portal; UI copy now says so. (3) Manager approval via `ApprovalUiService` completed the
+whole chain although the workspace `evaluation.chain` listed Finance as a second step —
+engine mismatch for Atharva/Ruchir to reconcile; UI no longer predicts the next reviewer.
+(4) `q.events` load empty in LIVE ("No activity yet" under Versions and activity).

@@ -188,7 +188,8 @@ img,.auth-step-icon{transition:transform .25s ease,box-shadow .25s ease}
 img{border-radius:12px}
 .df-select-trigger{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease,background-color .2s ease}
 @media(hover:hover){
-  .df-button:hover:not(:disabled){transform:translateY(-3px)}
+  .df-button:hover:not(:disabled){transform:translateY(-1px)}
+  .df-button:active:not(:disabled){transform:translateY(0);transition-duration:.08s;filter:brightness(.97)}
   .df-button--primary:hover:not(:disabled){box-shadow:0 16px 28px rgba(8,126,128,.32),inset 0 1px 0 rgba(255,255,255,.4);filter:brightness(1.04)}
   .df-button--secondary:hover:not(:disabled),.df-button--ghost:hover:not(:disabled){box-shadow:0 14px 28px rgba(23,46,59,.14);background:rgba(255,255,255,.94)}
   .df-button--danger:hover:not(:disabled){box-shadow:0 16px 28px rgba(180,35,24,.3)}
@@ -222,15 +223,111 @@ img{border-radius:12px}
 .application .pipeline-deal{background:#fff;border:1px solid #e1eaed;border-radius:10px;box-shadow:0 8px 18px rgba(23,46,59,.08),inset 0 1px 0 #fff}
 .application .df-dialog{box-shadow:0 28px 64px rgba(23,46,59,.22),inset 0 1px 0 #fff}
 @media(hover:hover){
-  .application .panel:hover,.application .metric:hover,.application .deal-chip:hover,.application .pipeline-deal:hover,.df-raised:hover,.application .df-card:hover{
-    transform:translateY(-3px);
+  /* Only things you can click lift on hover. Panels and chips are containers, not targets. */
+  .application a.metric:hover,.application .pipeline-deal:hover{
+    transform:translateY(-2px);
     box-shadow:0 2px 4px rgba(23,46,59,.08),0 16px 32px rgba(23,46,59,.12),0 36px 56px rgba(23,46,59,.06),inset 0 1px 0 #fff;
   }
-  .application .pipeline-board>section:hover{box-shadow:inset 0 1px 0 #fff,0 16px 34px rgba(23,46,59,.14)}
 }
 @media(prefers-reduced-motion:reduce){
   .application .panel,.application .metric,.application .deal-chip,.application .table-wrap,.application .filters,.application .pipeline-board>section,.application .pipeline-deal,.df-raised,.df-card{transition:none}
-  .application .panel:hover,.application .metric:hover,.application .deal-chip:hover,.application .pipeline-deal:hover,.df-raised:hover,.application .df-card:hover{transform:none}
+  .application a.metric:hover,.application .pipeline-deal:hover{transform:none}
+}
+
+/* ---- Deal flow: one spine for "where is this deal, what happens next" ---- */
+.deal-flow{display:grid;gap:14px;margin:0 0 18px}
+.flow-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;list-style:none;margin:0;padding:0;counter-reset:step}
+.flow-step{position:relative;display:flex;align-items:flex-start;gap:10px;padding:10px 14px 10px 0;min-width:0}
+.flow-step::after{content:"";position:absolute;left:34px;right:14px;top:22px;height:2px;background:var(--line);border-radius:1px}
+.flow-step:last-child::after{display:none}
+.flow-step-marker{position:relative;z-index:1;flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;font-size:11px;font-weight:700;color:var(--muted);background:#fff;border:1.5px solid #c8d6da;transition:background-color .2s ease,border-color .2s ease,color .2s ease}
+.flow-step-text{display:flex;flex-direction:column;min-width:0}
+.flow-step-text strong{font-size:12.5px;line-height:1.3;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.flow-step-text small{margin-top:2px;font-size:11.5px;color:#8797a0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.flow-step.is-done .flow-step-marker{background:var(--teal);border-color:var(--teal);color:#fff}
+.flow-step.is-done::after{background:var(--teal)}
+.flow-step.is-done .flow-step-text strong{color:var(--ink)}
+.flow-step.is-current .flow-step-marker{border-color:var(--teal);color:var(--teal);box-shadow:0 0 0 4px rgba(8,127,128,.14)}
+.flow-step.is-current .flow-step-text strong{color:var(--ink)}
+.flow-step.is-current .flow-step-text small{color:var(--teal);font-weight:600}
+.flow-step.is-skipped .flow-step-marker{border-style:dashed}
+.flow-step.is-skipped .flow-step-text small{font-style:italic}
+.next-step{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 22px;border-radius:12px;background:#fff;border:1px solid rgba(196,214,218,.95);border-left:4px solid var(--teal);box-shadow:0 1px 2px rgba(23,46,59,.07),0 10px 22px rgba(23,46,59,.08),inset 0 1px 0 rgba(255,255,255,.92)}
+.next-step.is-waiting{border-left-color:#9fb3bb}
+.next-step.is-done{border-left-color:#3b9a5e}
+.next-step.is-blocked{border-left-color:#c8562f}
+.next-step-copy{min-width:0;flex:1}
+.next-step-copy h2{font-size:17px;margin:2px 0 4px;letter-spacing:-.2px}
+.next-step-copy p{margin:0;max-width:72ch;color:var(--muted)}
+.next-step-eyebrow{display:block;font-size:10.5px;letter-spacing:1.1px;text-transform:uppercase;font-weight:700;color:var(--teal)}
+.next-step.is-waiting .next-step-eyebrow{color:#7a8f98}
+.next-step.is-done .next-step-eyebrow{color:#3b9a5e}
+.next-step.is-blocked .next-step-eyebrow{color:#c8562f}
+.next-step-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:flex-end;flex:none}
+.decision-card{align-items:stretch}
+.decision-card .next-step-copy .reasons{margin:4px 0 12px}
+.decision-reason{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:600;color:var(--muted);max-width:56ch}
+.decision-reason textarea{font-weight:400;font-size:13px;resize:vertical;min-height:56px}
+.decision-card .next-step-actions{flex-direction:column;align-items:stretch;justify-content:flex-end;min-width:180px}
+.decision-card .next-step-actions .df-button{width:100%}
+.deal-meta{display:flex;flex-wrap:wrap;gap:6px 28px;margin:0 0 22px;padding:0 4px}
+.deal-meta>div{display:flex;align-items:center;gap:8px;margin:0}
+.deal-meta dt{font-size:11px;letter-spacing:.3px;text-transform:uppercase;font-weight:600;color:#8797a0}
+.deal-meta dd{margin:0;font-size:13px;color:var(--ink)}
+.unsaved{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#9a5b12}
+.unsaved::before{content:"";width:7px;height:7px;border-radius:50%;background:#e59a2b;box-shadow:0 0 0 3px rgba(229,154,43,.18)}
+.row-title{font-weight:600;color:var(--ink)}
+.policy-status{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.policy-status span:last-child{color:var(--ink)}
+.reasons{margin:0 0 12px;padding-left:18px;color:var(--ink);font-size:13px}
+.reasons li{margin:2px 0}
+.approval-chain{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.approval-chain li{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:8px 12px;border-radius:8px;background:#f4f7f8;border:1px solid transparent;font-size:13px}
+.approval-chain li small{margin:0;font-size:12px}
+.approval-chain li.is-done{color:var(--ink)}
+.approval-chain li.is-done small{color:#3b9a5e;font-weight:600}
+.approval-chain li.is-current{border-color:rgba(8,127,128,.35);background:rgba(8,127,128,.06)}
+.approval-chain li.is-current small{color:var(--teal);font-weight:600}
+.approval-chain li.is-blocked small{color:#c8562f;font-weight:600}
+.approval-chain li.is-upcoming{color:var(--muted)}
+.pipeline-next{color:var(--teal);font-weight:600}
+.new-quote .form-grid{margin-bottom:12px}
+.form-grid--three{grid-template-columns:repeat(3,minmax(0,1fr))}
+/* Inline table inputs keep their label for screen readers; the column header already says it visually. */
+.table-wrap td .df-field{margin:0}
+.table-wrap td .df-field label{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.table-wrap td .df-field input{min-height:34px;padding:6px 10px;width:96px}
+@media(max-width:900px){.form-grid--three{grid-template-columns:1fr}}
+.home-grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:18px;align-items:start}
+.attention{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.attention li+li{border-top:1px solid #edf2f4}
+.attention a{display:flex;align-items:center;gap:12px;padding:11px 6px;border-radius:8px;color:inherit;text-decoration:none;transition:background-color .15s ease}
+.attention a:hover{background:#f3f7f8;text-decoration:none}
+.attention a:hover .attention-go{transform:translateX(3px);color:var(--teal)}
+.attention-kind{flex:none;width:8px;height:8px;border-radius:50%;background:var(--teal)}
+.attention-kind.is-approval{background:#9a5b12}
+.attention-kind.is-order{background:#3b6fb0}
+.attention-kind.is-invoice{background:#c8562f}
+.attention-kind.is-task{background:#7a8f98}
+.attention-text{display:flex;flex-direction:column;min-width:0;flex:1}
+.attention-text strong{font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.attention-text small{margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.attention-go{flex:none;color:#a8b6bd;transition:transform .15s ease,color .15s ease}
+@media(max-width:980px){
+  .home-grid{grid-template-columns:1fr}
+  .next-step{flex-direction:column;align-items:stretch}
+  .next-step-actions{justify-content:flex-start}
+  .decision-card .next-step-actions{flex-direction:row;flex-wrap:wrap}
+  .decision-card .next-step-actions .df-button{width:auto}
+}
+@media(max-width:700px){
+  .flow-steps{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:6px}
+  .flow-step::after{display:none}
+  .flow-step-text strong,.flow-step-text small{white-space:normal}
+}
+@media(prefers-reduced-motion:reduce){
+  .flow-step-marker,.attention a,.attention-go{transition:none}
+  .attention a:hover .attention-go{transform:none}
 }
 .pay-gateway{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(16,36,46,.55);backdrop-filter:blur(10px)}
 .pay-gateway__panel{width:min(440px,100%);background:#fff;border-radius:16px;padding:28px 28px 24px;box-shadow:0 28px 80px rgba(19,43,61,.28),inset 0 1px 0 #fff}

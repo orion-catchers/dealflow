@@ -63,7 +63,7 @@ export function Dialog({ open, onClose, title, children, footer }: DialogProps<R
     if (open && dialog && !dialog.open) dialog.showModal();
     if (!open && dialog?.open) dialog.close();
   }, [open]);
-  return <dialog ref={ref} className="df-dialog" aria-labelledby={titleId} onCancel={event => { event.preventDefault(); onClose(); }} onClick={event => { if (event.target === ref.current) onClose(); }}><div className="df-page-header"><h2 id={titleId}>{title}</h2></div><div>{children}</div>{footer ? <footer className="df-actions">{footer}</footer> : <footer className="df-actions"><Button variant="secondary" aria-label="Close dialog" onClick={onClose}>Close</Button></footer>}</dialog>;
+  return <dialog ref={ref} className="df-dialog" aria-labelledby={titleId} onCancel={event => { event.preventDefault(); onClose(); }} onClick={event => { if (event.target === ref.current) onClose(); }}><div className="df-page-header"><h2 id={titleId}>{title}</h2></div><div>{children}</div>{footer === null ? null : footer ? <footer className="df-actions">{footer}</footer> : <footer className="df-actions"><Button variant="secondary" aria-label="Close dialog" onClick={onClose}>Close</Button></footer>}</dialog>;
 }
 export function Tabs({ tabs, selectedId, onChange, children }: { tabs: readonly { id: string; label: string }[]; selectedId: string; onChange: (id: string) => void; children: ReactNode }) {
   const prefix = useId(); const buttons = useRef<(HTMLButtonElement | null)[]>([]);

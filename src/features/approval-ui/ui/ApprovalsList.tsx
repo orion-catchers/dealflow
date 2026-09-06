@@ -33,7 +33,15 @@ export function ApprovalsList() {
           </Link>
         ),
       },
-      { key: "quote", header: "Quote", render: (row) => row.quoteId },
+      {
+        key: "quote",
+        header: "Quote",
+        render: (row) => (
+          <Link href={`/quotes/${row.quoteId}`} className="hover:underline">
+            Open quotation
+          </Link>
+        ),
+      },
       { key: "customer", header: "Customer", render: (row) => row.customerName },
       {
         key: "required",

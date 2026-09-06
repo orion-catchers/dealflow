@@ -79,9 +79,16 @@ export function ApprovalDetail({ revisionId }: { revisionId: string }) {
         title="Approval detail"
         description={d ? `${d.customerName} · quote ${d.quoteId}` : "Loading revision…"}
         actions={
-          <Link href="/approvals" className="text-sm hover:underline">
-            ← Back to approvals
-          </Link>
+          <div className="flex items-center gap-4">
+            {d ? (
+              <Link href={`/quotes/${d.quoteId}`} className="text-sm hover:underline">
+                Open full quotation
+              </Link>
+            ) : null}
+            <Link href="/approvals" className="text-sm hover:underline">
+              ← Back to approvals
+            </Link>
+          </div>
         }
       />
       {detail.error ? <ErrorState message={detail.error} onRetry={detail.reload} /> : null}
