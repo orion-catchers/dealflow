@@ -64,6 +64,8 @@ Jobs without a vendor: `npm run jobs` (due invoices, health refresh, learned co-
 
 ## Seed logins (LIVE database)
 
+The complete tester list (Nexa, Contoso, synthetic importer, fixture emails) is **[testing-credentials.md](testing-credentials.md)**.
+
 Passwords are **not** `password123`. They come from `src/fixtures/ruchir.ts`.
 
 | Role | Email | Password |

@@ -6,7 +6,7 @@ import { prisma } from "../src/server/lib/db";
 type Row = Record<string, unknown>;
 type Fixture = Record<string, unknown> & { users: Row[] };
 
-const file = process.argv[2] ?? "dealflow360_synthetic_dataset.json";
+const file = process.argv[2] ?? "src/fixtures/dealflow360_synthetic_dataset.json";
 const reset = process.argv.includes("--reset");
 const fixture = JSON.parse(fs.readFileSync(file, "utf8")) as Fixture;
 

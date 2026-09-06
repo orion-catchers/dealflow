@@ -251,7 +251,7 @@ export default function Application(){
     <a className="skip" href="#main">Skip to main content</a>
     <aside className={menu?'sidebar visible':'sidebar'} aria-label="Primary navigation">
       <div className="sidebar-head">
-        <Link className="brand wordmark" href={sessionActor.role==='CUSTOMER'?'/portal':'/home'} aria-label="DealFlow360 home">DealFlow<span>360</span></Link>
+        <Link className="brand wordmark" href={sessionActor.role==='CUSTOMER'?'/portal':'/home'} aria-label="DealFlow360 home">DealFlow360</Link>
         <button className="sidebar-toggle" type="button" aria-expanded={!collapsed} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'} title={collapsed?'Expand sidebar':'Collapse sidebar'} onClick={()=>setSidebarCollapsed(!collapsed)}>
           {collapsed?<PanelLeft size={18}/>:<PanelLeftClose size={18}/>}
         </button>

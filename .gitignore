@@ -53,3 +53,6 @@ yarn-error.log*
 # Local notes
 ATHARVA_IMPLEMENTATION_PROMPT.md
 ATHARVA_IMPLEMENTATION_DETAILS.md
+
+# Accidental API dumps
+login.json

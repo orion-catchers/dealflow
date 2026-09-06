@@ -5,13 +5,13 @@
 @media(min-width:1600px){.auth-form h1{font-size:54px}.auth-form{max-width:460px}}
 @media(max-width:1100px){.sidebar{width:196px;padding:23px 12px}.main-column{margin-left:196px;width:calc(100% - 196px)}main{padding:25px 22px}.topbar{padding:0 22px}.brand{font-size:18px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.recommendations{grid-template-columns:1fr}.two-columns{grid-template-columns:1fr}.auth-content{padding:30px}.auth-art{padding:0 15px}}
 @media(max-width:700px){.sidebar{display:none;width:228px;box-shadow:10px 0 50px #19344233;padding-top:75px}.sidebar.visible{display:flex}.main-column{margin-left:0;width:100%}.topbar{padding:0 16px;height:62px;position:sticky;top:0;z-index:30}.mobile-menu{display:block;border:0;background:transparent;padding:4px}.top-date{display:none}.topbar>span{font-size:10px}.topbar>div{gap:0}main{padding:24px 15px}.heading{flex-direction:column;margin-bottom:22px}h1{font-size:25px}.heading .actions{width:100%}.panel{padding:17px}.metrics{gap:11px}.metric{padding:15px}.metric>strong{font-size:25px}.form-grid{grid-template-columns:1fr}.add-line{grid-template-columns:1fr 1fr}.filters>.df-field{min-width:130px}.deal-summary{gap:12px}.bars>div{grid-template-columns:100px 1fr 20px}.auth-page{grid-template-columns:1fr}.auth-art{display:none}.auth-content{padding:26px;min-height:100dvh}.auth-form{padding:60px 0}.auth-form h1{font-size:39px}.portal-totals{justify-content:flex-start}.portal-totals>div{align-items:flex-start}.table-wrap td{padding:12px}.df-dialog{padding:20px}.standalone{margin:50px 15px}.panel>header{align-items:flex-start;flex-wrap:wrap}}
-.auth-art{background:#f1f2f0 url('/brand/landing-reference.png') center/cover no-repeat}.auth-art img{display:none}.auth-art-copy{padding:26px 25px 45px;max-width:560px}
+.auth-art{background:#f1f2f0 url('/bg-image.png') center/cover no-repeat}.auth-art img{display:none}.auth-art-copy{padding:26px 25px 45px;max-width:560px}
 
 /* DealFlow360 visual system: quiet marble entry, cool stone workspace, and text-only brand. */
 :root{--ink:#132b3d;--muted:#60727d;--teal:#087f80;--teal-dark:#056466;--line:#d6e0e3;--surface:#fffdfa;--stone:#edf1f1}
 body{background:var(--stone);color:var(--ink)}
-.wordmark{font-family:Arial,Helvetica,sans-serif;font-size:23px;font-weight:800;letter-spacing:-1.35px;color:#0d2436;line-height:1;text-shadow:0 1px 0 rgba(255,255,255,.9),0 10px 22px rgba(16,40,59,.14)}.wordmark span{color:var(--teal);font-weight:800;text-shadow:0 1px 0 rgba(255,255,255,.85),0 8px 18px rgba(8,126,128,.28)}.wordmark:hover{text-decoration:none}.brandmark{display:none!important}
-.auth-page{position:relative;display:block;min-height:100dvh;overflow:hidden;background:#e9e8e3 url('/brand/landing-reference.png') center/cover no-repeat;color:var(--ink)}
+.wordmark{font-family:Georgia,'Times New Roman',serif;font-size:clamp(22px,2.2vw,28px);font-weight:800;font-style:italic;letter-spacing:-1.4px;color:#0d2436;line-height:1;text-shadow:0 1px 0 rgba(255,255,255,.9),0 10px 22px rgba(16,40,59,.14)}.wordmark:hover{text-decoration:none}.brandmark{display:none!important}
+.auth-page{position:relative;display:block;min-height:100dvh;overflow:hidden;background:#e9e8e3 url('/bg-image.png') center/cover no-repeat;color:var(--ink)}
 .auth-page:before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(250,249,245,.9) 0%,rgba(250,249,245,.68) 36%,rgba(250,249,245,.18) 72%,rgba(250,249,245,.03) 100%);pointer-events:none}
 .auth-topbar,.auth-body{position:relative;z-index:1}
 .auth-topbar{display:flex;align-items:center;justify-content:space-between;gap:25px;padding:28px clamp(24px,5.4vw,90px)}
@@ -35,7 +35,7 @@ dialog.df-dialog{position:fixed;inset:0;margin:auto;width:min(640px,calc(100% - 
 
 /* Landing page reference alignment: serif editorial headline, quiet left copy, and a clear nav lane. */
 .auth-landing .auth-topbar{padding:48px clamp(44px,4.4vw,68px) 0;align-items:flex-start}
-.auth-landing .wordmark{font-size:40px;font-weight:800;letter-spacing:-2.6px}
+.auth-landing .wordmark{font-size:clamp(36px,4vw,48px);font-weight:800;font-style:italic;letter-spacing:-2.2px}
 .auth-landing .landing-nav{gap:clamp(28px,3.1vw,48px);margin-right:clamp(48px,7.2vw,112px);font-size:19px;line-height:1.2}
 .auth-landing .landing-nav .header-cta{padding:15px 28px;border-radius:10px;font-size:19px}
 .auth-landing .auth-body{max-width:none;height:calc(100dvh - 106px);min-height:0;padding:clamp(58px,9.5vh,104px) clamp(48px,4.4vw,68px) 28px;align-items:flex-start}

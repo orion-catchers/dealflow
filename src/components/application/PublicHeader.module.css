@@ -2,10 +2,9 @@
   position: relative;
   flex-shrink: 0;
   z-index: 10;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: flex-start;
-  gap: clamp(28px, 5vw, 88px);
   min-height: 56px;
   margin: 28px clamp(20px, 3.6vw, 58px) 0;
   padding: 0;
@@ -16,19 +15,32 @@
 }
 
 .wordmark {
-  flex-shrink: 0;
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: center;
+  text-align: center;
+  z-index: 1;
   font-family: Georgia, 'Times New Roman', serif;
-  color: #172e3b;
-  font-size: clamp(26px, 2.3vw, 36px);
-  font-weight: 400;
-  line-height: 1.1;
-  letter-spacing: -1.15px;
-  white-space: nowrap;
+  font-size: clamp(28px, 3.4vw, 42px);
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: -1.8px;
+  line-height: 1;
+  color: #0d2436;
 }
-
-.wordmark span { color: #087f80; }
 .wordmark:hover { text-decoration: none; }
-.navigation { min-width: 0; margin-left: clamp(12px, 1.5vw, 24px); }
+.navigation {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  min-width: 0;
+  margin-left: 0;
+}
+.back {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+}
 .navItems { display: flex; align-items: center; gap: clamp(6px, 1.1vw, 18px); }
 .trigger, .signIn, .back, .primary, .mobileActions a, .mobileActions button {
   display: inline-flex;
@@ -104,7 +116,12 @@
 .panelAction { display: inline-flex; align-items: center; min-height: 44px; color: #056466; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .accessActions { display: flex; align-items: center; gap: 12px 22px; flex-wrap: wrap; }
 .accessActions > a { min-height: 44px; display: inline-flex; align-items: center; }
-.mobileActions { display: none; }
+.mobileActions {
+  display: none;
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+}
 
 @media (max-width: 1280px) {
   .header { margin: 24px 32px 0; min-height: 52px; gap: 24px; }
@@ -117,7 +134,7 @@
 @media (max-width: 1100px) {
   .header { margin: 20px 24px 0; min-height: 48px; }
   .wordmark { font-size: 25px; letter-spacing: -1.6px; }
-  .navigation { margin-left: 8px; }
+  .navigation { margin-left: 0; }
   .mobileActions { display: flex; align-items: center; gap: 4px; }
   .mobileActions a, .mobileActions button { font-size: 13px; padding: 8px; }
   .navigation { display: none; position: absolute; top: calc(100% + 24px); left: 0; width: min(600px, 100%); max-height: calc(100dvh - 120px); overflow: auto; padding: 0 4px 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }

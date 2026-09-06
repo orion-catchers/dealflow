@@ -651,3 +651,23 @@ Checks: vitest **278/278**; `tsc --noEmit` 0 after regenerating `.next` types; `
 
 Limitations: Prisma has no `SENT` stage (UI SENT is `UNDER_NEGOTIATION` / `stage !== DRAFT`). Isolated unit tests are not a substitute for a full browser save→portal round-trip. Stripe/carrier remain 503 without keys (NOT CONNECTED).
 
+## 2026-09-06T07:55:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Replaced the title PNG with a large bold italic **DealFlow360** wordmark (README + landing/login header + sidebar). Documented install → `.env` port match → Postgres → migrate/seed → `pnpm dev`/`npm run dev` in README Quick start and Common commands. Removed unused assets (title/wordmark/landing/architecture raster, Next.js default SVGs, duplicate `bg-image.png` / `landing-reference.png` / `connected-path.png`, `login.json`). Moved synthetic import JSON to `src/fixtures/dealflow360_synthetic_dataset.json`. Aligned Prisma URL fallback with Compose credentials.
+
+Files: `README.md`, `docs/testing-credentials.md`, `.env.example`, `.gitignore`, `prisma.config.ts`, `scripts/seed-synthetic-dataset.ts`, `src/components/application/{PublicHeader.tsx,PublicHeader.module.css,Application.tsx}`, `src/app/globals.css`.
+
+Checks: asset paths no longer referenced from UI; landing wordmark is text. Browser screenshot not taken this pass (Postgres container was not running).
+
+Limitations: did not rewrite teammate handoff docs that still mention `landing-reference.png`. Did not move `src/` lane folders.
+
+## 2026-09-06T08:00:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Centered the public **DealFlow360** wordmark in the landing/login header. README now states the Nexa quote-to-cash demo is complete end to end, with an End-to-end status table and optional-vendor notes instead of a limitations-first close.
+
+Files: `src/components/application/PublicHeader.tsx`, `src/components/application/PublicHeader.module.css`, `README.md`.
+
+Checks: landing header grid places the italic title in the center column; README opens with a centered title and status line.
+
+Limitations: Stripe/Resend/Google/carrier remain key-gated 503. Isolated unit tests still do not prove a new browser cycle.
+

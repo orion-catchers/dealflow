@@ -44,10 +44,10 @@ export default function PublicHeader({landing,onOpenChange}:{landing:boolean;onO
     };
   },[panel,mobileOpen]);
 
-  return <header ref={header} className={styles.header} onBlur={event=>{
+  return <header ref={header} className={`${styles.header} ${landing?styles.landing:styles.login}`} onBlur={event=>{
     if(event.relatedTarget&&!event.currentTarget.contains(event.relatedTarget as Node))close();
   }}>
-    <Link className={styles.wordmark} href="/" aria-label="DealFlow360 home" onClick={close}>DealFlow<span>360</span></Link>
+    <Link className={styles.wordmark} href="/" aria-label="DealFlow360 home" onClick={close}>DealFlow360</Link>
     {landing?<>
       <div className={styles.mobileActions}>
         <Link href="/login" onClick={close}>Sign in</Link>

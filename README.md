@@ -1,12 +1,11 @@
+<div align="center">
 
+# ***DealFlow360***
 
+**B2B quote-to-cash — complete end to end**
 
-
-![DealFlow360](docs/assets/dealflow-title-sage.png)
-
-**B2B quote-to-cash for connected sales operations**
-
-Price, approve, negotiate, confirm, allocate, bill, and report on every deal — one Next.js app, one PostgreSQL database, one canonical revision. Previews never commit. Stock is reserved only on explicit allocation.
+Quote → approve → negotiate → confirm → allocate → ship → bill → report.  
+One Next.js app, one PostgreSQL database, one canonical revision.
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?logo=node.js&logoColor=white)
@@ -16,14 +15,11 @@ Price, approve, negotiate, confirm, allocate, bill, and report on every deal —
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![Tailwind](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)
 
-Built by **Team Orion Catchers**. Demo tenant: **Nexa Office Solutions**.
+**Team Orion Catchers** · Demo tenant **Nexa Office Solutions** · Landing `/`
 
-  
+The live demo is **done**: catalog, quotations, policy, approvals, customer portal, confirmation, fulfillment, billing, health, and reports run on one Postgres database. Previews never commit. Stock is reserved only on explicit allocation. Stripe, Resend, Google SSO, and live carrier HTTP stay **NOT CONNECTED** until you paste keys.
 
-
-![DealFlow360 landing page: Every deal. Every detail. In sync. with Product, How it works, Access, Sign in, and Get started.](docs/assets/landing.png)
-
-*Public landing at* `/` *— marble workspace photography, teal CTAs, Configure → Agree → Deliver.*
+</div>
 
 
 
@@ -33,32 +29,53 @@ Built by **Team Orion Catchers**. Demo tenant: **Nexa Office Solutions**.
 
 ## Table of contents
 
-1. [What a reviewer or agent must verify first](#what-a-reviewer-or-agent-must-verify-first)
-2. [What is DealFlow360?](#what-is-dealflow360)
-3. [Non-goals](#non-goals)
-4. [Design principles (acceptance criteria)](#design-principles-acceptance-criteria)
-5. [Live feature demos](#live-feature-demos)
-6. [Tech stack](#tech-stack)
-7. [Architecture at a glance](#architecture-at-a-glance)
-8. [Prerequisites](#prerequisites)
-9. [Quick start](#quick-start)
-10. [Seed accounts](#seed-accounts)
-11. [Repository layout](#repository-layout)
-12. [Feature matrix](#feature-matrix)
-13. [Roles and permissions](#roles-and-permissions)
-14. [Data model](#data-model)
-15. [API surface](#api-surface)
-16. [Environment variables](#environment-variables)
-17. [Adapters (live vs development fixture)](#adapters-live-vs-development-fixture)
-18. [Common commands](#common-commands)
-19. [Testing](#testing)
-20. [Security model](#security-model)
-21. [Deployment](#deployment)
-22. [Operations and incident response](#operations-and-incident-response)
-23. [Documentation index](#documentation-index)
-24. [Ownership and team](#ownership-and-team)
-25. [Known limitations](#known-limitations)
-26. [Roadmap (optional vendors)](#roadmap-optional-vendors-not-required-for-demo)
+1. [End-to-end status](#end-to-end-status)
+2. [What a reviewer or agent must verify first](#what-a-reviewer-or-agent-must-verify-first)
+3. [What is DealFlow360?](#what-is-dealflow360)
+4. [Non-goals](#non-goals)
+5. [Design principles (acceptance criteria)](#design-principles-acceptance-criteria)
+6. [Live feature demos](#live-feature-demos)
+7. [Tech stack](#tech-stack)
+8. [Architecture at a glance](#architecture-at-a-glance)
+9. [Prerequisites](#prerequisites)
+10. [Quick start](#quick-start)
+11. [Seed accounts](#seed-accounts)
+12. [Repository layout](#repository-layout)
+13. [Feature matrix](#feature-matrix)
+14. [Roles and permissions](#roles-and-permissions)
+15. [Data model](#data-model)
+16. [API surface](#api-surface)
+17. [Environment variables](#environment-variables)
+18. [Adapters (live vs development fixture)](#adapters-live-vs-development-fixture)
+19. [Common commands](#common-commands)
+20. [Testing](#testing)
+21. [Security model](#security-model)
+22. [Deployment](#deployment)
+23. [Operations and incident response](#operations-and-incident-response)
+24. [Documentation index](#documentation-index)
+25. [Ownership and team](#ownership-and-team)
+26. [Optional vendors](#optional-vendors-not-required-for-the-core-demo)
+
+---
+
+
+
+## End-to-end status
+
+**The Nexa quote-to-cash demo is complete on the live path.** Staff, customer portal, and engines share one database. Fixture mode is a separate harness, not a silent fallback.
+
+| Stage | What is in the product |
+| --- | --- |
+| Catalog & customers | Products, variants, price lists, companies, warehouses, tax snapshots |
+| Quote | Canonical price, line discounts, revision + `expectedRevision` |
+| Policy & approval | Bronze / Silver / Gold ceilings; manager then finance when required |
+| Send & portal | Customer-scoped terms, proposals, date review, accept current revision |
+| Confirm | Order + billing init + fulfillment header; **no stock reserve** |
+| Fulfillment | Preview split → allocate → ship → deliver |
+| Billing | Invoices, recorded payments, subscriptions, due run |
+| Health & reports | Flags/tasks; on-screen rows match XLSX/PDF |
+
+Walk it with seed accounts: Arjun quotes → Sana/Farah approve if needed → Neha accepts → Farah allocates. Logins: [docs/testing-credentials.md](docs/testing-credentials.md). Full-cycle probe: [docs/full-cycle-audit.md](docs/full-cycle-audit.md).
 
 ---
 
@@ -81,10 +98,10 @@ Use this section as a checklist. If an item fails, do not treat the system as pr
 | 8   | CSRF on mutations                        | POST with `Origin: http://evil.example`                                | **403 ORIGIN**                                                                                                            |
 | 9   | Session is httpOnly                      | Login `Set-Cookie`                                                     | `dealflow_session` httpOnly, `SameSite=Strict`, not readable from JS                                                      |
 | 10  | CI is the source of truth                | `.github/workflows/ci.yml`                                             | validate → migrate → seed twice → typecheck → lint → test → build                                                         |
-| 11  | Demo credentials never in production     | This README + `.env.example`                                           | Seed passwords in [docs/env-keys.md](docs/env-keys.md); `SESSION_SECRET=change-me` is local-only                          |
+| 11  | Demo credentials never in production     | This README + `.env.example`                                           | Seed passwords in [docs/testing-credentials.md](docs/testing-credentials.md); `SESSION_SECRET=change-me` is local-only    |
 
 
-Canonical docs for deeper checks: [docs/architecture.md](docs/architecture.md), [docs/API.md](docs/API.md), [docs/SECURITY.md](docs/SECURITY.md), [docs/DATA_MODEL.md](docs/DATA_MODEL.md), [docs/deploy.md](docs/deploy.md), [docs/OPERATIONS.md](docs/OPERATIONS.md).
+Canonical docs for deeper checks: [docs/architecture.md](docs/architecture.md), [docs/API.md](docs/API.md), [docs/SECURITY.md](docs/SECURITY.md), [docs/DATA_MODEL.md](docs/DATA_MODEL.md), [docs/deploy.md](docs/deploy.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/testing-credentials.md](docs/testing-credentials.md).
 
 ---
 
@@ -114,7 +131,7 @@ It is **not** a CRM, ERP purchasing module, or card-acquiring gateway. Those bel
 
 Do **not** grade the product against hosted vendor accounts you have not configured.
 
-- **No deploy required.** Local Docker + `.env` is the intended demo. Keys live in [docs/env-keys.md](docs/env-keys.md).
+- **No deploy required.** Local Docker + `.env` is the intended demo. Keys live in [docs/env-keys.md](docs/env-keys.md). Demo logins: [docs/testing-credentials.md](docs/testing-credentials.md).
 - Card **collection** needs `STRIPE_SECRET_KEY`. Without it, payments are **recorded** in the books only (still correct for the core demo).
 - Outbound email needs Resend or `MAIL_WEBHOOK_URL`; otherwise non-production **logs** the message.
 - Google SSO needs client id/secret; password login always works.
@@ -216,8 +233,6 @@ Neha cannot open Rohan’s portal quote (**404**). A proposal with financial cha
 
 ![DealFlow360 layered architecture: browser shells, Next.js APIs and six engines, PostgreSQL 16](docs/assets/architecture.svg)
 
-![DealFlow360 architecture poster: browser, Next.js 16, engines, PostgreSQL 16](docs/assets/architecture.png)
-
 Six engines (pure logic + services + repositories):
 
 
@@ -257,25 +272,68 @@ Tested on Windows 10/11 (PowerShell) and typical Linux CI (`ubuntu-latest`). If 
 
 ## Quick start
 
+Scripts work with **pnpm** (CI) or **npm**. Do **not** set `DEALFLOW_ADAPTER=development` for the live Nexa demo.
+
+### 1. Install
+
 ```bash
 git clone https://github.com/orion-catchers/dealflow.git
 cd dealflow
 pnpm install
-cp .env.example .env
-# If 5432 is taken: set DEALFLOW_DB_PORT=5434 and the same port inside DATABASE_URL
-pnpm db:up
-pnpm db:deploy
-pnpm db:seed
-pnpm dev
+# or: npm install
 ```
 
-Open **[http://localhost:3000](http://localhost:3000)**. Sign in with a [seed account](#seed-accounts).
+Node **24** is required. Enable pnpm with `corepack enable` then `corepack prepare pnpm@11.3.0 --activate` if you do not have it.
 
-**Live UI (default):** do **not** set `DEALFLOW_ADAPTER=development`. Requires `DATABASE_URL`.
+### 2. Environment
 
-**Krishna fixture harness only:** `pnpm dev:fixture` (JSON store under `.dealflow-development/`). Forbidden when `NODE_ENV=production`.
+```bash
+cp .env.example .env
+```
 
-Native Postgres instead of Docker: point `DATABASE_URL` at your instance and skip `pnpm db:up`. Major version must be **16**.
+PowerShell: `Copy-Item .env.example .env`
+
+Edit `.env` so **both** of these match (same host port):
+
+```text
+DEALFLOW_DB_PORT=5432
+DATABASE_URL="postgresql://dealflow:dealflow@localhost:5432/dealflow?schema=public"
+```
+
+If **5432** is already in use (common on Windows), use **5434** in **both** lines. `SESSION_SECRET` may stay `change-me` locally.
+
+### 3. Postgres 16
+
+```bash
+pnpm db:up
+# or: npm run db:up
+# or, if the container already exists: docker start dealflow-postgres
+```
+
+Wait until `docker ps` shows `dealflow-postgres` healthy. Login **ECONNREFUSED** means Postgres is stopped — start it before `pnpm dev`.
+
+### 4. Schema + Nexa seed
+
+```bash
+pnpm db:deploy
+pnpm db:seed
+# or: npm run db:deploy && npm run db:seed
+```
+
+Do **not** run `pnpm db:reset` on a shared or production database.
+
+### 5. Run the app
+
+```bash
+pnpm dev
+# or: npm run dev
+```
+
+Open **[http://localhost:3000](http://localhost:3000)** and sign in with a [seed account](#seed-accounts). Full logins: **[docs/testing-credentials.md](docs/testing-credentials.md)**. Env keys (not passwords): [docs/env-keys.md](docs/env-keys.md).
+
+**Fixture harness only (no Postgres):** `pnpm dev:fixture` / `npm run dev:fixture`. Forbidden when `NODE_ENV=production`. Does not prove LIVE database behavior.
+
+Native Postgres instead of Docker: set `DATABASE_URL` and skip `db:up`. Major version must be **16**.
 
 ---
 
@@ -283,7 +341,7 @@ Native Postgres instead of Docker: point `DATABASE_URL` at your instance and ski
 
 ## Seed accounts
 
-Passwords are **per user** (not `password123`). Full table: [docs/env-keys.md](docs/env-keys.md). Never use these in production.
+Passwords are **per user** (not `password123`). Full testing table: **[docs/testing-credentials.md](docs/testing-credentials.md)**. Env keys (not logins): [docs/env-keys.md](docs/env-keys.md). Never use these in production.
 
 
 | Role             | Email                 | Password            | Lands on                           |
@@ -321,7 +379,7 @@ dealflow/
 │   ├── contracts/               Lane TypeScript contracts
 │   ├── development/             Fixture adapter (dev-only)
 │   ├── features/                Builder, portal, catalog, inventory, reports UIs + zod
-│   ├── fixtures/                Seed data per owner
+│   ├── fixtures/                Lane seed data + optional synthetic JSON
 │   ├── generated/prisma/        Generated client (gitignored)
 │   ├── middleware.ts            Origin check for /api/*
 │   └── server/                  Engines, live adapter, auth, db
@@ -497,27 +555,29 @@ Reviewer trap: running `pnpm dev:fixture` is **not** a database proof. Label UI 
 
 ## Common commands
 
-Run from repo root.
+Run from repo root. `npm run <script>` is equivalent to `pnpm <script>`.
 
 
-| Command                  | Purpose                                                          |
-| ------------------------ | ---------------------------------------------------------------- |
-| `pnpm install`           | Install + `prisma generate` (postinstall)                        |
-| `pnpm dev`               | Next dev (default port 3000)                                     |
-| `pnpm dev:fixture`       | Fixture adapter                                                  |
-| `pnpm build`             | `prisma generate && next build`                                  |
-| `pnpm start`             | Production Next server                                           |
-| `pnpm typecheck`         | `next typegen && tsc --noEmit`                                   |
-| `pnpm lint`              | ESLint                                                           |
-| `pnpm test`              | Vitest once                                                      |
-| `pnpm test:krishna`      | `tests/*.test.mjs`                                               |
-| `pnpm db:up` / `db:down` | Compose Postgres                                                 |
-| `pnpm db:deploy`         | `prisma migrate deploy` (safe for shared DB)                     |
-| `pnpm db:migrate`        | `prisma migrate dev` (creates migrations)                        |
-| `pnpm db:seed`           | Seed (idempotent in CI: run twice)                               |
-| `pnpm db:reset`          | **Drop** database, migrate, seed — **never** on integration/prod |
-| `pnpm db:studio`         | Prisma Studio                                                    |
-| `pnpm db:generate`       | Generate client only                                             |
+| Command                    | Purpose                                                          |
+| -------------------------- | ---------------------------------------------------------------- |
+| `pnpm install`             | Install + `prisma generate` (postinstall)                        |
+| `pnpm dev`                 | Next.js on **http://localhost:3000** (needs Postgres for LIVE)   |
+| `pnpm dev:fixture`         | Fixture adapter (no LIVE DB)                                     |
+| `pnpm build` / `pnpm start`| Production compile and Node server                               |
+| `pnpm typecheck`           | `next typegen && tsc --noEmit`                                   |
+| `pnpm lint`                | ESLint                                                           |
+| `pnpm test`                | Vitest once                                                      |
+| `pnpm test:krishna`        | `tests/*.test.mjs`                                               |
+| `pnpm db:up` / `db:down`   | Start / stop Compose Postgres (`dealflow-postgres`)              |
+| `docker start dealflow-postgres` | Restart an existing container without recreate            |
+| `pnpm db:deploy`           | `prisma migrate deploy` (safe for shared DB)                     |
+| `pnpm db:migrate`          | `prisma migrate dev` (creates migrations)                        |
+| `pnpm db:seed`             | Nexa demo seed (idempotent in CI: run twice)                     |
+| `pnpm synthetic:seed`      | Add-only import of `src/fixtures/dealflow360_synthetic_dataset.json` |
+| `pnpm db:reset`            | **Drop** database, migrate, seed — **never** on integration/prod |
+| `pnpm db:studio`           | Prisma Studio                                                    |
+| `pnpm db:generate`         | Generate client only                                             |
+| `pnpm jobs`                | Due billing / health jobs (`JOBS_ACTOR_EMAIL`)                   |
 
 
 ---
@@ -590,7 +650,7 @@ See [docs/OPERATIONS.md](docs/OPERATIONS.md) for backup/restore, rollback, log t
 | Document                                                                                             | Audience                                           |
 | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
 | [README.md](./README.md)                                                                             | Humans, reviewers, coding agents (this file)       |
-| [docs/assets/](docs/assets/)                                                                         | Landing screenshot + architecture SVG/PNG          |
+| [docs/assets/](docs/assets/)                                                                         | Architecture diagram (SVG)                         |
 | [docs/architecture.md](docs/architecture.md)                                                         | Engines, confirmation handoff, ER sketch           |
 | [docs/DATA_MODEL.md](docs/DATA_MODEL.md)                                                             | Tables, enums, invariants                          |
 | [docs/API.md](docs/API.md)                                                                           | HTTP contract, errors, actions                     |
@@ -600,6 +660,7 @@ See [docs/OPERATIONS.md](docs/OPERATIONS.md) for backup/restore, rollback, log t
 | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)                                                         | Branches, migrations, review                       |
 | [docs/detailed-project-understanding.md](docs/detailed-project-understanding.md)                     | Stack fundamentals, workflows, vendor keys         |
 | [docs/env-keys.md](docs/env-keys.md)                                                                 | Required `.env` + optional vendor keys (no deploy) |
+| [docs/testing-credentials.md](docs/testing-credentials.md)                                           | Local demo logins (Nexa, Contoso, synthetic, fixture) |
 | [docs/team-integration-handoff.md](docs/team-integration-handoff.md)                                 | Krishna UI + adapter seams                         |
 | [docs/krishna-manual-qa.md](docs/krishna-manual-qa.md)                                               | Manual UI checklist (fixture-oriented)             |
 | [DealFlow360_Team_Execution_Blueprint-krishna.md](./DealFlow360_Team_Execution_Blueprint-krishna.md) | Original team plan                                 |
@@ -632,26 +693,19 @@ Schema changes are **additive**. Never edit a merged migration. Ask Ruchir befor
 
 
 
-## Known limitations
+## Optional vendors (not required for the core demo)
 
-- Live command idempotency for some actions still uses an in-process map; receipts/payments use durable `RequestKey` where wired. Restarting Node can change replay behavior for the in-memory map.
-- Due billing and health refresh: staff buttons **and** `npm run jobs` / `POST /api/jobs/run`.
-- Card checkout is optional (`STRIPE_SECRET_KEY`). Books payments always work.
-- Demo walkthrough status cells may lag code; trust CI + this README’s verify table.
-- `package-lock.json` may exist beside `pnpm-lock.yaml`; **CI uses pnpm**.
-- Catch-all login cookie `maxAge` is 8 hours; `SESSION_MAX_AGE_SECONDS` in session helper is 7 days — treat 8 hours as the catch-all login TTL unless unified.
+Paste keys from [docs/env-keys.md](docs/env-keys.md) only if you want live email, Stripe cards, Google SSO, or a carrier HTTP overlay. Without those keys the adapters return **503 / NOT CONNECTED** by design. Books payments, rate-card shipping, and password login already work.
 
----
+Notes that do not block the Nexa demo:
 
-
-
-## Roadmap (optional vendors, not required for demo)
-
-Paste keys from [docs/env-keys.md](docs/env-keys.md) when you want live email, Stripe cards, Google SSO, or a carrier HTTP overlay. Core fulfillment and reports already run locally. Hosted deploy is optional.
+- Some workspace actions still replay from an in-process map; receipts and payments use durable `RequestKey` where wired.
+- Due billing and health refresh run from staff buttons **and** `pnpm jobs` / `POST /api/jobs/run`.
+- CI uses **pnpm**; `npm run` works locally for the same scripts.
 
 ---
 
 
 
-*Review this repository on: **data model, canonical engines, revision safety, RBAC, fail-closed adapters, and demo integrity** — in that order.*
+*The demo is complete end to end. Review **data model, canonical engines, revision safety, RBAC, fail-closed adapters, and demo integrity** — in that order.*
 
