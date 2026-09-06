@@ -743,8 +743,13 @@ Elevated the DealFlow360 public landing experience on the `design/refined-editor
 - Added an interactive FAQ accordion addressing the Commitment Rule, Decimal.js precision, and customer-scoped portal boundaries.
 - Polished the travertine warm stone and antique teal brand styling in `src/styles/editorial-brand.css` with responsive mobile/tablet breakpoints.
 
-Files: `src/components/application/LandingPage.tsx`, `src/styles/editorial-brand.css`, `memory.md`.
+Files: `src/components/application/LandingPage.tsx`, `src/components/application/Application.tsx`, `src/styles/editorial-brand.css`, `src/app/globals.css`, `memory.md`.
 
-Checks: `pnpm run typecheck` (passed, 0 errors); `pnpm test` (43 files, 305/305 tests passed); `pnpm run test:krishna` (30/30 tests passed); `pnpm run lint` (0 errors, 8 pre-existing warnings).
+Checks: `pnpm run typecheck` (passed, 0 errors); `pnpm test` (43 files, 305/305 tests passed); `pnpm run test:krishna` (30/30 tests passed); `pnpm run lint` (0 errors, 8 pre-existing warnings); `pnpm run build` (72/72 routes compiled successfully); `pnpm dev` running live and verified responding with HTTP 200 OK across `/`, `/login`, `/home`, and API auth endpoints.
+
+Fixed:
+- Removed merge conflict markers in `src/app/globals.css` that caused PostCSS 500 parse error in browser.
+- Unconstrained landing page layout in `Application.tsx` by separating it from legacy `.auth-page.auth-landing` (which previously forced `height: 100dvh; overflow: hidden`, preventing vertical scrolling and clipping the content).
+- Added `.landing-shell` with unconstrained height and reset main padding in `editorial-brand.css`.
 
 Limitations: Isolated on `design/refined-editorial-landing-ui` branch for testing; not merged to `main`.

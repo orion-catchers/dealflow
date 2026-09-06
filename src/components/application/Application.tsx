@@ -402,12 +402,20 @@ function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;on
   const [recoveryMsg,setRecoveryMsg]=useState('');
   const [recoveryOk,setRecoveryOk]=useState(false);
   const landing=path==='/';
-  return <div className={`auth-page ${landing?'auth-landing':''}`} data-public-panel-open={publicMenuOpen}>
+  if (landing) {
+    return (
+      <div className="landing-shell" data-public-panel-open={publicMenuOpen}>
+        <PublicHeader key={path} landing={true} onOpenChange={setPublicMenuOpen} />
+        <main id="product" inert={publicMenuOpen}>
+          <LandingPage onOpenWorkspace={() => {}} />
+        </main>
+      </div>
+    );
+  }
+  return <div className="auth-page" data-public-panel-open={publicMenuOpen}>
     <div className="auth-photo" aria-hidden="true"/>
-    <PublicHeader key={path} landing={landing} onOpenChange={setPublicMenuOpen}/>
-    {landing?<main className="auth-body landing-body" id="product" inert={publicMenuOpen}>
-      <LandingPage onOpenWorkspace={()=>{}}/>
-    </main>:<main className="auth-body login-body" id="access" inert={publicMenuOpen}>
+    <PublicHeader key={path} landing={false} onOpenChange={setPublicMenuOpen}/>
+    <main className="auth-body login-body" id="access" inert={publicMenuOpen}>
       <div className="auth-form">
         <span className="eyebrow">DEALFLOW360 WORKSPACE</span>
         <h1>{path==='/signup'?'Request an account':'Welcome back'}</h1>
@@ -436,7 +444,7 @@ function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;on
         {path!=='/signup'&&<GoogleSsoLink/>}
         <small className="auth-recovery">{recovery==='none'&&recoveryOk?<span>Password updated. Sign in with your new password.</span>:recovery==='none'&&<button type="button" onClick={()=>{setRecovery('request');setRecoveryOk(false);setRecoveryMsg('');}}>Forgot password?</button>}{recovery==='request'&&<form onSubmit={async event=>{event.preventDefault();setBusy(true);try{await api('auth/password-reset',{email});setRecovery('confirm');setRecoveryMsg('If that account exists, a reset was recorded. With RESEND_API_KEY or MAIL_WEBHOOK_URL the token is emailed; otherwise it is printed in the server log in development.');}catch(reason){setIssue(reason instanceof Error?reason.message:'Reset request failed.');}finally{setBusy(false);}}} aria-label="Password recovery"><Input label="Work email" type="email" value={email} onChange={event=>setEmail(event.target.value)} required autoComplete="username"/><Button type="submit" disabled={busy}>{busy?'Please wait…':'Send reset request'}</Button> <button type="button" onClick={()=>setRecovery('none')}>Cancel</button></form>}{recovery==='confirm'&&<div><div className="notice" role="status">{recoveryMsg}</div><form onSubmit={async event=>{event.preventDefault();setBusy(true);try{await api('auth/password-reset/confirm',{token:resetToken.trim(),newPassword:resetPassword});setRecovery('none');setResetToken('');setResetPassword('');setRecoveryOk(true);}catch(reason){setIssue(reason instanceof Error?reason.message:'Reset failed; check the token and try again.');}finally{setBusy(false);}}} aria-label="Set new password"><Input label="Reset token" value={resetToken} onChange={event=>setResetToken(event.target.value)} required/><Input label="New password" type="password" value={resetPassword} onChange={event=>setResetPassword(event.target.value)} required minLength={8} autoComplete="new-password"/><Button type="submit" disabled={busy}>{busy?'Please wait…':'Set new password'}</Button></form></div>}</small>
       </div>
-    </main>}
+    </main>
   </div>;
 }
 
