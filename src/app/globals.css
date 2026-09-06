@@ -130,8 +130,11 @@ dialog.df-dialog{position:fixed;inset:0;margin:auto;width:min(640px,calc(100% - 
 a.df-button{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;white-space:nowrap}
 a.df-button:hover{text-decoration:none}
 a.df-button--primary{color:#fff}
-.view-toggle{display:inline-flex;gap:8px;margin:0 0 20px;flex-wrap:wrap}
-.view-toggle .df-button{min-width:118px}
+.quote-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.view-toggle{display:inline-flex;gap:2px;margin:0;padding:3px;background:rgba(255,255,255,.72);border:1px solid rgba(146,171,178,.6);border-radius:10px;flex-wrap:nowrap}
+.view-toggle .df-button{min-width:92px;margin:0;min-height:36px;padding:8px 14px;box-shadow:none}
+.view-toggle .df-button--secondary{background:transparent;border-color:transparent}
+.view-toggle .df-button--primary{box-shadow:none}
 .setup-nav{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 22px}
 .setup-nav .df-button{min-height:38px}
 .pipeline-board{display:flex;gap:10px;width:100%;align-items:stretch;overflow-x:auto;padding-bottom:8px}

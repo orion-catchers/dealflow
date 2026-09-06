@@ -231,19 +231,21 @@ export default function Quotes({ ctx }: { ctx: Context }) {
             : "Every quotation with its current stage and the next step it is waiting on."
         }
       >
-        <div className="view-toggle" role="tablist" aria-label="Quotation layout">
-          <Link role="tab" aria-selected={path === "/quotes"} className={`df-button ${path === "/quotes" ? "df-button--primary" : "df-button--secondary"}`} href="/quotes">
-            List
-          </Link>
-          <Link role="tab" aria-selected={path === "/pipeline"} className={`df-button ${path === "/pipeline" ? "df-button--primary" : "df-button--secondary"}`} href="/pipeline">
-            Pipeline
-          </Link>
+        <div className="quote-toolbar">
+          <div className="view-toggle" role="tablist" aria-label="Quotation layout">
+            <Link role="tab" aria-selected={path === "/quotes"} className={`df-button ${path === "/quotes" ? "df-button--primary" : "df-button--secondary"}`} href="/quotes">
+              List
+            </Link>
+            <Link role="tab" aria-selected={path === "/pipeline"} className={`df-button ${path === "/pipeline" ? "df-button--primary" : "df-button--secondary"}`} href="/pipeline">
+              Pipeline
+            </Link>
+          </div>
+          {["ADMIN", "SALES_REP"].includes(actor.role) && (
+            <Link className="df-button df-button--primary" href="/quotes/new">
+              New quotation
+            </Link>
+          )}
         </div>
-        {["ADMIN", "SALES_REP"].includes(actor.role) && (
-          <Link className="primary-link" href="/quotes/new">
-            New quotation
-          </Link>
-        )}
       </Heading>
       <Filter
         search={search}
