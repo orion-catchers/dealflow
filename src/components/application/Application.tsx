@@ -4,7 +4,7 @@ import {Suspense,useCallback,useEffect,useState} from 'react';
 import {usePathname,useRouter} from 'next/navigation';
 import {BarChart3,Boxes,CircleCheck,CreditCard,FileText,HeartPulse,LayoutDashboard,LogOut,Menu,Package,PanelLeft,PanelLeftClose,Repeat,Settings,Settings2,ShieldCheck,UsersRound} from 'lucide-react';
 import type {Actor,DataState,Role} from '../../contracts/application';
-import {api,Button,Heading,Input,Link,Section,StatusBadge,Table,newId,quoteTitle,OpenLink,type Context} from './shared';
+import {api,Button,Heading,Input,Link,Money,Section,StatusBadge,Table,newId,quoteTitle,OpenLink,type Context} from './shared';
 import {approvalOk,attentionItems,canDecide,nextStepHref,nextStepLabel} from './DealFlow';
 import Quotes from './Quotes';
 import Operations from './Operations';
@@ -28,18 +28,31 @@ import {SubscriptionDetail} from '@/features/billing/ui/SubscriptionDetail';
 import {ApprovalsList} from '@/features/approval-ui/ui/ApprovalsList';
 import {ApprovalDetail} from '@/features/approval-ui/ui/ApprovalDetail';
 
-const navigation=[
-  ['/home','Overview',LayoutDashboard],
-  ['/quotes','Quotations',FileText],
-  ['/approvals','Approvals',ShieldCheck],
-  ['/fulfillment','Fulfillment',Package],
-  ['/subscriptions','Subscriptions',Repeat],
-  ['/invoices','Invoices',CreditCard],
-  ['/health','Deal health',HeartPulse],
-  ['/reports','Reports',BarChart3],
-  ['/products','Catalog',Boxes],
-  ['/settings/customers','Setup',Settings],
-] as const;
+export function navigationFor(role: Role) {
+  const allNav = [
+    { href: '/home', name: 'Overview', icon: LayoutDashboard, roles: ['ADMIN', 'SALES_REP', 'SALES_MANAGER', 'FINANCE_OPS'] as Role[] },
+    { href: '/quotes', name: 'Quotations', icon: FileText, roles: ['ADMIN', 'SALES_REP', 'SALES_MANAGER'] as Role[] },
+    { href: '/approvals', name: 'Approvals', icon: ShieldCheck, roles: ['ADMIN', 'SALES_MANAGER', 'FINANCE_OPS'] as Role[] },
+    { href: '/fulfillment', name: 'Fulfillment', icon: Package, roles: ['ADMIN', 'FINANCE_OPS'] as Role[] },
+    { href: '/subscriptions', name: 'Subscriptions', icon: Repeat, roles: ['ADMIN', 'FINANCE_OPS'] as Role[] },
+    { href: '/invoices', name: 'Invoices', icon: CreditCard, roles: ['ADMIN', 'FINANCE_OPS'] as Role[] },
+    { href: '/health', name: 'Deal health', icon: HeartPulse, roles: ['ADMIN', 'SALES_REP', 'SALES_MANAGER'] as Role[] },
+    { href: '/reports', name: 'Reports', icon: BarChart3, roles: ['ADMIN', 'SALES_REP', 'SALES_MANAGER', 'FINANCE_OPS'] as Role[] },
+    { href: '/products', name: 'Catalog', icon: Boxes, roles: ['ADMIN', 'SALES_REP', 'SALES_MANAGER', 'FINANCE_OPS'] as Role[] },
+  ];
+
+  const items = allNav.filter((item) => item.roles.includes(role));
+
+  if (role === 'ADMIN') {
+    items.push({ href: '/settings/customers', name: 'Setup', icon: Settings, roles: ['ADMIN'] });
+  } else if (role === 'SALES_MANAGER') {
+    items.push({ href: '/policies', name: 'Setup', icon: Settings, roles: ['SALES_MANAGER'] });
+  } else if (role === 'FINANCE_OPS') {
+    items.push({ href: '/settings/warehouses', name: 'Setup', icon: Settings, roles: ['FINANCE_OPS'] });
+  }
+
+  return items;
+}
 
 type ShellMemory={actor:Actor;mode:string;data:DataState|null};
 const SHELL_KEY='dealflow-shell';
@@ -91,10 +104,70 @@ function writeShell(next:ShellMemory|null){
 function isAuthPath(path:string){return path==='/'||path==='/login'||path==='/signup';}
 function isPortalPath(path:string){return path==='/portal'||path.startsWith('/portal/');}
 function homeFor(next:Actor){return next.role==='CUSTOMER'?'/portal':'/home';}
+
+export function canAccessRoute(role: Role, path: string): boolean {
+  if (role === 'CUSTOMER') {
+    return isPortalPath(path);
+  }
+  if (role === 'ADMIN') {
+    return !isPortalPath(path);
+  }
+  const cleanPath = path.split('?')[0].split('#')[0];
+  const parts = cleanPath.split('/').filter(Boolean);
+  const first = parts[0];
+  const second = parts[1];
+
+  if (cleanPath === '/home') return true;
+
+  if (role === 'SALES_REP') {
+    if (first === 'quotes' || cleanPath === '/pipeline') {
+      return true;
+    }
+    if (first === 'health') return true;
+    if (first === 'reports') return true;
+    if (first === 'products') {
+      return second !== 'new';
+    }
+    return false;
+  }
+
+  if (role === 'SALES_MANAGER') {
+    if (first === 'quotes' || cleanPath === '/pipeline') {
+      return second !== 'new';
+    }
+    if (first === 'approvals') return true;
+    if (first === 'health') return true;
+    if (first === 'reports') return true;
+    if (first === 'products') {
+      return second !== 'new';
+    }
+    if (cleanPath === '/policies') return true;
+    if (cleanPath === '/settings/recommendations' || cleanPath === '/settings/health') return true;
+    return false;
+  }
+
+  if (role === 'FINANCE_OPS') {
+    if (first === 'approvals') return true;
+    if (first === 'fulfillment') return true;
+    if (first === 'subscriptions') return true;
+    if (first === 'invoices') return true;
+    if (first === 'reports') return true;
+    if (first === 'products') {
+      return second !== 'new';
+    }
+    if (first === 'warehouses' || cleanPath === '/settings/warehouses') return true;
+    if (cleanPath === '/settings/plans') return true;
+    return false;
+  }
+
+  return false;
+}
+
 function viewPathFor(next:Actor|null,path:string){
   if(!next)return isAuthPath(path)?path:'/login';
   if(next.role==='CUSTOMER')return isPortalPath(path)?path:'/portal';
   if(isAuthPath(path)||isPortalPath(path))return '/home';
+  if(!canAccessRoute(next.role,path))return homeFor(next);
   return path;
 }
 
@@ -258,7 +331,38 @@ export default function Application(){
       </div>
       <p className="nav-caption">{sessionActor.role==='CUSTOMER'?'YOUR BUSINESS':'WORKSPACE'}</p>
       <nav id="primary-navigation">
-        {sessionActor.role==='CUSTOMER'?<Link className={shellPath.startsWith('/portal')?'active':''} href="/portal" aria-label="Your deals" title="Your deals"><FileText size={18}/><span className="nav-label">Your deals</span></Link>:navigation.filter(([url])=>sessionActor.role!=='SALES_REP'||url!=='/settings/customers').map(([url,name,Icon])=><Link key={url} className={shellPath.startsWith(url)?'active':''} href={url} aria-label={name} title={collapsed?name:undefined}><Icon size={18}/><span className="nav-label">{name}</span></Link>)}
+        {sessionActor.role === 'CUSTOMER' ? (
+          <Link
+            className={shellPath.startsWith('/portal') ? 'active' : ''}
+            href="/portal"
+            aria-label="Your deals"
+            title="Your deals"
+          >
+            <FileText size={18} />
+            <span className="nav-label">Your deals</span>
+          </Link>
+        ) : (
+          navigationFor(sessionActor.role).map(({ href, name, icon: Icon }) => {
+            const isActive =
+              href === '/home'
+                ? shellPath === '/home'
+                : href.startsWith('/settings') || href === '/policies'
+                ? shellPath.startsWith('/settings') || shellPath === '/policies' || shellPath.startsWith('/warehouses')
+                : shellPath.startsWith(href) || (href === '/quotes' && shellPath === '/pipeline');
+            return (
+              <Link
+                key={href}
+                className={isActive ? 'active' : ''}
+                href={href}
+                aria-label={name}
+                title={collapsed ? name : undefined}
+              >
+                <Icon size={18} />
+                <span className="nav-label">{name}</span>
+              </Link>
+            );
+          })
+        )}
       </nav>
       <div className="sidebar-footer">
         <span className="avatar" aria-hidden="true">{sessionActor.name.split(' ').map(s=>s[0]).join('')}</span>
@@ -325,7 +429,7 @@ function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;on
           const nextName=String(submitted.get('name')??name).trim();
           try{if(path==='/signup'){await api('auth/signup',{name:nextName,email:nextEmail,password:nextPassword});setDone(true);}else{const result=await api<{actor?:Actor;mode?:string;id?:string;name?:string;email?:string;role?:Role;active?:boolean;customerId?:string}>('auth/login',{email:nextEmail,password:nextPassword});const actor=result.actor??sessionToActor(result);if(!actor)throw new Error('Sign in could not be completed.');await onLogin(actor,result.mode??'LIVE');}}
           catch(reason){setIssue(reason instanceof Error?reason.message:'Sign in could not be completed.');}
-          finally{setBusy(false);}
+          finally{setBusy(false);};
         }}>
           {path==='/signup'&&<Input label="Full name" name="name" value={name} onChange={event=>setName(event.target.value)} required autoComplete="name"/>}
           <Input label="Work email" name="email" type="email" value={email} onChange={event=>setEmail(event.target.value)} onInput={event=>setEmail(event.currentTarget.value)} required autoComplete="username"/>
@@ -356,17 +460,32 @@ function GoogleSsoLink(){
 function Home({ctx}:{ctx:Context}){
   const {d,actor}=ctx;
   const canQuote=['ADMIN','SALES_REP'].includes(actor.role);
+  const canAccessQuotes=['ADMIN','SALES_REP','SALES_MANAGER'].includes(actor.role);
   const approver=['SALES_MANAGER','FINANCE_OPS','ADMIN'].includes(actor.role);
   const finance=['FINANCE_OPS','ADMIN'].includes(actor.role);
   const awaitingMe=d.quotes.filter(q=>q.stage==='PENDING_APPROVAL'&&canDecide(q,actor)).length;
-  const metrics:[string,number,string][]=[
-    ['Open quotations',d.quotes.filter(q=>q.stage!=='CONFIRMED'&&q.stage!=='REJECTED').length,'/quotes'],
-    approver?['Awaiting my decision',awaitingMe,'/approvals']:['Waiting on customers',d.quotes.filter(q=>q.sent&&q.stage!=='CONFIRMED'&&approvalOk(q)).length,'/quotes'],
-    finance?['Orders to allocate',d.orders.filter(o=>!['SHIPPED','DELIVERED','CANCELLED'].includes(o.status)&&o.allocations.length===0).length,'/fulfillment']:['Open invoices',d.invoices.filter(i=>i.status!=='PAID').length,'/invoices'],
-    ['Health flags',d.flags.filter(f=>f.status==='OPEN').length,'/health'],
-  ];
+  
+  const metrics:[string,number,string][]=[];
+  if(canAccessQuotes){
+    metrics.push(['Open quotations',d.quotes.filter(q=>q.stage!=='CONFIRMED'&&q.stage!=='REJECTED').length,'/quotes']);
+  }
+  if(approver){
+    metrics.push(['Awaiting my decision',awaitingMe,'/approvals']);
+  }
+  if(actor.role==='SALES_REP'){
+    metrics.push(['Waiting on customers',d.quotes.filter(q=>q.sent&&q.stage!=='CONFIRMED'&&approvalOk(q)).length,'/quotes']);
+  }
+  if(finance){
+    metrics.push(['Orders to allocate',d.orders.filter(o=>!['SHIPPED','DELIVERED','CANCELLED'].includes(o.status)&&o.allocations.length===0).length,'/fulfillment']);
+    metrics.push(['Open invoices',d.invoices.filter(i=>i.status!=='PAID').length,'/invoices']);
+  }
+  if(canAccessQuotes){
+    metrics.push(['Health flags',d.flags.filter(f=>f.status==='OPEN').length,'/health']);
+  }
+
   const attention=attentionItems(d,actor);
   const recent=[...d.quotes].sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)).slice(0,6);
+
   return <>
     <Heading title={`Good to see you, ${actor.name.split(' ')[0]}`} description={attention.length?`${attention.length} item${attention.length===1?'':'s'} need${attention.length===1?'s':''} you. Everything else is moving.`:'Nothing is waiting on you right now.'}>{canQuote&&<Link className="primary-link" href="/quotes/new">New quotation</Link>}</Heading>
     <div className="metrics">{metrics.map(([name,value,url])=><Link className="metric" href={url} key={name}><span>{name}</span><strong>{value}</strong><small>Open</small></Link>)}</div>
@@ -374,14 +493,28 @@ function Home({ctx}:{ctx:Context}){
       <Section title="Needs you">
         {attention.length?<ol className="attention">{attention.map(item=><li key={item.id}><Link href={item.href}><span className={`attention-kind is-${item.kind}`} aria-hidden="true"/><span className="attention-text"><strong>{item.title}</strong><small>{item.detail}</small></span><span className="attention-go" aria-hidden="true">→</span></Link></li>)}</ol>:<p className="empty">Nothing is waiting on you. New requests appear here as soon as a customer, approver, or teammate acts.</p>}
       </Section>
-      <Section title="Recent quotations" actions={<OpenLink href="/quotes" variant="secondary">All quotations</OpenLink>}>
-        <Table head={['Quotation','Customer','Stage','Next step','']} rows={recent.map(q=>[quoteTitle(q),d.customers.find(c=>c.id===q.customerId)?.name,<StatusBadge status={q.stage}/>,nextStepLabel(q,actor),<OpenLink key={q.id} href={nextStepHref(q,actor)}/>])}/>
-      </Section>
+      {canAccessQuotes ? (
+        <Section title="Recent quotations" actions={<OpenLink href="/quotes" variant="secondary">All quotations</OpenLink>}>
+          <Table head={['Quotation','Customer','Stage','Next step','']} rows={recent.map(q=>[quoteTitle(q),d.customers.find(c=>c.id===q.customerId)?.name,<StatusBadge status={q.stage}/>,nextStepLabel(q,actor),<OpenLink key={q.id} href={nextStepHref(q,actor)}/>])}/>
+        </Section>
+      ) : (
+        <Section title="Recent invoices" actions={<OpenLink href="/invoices" variant="secondary">All invoices</OpenLink>}>
+          <Table head={['Invoice','Customer','Status','Due date','Outstanding','']} rows={d.invoices.slice(0, 6).map(i=>[i.id,d.customers.find(c=>c.id===i.customerId)?.name,<StatusBadge status={i.status}/>,i.dueDate,<Money amount={i.outstanding} currency={i.currency}/>,<OpenLink key={i.id} href={`/invoices/${i.id}`}/>])}/>
+        </Section>
+      )}
     </div>
   </>;
 }
 
 function WorkspaceBody({path, ctx}:{path:string; ctx:Context}){
+  if (!canAccessRoute(ctx.actor.role, path)) {
+    return (
+      <div style={{padding:'2rem'}}>
+        <Heading title="Access restricted" description="Your role does not have access to this workflow."/>
+        <p style={{marginTop:'1rem'}}><Link className="df-button df-button--primary" href="/home">Return to overview</Link></p>
+      </div>
+    );
+  }
   const parts=path.split('/').filter(Boolean);
   const first=parts[0];
   const second=parts[1];
@@ -389,9 +522,9 @@ function WorkspaceBody({path, ctx}:{path:string; ctx:Context}){
   if(first==='quotes'||path==='/pipeline')return <Quotes ctx={ctx}/>;
   if(first==='approvals')return second?<ApprovalDetail revisionId={second}/>:<ApprovalsList/>;
   if(first==='products'){
-    if(second==='new')return <ProductEditor productId={null}/>;
-    if(second)return <ProductEditor productId={second}/>;
-    return <ProductDashboard/>;
+    if(second==='new')return ctx.actor.role === 'ADMIN' ? <ProductEditor productId={null}/> : <Heading title="Access restricted" description="Only administrators can create products."/>;
+    if(second)return <ProductEditor productId={second} readOnly={ctx.actor.role !== 'ADMIN'}/>;
+    return <ProductDashboard readOnly={ctx.actor.role !== 'ADMIN'}/>;
   }
   if(path==='/price-lists')return <PriceListsManager/>;
   if(path==='/customers'||path==='/settings/customers')return <CustomersMaster/>;
