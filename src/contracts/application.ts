@@ -4,7 +4,7 @@ export interface Actor { id: string; name: string; email: string; role: Role; ac
 export interface Customer { id: string; name: string; email: string; tier: string; currency: string; repId: string; companyId?: string }
 export interface Variant { id: string; name: string; extraPrice: string }
 export interface Product { id: string; name: string; category: string; unit: string; description: string; price: string; cost: string; taxPct: number; active: boolean; stockTracked: boolean; interval: BillingInterval; planId: string; variants: Variant[]; companyId?: string }
-export interface PriceRule { id: string; productId: string; tier: string; currency: string; price: string }
+export interface PriceRule { id: string; productId: string; variantId?: string | null; tier: string; currency: string; price: string }
 export interface Line { id: string; productId: string; variantId: string; description: string; quantity: number; discountPct: number; unitPrice: string; unitCost: string; taxPct: number; tax: string; net: string; total: string; profit: string; interval: BillingInterval; stockTracked: boolean }
 export interface Total { interval: BillingInterval; net: string; tax: string; total: string; profit: string; marginPct: number }
 export interface Evaluation { status: 'NOT_REQUIRED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED'; chain: Role[]; step: number; reasons: string[]; worstExcess: number }
