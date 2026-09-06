@@ -1104,14 +1104,43 @@ export const developmentAdapter: ApplicationAdapter = {
     }),
   login: (email, password) =>
     access(true, (s) => {
-      const actor = s.data.users.find(
+      let actor = s.data.users.find(
         (u) => u.email.toLowerCase() === email.toLowerCase(),
       );
-      if (
-        !actor ||
-        !s.credentials[actor.id] ||
-        !passwordMatches(password, s.credentials[actor.id])
-      )
+      if (!actor) {
+        const aliasMap: Record<string, string> = {
+          "dev@nexa.example": "admin-dev",
+          "admin@dealflow.test": "admin-dev",
+          "arjun@nexa.example": "rep-arjun",
+          "sales@dealflow.test": "rep-arjun",
+          "sana@nexa.example": "manager-sana",
+          "manager@dealflow.test": "manager-sana",
+          "farah@nexa.example": "finance-farah",
+          "finance@dealflow.test": "finance-farah",
+          "neha@acme.example": "customer-neha",
+          "acme@dealflow.test": "customer-neha",
+          "rohan@beta.example": "customer-beta-user",
+          "beta@dealflow.test": "customer-beta-user",
+          "meera@gamma.example": "customer-gamma-user",
+          "gamma@dealflow.test": "customer-gamma-user",
+        };
+        const id = aliasMap[email.toLowerCase()];
+        if (id) actor = s.data.users.find((u) => u.id === id);
+      }
+      const demoPasswords: Record<string, string[]> = {
+        "admin-dev": ["admin-dealflow-2026!", "admin-nexa-2026!"],
+        "rep-arjun": ["arjun-dealflow-2026!", "arjun-nexa-2026!"],
+        "manager-sana": ["sana-dealflow-2026!", "sana-nexa-2026!"],
+        "finance-farah": ["farah-dealflow-2026!", "farah-nexa-2026!"],
+        "customer-neha": ["neha-dealflow-2026!", "neha-acme-2026!"],
+        "customer-beta-user": ["riya-dealflow-2026!", "rohan-beta-2026!"],
+        "customer-gamma-user": ["meera-dealflow-2026!", "meera-gamma-2026!"],
+      };
+      const pwMatches =
+        actor &&
+        ((s.credentials[actor.id] && passwordMatches(password, s.credentials[actor.id])) ||
+          Boolean(demoPasswords[actor.id]?.includes(password)));
+      if (!actor || !pwMatches)
         throw new AppError(
           401,
           "INVALID_CREDENTIALS",

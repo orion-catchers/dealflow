@@ -29,13 +29,13 @@ Local Docker Postgres (from `docker-compose.yml`): user `dealflow`, password `de
 | SALES_REP | Priya Nair | `priya@nexa.example` | `priya-nexa-2026!` | `/home` |
 | SALES_MANAGER | Sana Iyer | `sana@nexa.example` | `sana-nexa-2026!` | `/home` |
 | FINANCE | Farah Khan | `farah@nexa.example` | `farah-nexa-2026!` | `/home` |
-| CUSTOMER (Acme, Gold) | Neha Kapoor | `neha@acme.example` | `neha-acme-2026!` | `/portal` |
-| CUSTOMER (Beta, Silver) | Rohan | `rohan@beta.example` | `rohan-beta-2026!` | `/portal` |
-| CUSTOMER (Gamma) | Meera Joshi | `meera@gamma.example` | `meera-gamma-2026!` | `/portal` |
+| CUSTOMER (Acme, Gold) | Neha Rao | `neha@acme.example` | `neha-acme-2026!` | `/portal` |
+| CUSTOMER (Beta, Standard) | Rohan Das | `rohan@beta.example` | `rohan-beta-2026!` | `/portal` |
+| CUSTOMER (Gamma, Silver) | Meera Joshi | `meera@gamma.example` | `meera-gamma-2026!` | `/portal` |
 | SALES_REP (pending) | Vikram Singh | `vikram@nexa.example` | `vikram-nexa-2026!` | Cannot sign in until an admin activates |
 | ADMIN (Contoso tenant) | Contoso Admin | `admin@contoso.example` | `contoso-admin-2026!` | `/home` (only after a seed that includes Contoso) |
 
-Login page demo-fill buttons use Arjun, Sana, Farah, and Neha.
+Login page demo-fill buttons provide one-click login for Admin (`dev@nexa.example`), staff roles (Arjun, Sana, Farah), and 3 distinct customers: Acme (`neha@acme.example`), Beta (`rohan@beta.example`), and Gamma (`meera@gamma.example`).
 
 ---
 

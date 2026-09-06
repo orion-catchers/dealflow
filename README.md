@@ -370,7 +370,7 @@ pnpm dev
 # or: npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Login **Demo fill**: Rep, Manager, Finance, Customer.
+Open [http://localhost:3000](http://localhost:3000). Login **Demo fill**: Admin, Rep, Manager, Finance, Acme (Neha), Beta (Rohan), Gamma (Meera).
 
 **Reviewer trap:** `pnpm dev:fixture` is a JSON harness. It does not prove Postgres. Label the UI `LIVE` vs `DEV FIXTURE`.
 
@@ -380,10 +380,13 @@ Open [http://localhost:3000](http://localhost:3000). Login **Demo fill**: Rep, M
 
 Full table (authoritative): [docs/testing-credentials.md](docs/testing-credentials.md). Demo-only; never production.
 
-| Role | Email | Password | Lands on |
-| --- | --- | --- | --- |
-| Admin | `dev@nexa.example` | `admin-nexa-2026!` | `/home` |
-| Sales rep | `arjun@nexa.example` | `arjun-nexa-2026!` | `/home` |
+| Role | Name | Email | Password | Lands on |
+| --- | --- | --- | --- | --- |
+| Admin | Dev Sharma | `dev@nexa.example` | `admin-nexa-2026!` | `/home` |
+| Sales rep | Arjun Mehta | `arjun@nexa.example` | `arjun-nexa-2026!` | `/home` |
+| Customer 1 (Gold) | Neha Rao (Acme) | `neha@acme.example` | `neha-acme-2026!` | `/portal` |
+| Customer 2 (Standard) | Rohan Das (Beta) | `rohan@beta.example` | `rohan-beta-2026!` | `/portal` |
+| Customer 3 (Silver) | Meera Joshi (Gamma) | `meera@gamma.example` | `meera-gamma-2026!` | `/portal` |
 
 Prisma row IDs are generated; `src/server/lib/db/map.ts` maps fixture symbols to emails/SKUs.
 

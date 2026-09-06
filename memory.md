@@ -719,4 +719,15 @@ Checks: `npx vitest run src/components/application/RoleAccess.test.ts` (14/14 pa
 
 Limitations: None. Quotation editing/creation remains restricted to Reps/Admin; Finance Ops has review/decision access only.
 
+## 2026-09-06T15:50:00+05:30 (Asia/Kolkata) - Owner: Ruchir
+
+Added default login buttons on the login screen for Admin (Dev Sharma) and 3 distinct customers (Acme: Neha Rao, Beta: Rohan Das, Gamma: Meera Joshi) with clear name labels. Enhanced development adapter and seed to support all 7 demo personas and aliases across both LIVE and DEV FIXTURE modes. Documented full login tables in README and testing-credentials docs.
+
+Files: `src/components/application/Application.tsx`, `src/development/seed.ts`, `src/development/adapter.ts`, `docs/testing-credentials.md`, `README.md`.
+
+Checks: `npm test` (305/305 passed); `npm run test:krishna` (30/30 passed); `npm run typecheck` passed (0 errors); `npm run lint` passed (0 errors, 8 pre-existing warnings).
+
+Limitations: None.
+
+
 
