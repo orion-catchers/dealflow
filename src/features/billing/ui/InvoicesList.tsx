@@ -26,7 +26,7 @@ export function InvoicesList() {
         key: "id",
         header: "Invoice",
         render: (row) => (
-          <Link href={`/invoices/${row.id}`} className="font-medium text-blue-700 hover:underline">
+          <Link href={`/invoices/${row.id}`} className="font-medium hover:underline">
             {invoiceListTitle(row)}
           </Link>
         ),

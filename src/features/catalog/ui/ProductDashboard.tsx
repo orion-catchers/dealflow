@@ -54,7 +54,7 @@ export function ProductDashboard() {
       header: "Product",
       render: (p) => (
         <div>
-          <Link href={`/products/${p.id}`} className="font-medium text-blue-700 hover:underline">
+          <Link href={`/products/${p.id}`} className="font-medium hover:underline">
             {p.name}
           </Link>
         </div>

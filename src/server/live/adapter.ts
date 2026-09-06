@@ -1,4 +1,4 @@
-import type { Actor, ApplicationAdapter, DataState } from "@/contracts/application";
+import type { Actor, ApplicationAdapter, DataState, Quote } from "@/contracts/application";
 import { AppError, requireValue } from "@/server/errors";
 import { loginWithPassword, signupUser } from "@/server/lib/auth/credentials";
 import { destroySessionByToken, findUserBySessionToken } from "@/server/lib/auth/session";
@@ -41,6 +41,18 @@ function scopeCustomer(state: DataState, customerId: string): DataState {
 }
 
 const replayStore = new Map<string, { fingerprint: string; result: unknown }>();
+
+function isWorkspaceQuote(value: unknown): value is Quote {
+  if (!value || typeof value !== "object") return false;
+  const quote = value as Quote;
+  return typeof quote.id === "string" && typeof quote.revision === "string" && Array.isArray(quote.lines);
+}
+
+async function reloadPersistedQuote(result: unknown, dirty: Dirty): Promise<unknown> {
+  if (!isWorkspaceQuote(result) || !dirty.quotes.has(result.id)) return result;
+  const fresh = await loadDataState();
+  return fresh.quotes.find((quote) => quote.id === result.id) ?? result;
+}
 
 export const liveAdapter: ApplicationAdapter = {
   mode: "LIVE",
@@ -96,7 +108,7 @@ export const liveAdapter: ApplicationAdapter = {
     const dirty: Dirty = { quotes: new Map(), rules: false, messages: false };
     const result = perform(liveTransactionPort(state, dirty));
     await persistWorkspace(state, dirty);
-    return result;
+    return reloadPersistedQuote(result, dirty);
   },
   async command(actor, action, input) {
     requireValue(typeof input.requestKey === "string" && String(input.requestKey).length >= 8, "Operation key required");
@@ -114,8 +126,9 @@ export const liveAdapter: ApplicationAdapter = {
     try {
       const result = await runLiveCommand(state, current, action, input, dirty);
       await persistWorkspace(state, dirty);
-      replayStore.set(replayKey, { fingerprint, result: structuredClone(result) });
-      return result;
+      const next = await reloadPersistedQuote(result, dirty);
+      replayStore.set(replayKey, { fingerprint, result: structuredClone(next) });
+      return next;
     } catch (error) {
       wrapError(error);
     }

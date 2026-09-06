@@ -79,7 +79,7 @@ export function PriceListsManager() {
         <div>
           <button
             type="button"
-            className={`text-left font-medium hover:underline ${expanded === pl.id ? "text-blue-900" : "text-blue-700"}`}
+            className="text-left font-medium hover:underline"
             onClick={() => setExpanded(expanded === pl.id ? null : pl.id)}
             aria-expanded={expanded === pl.id}
           >
@@ -277,7 +277,7 @@ function RulesPanel({
       render: (r) => {
         const p = productById.get(r.productId);
         return p ? (
-          <Link href={`/products/${p.id}`} className="text-blue-700 hover:underline">
+          <Link href={`/products/${p.id}`} className="hover:underline">
             {p.name}
             {p.archivedAt ? " (archived)" : ""}
           </Link>

@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     const actor = await getAuthorizedActor(request);
     const sp = new URL(request.url).searchParams;
     return getCatalogService().search(actor, {
-      customerId: sp.get("customerId") ?? "",
+      customerId: sp.get("customerId") || undefined,
       query: sp.get("q") ?? undefined,
       category: sp.get("category") ?? undefined,
       includeInactive: queryFlag(sp.get("includeInactive")),

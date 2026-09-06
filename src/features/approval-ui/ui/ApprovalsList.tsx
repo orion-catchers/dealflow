@@ -28,7 +28,7 @@ export function ApprovalsList() {
         key: "revision",
         header: "Revision",
         render: (row) => (
-          <Link href={`/approvals/${row.revisionId}`} className="font-medium text-blue-700 hover:underline">
+          <Link href={`/approvals/${row.revisionId}`} className="font-medium hover:underline">
             {row.revisionId}
           </Link>
         ),

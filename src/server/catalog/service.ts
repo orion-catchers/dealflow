@@ -459,10 +459,19 @@ export class CatalogService {
 
   async search(actor: Actor, raw: CatalogSearchInput | unknown): Promise<CatalogSearchItem[]> {
     const input = parseInput(catalogSearchInputSchema, raw);
-    this.requireCustomerScope(actor, input.customerId);
-    // Customers never see inactive products.
+    // Staff may omit customerId (list-price search). Customers must stay scoped.
+    let customerId = input.customerId?.trim() ?? "";
+    if (!customerId) {
+      this.requireInternal(actor);
+      const customers = await this.repo.listCustomers();
+      const priced = customers.find((c) => c.tier === "GOLD") ?? customers[0];
+      if (!priced) throw new ApiFailure("NOT_FOUND", "No customer is available to price the catalog");
+      customerId = priced.id;
+    } else {
+      this.requireCustomerScope(actor, customerId);
+    }
     if (actor.role === "CUSTOMER") input.includeInactive = false;
-    const customer = await this.mustGetCustomer(input.customerId);
+    const customer = await this.mustGetCustomer(customerId);
     const [products, variants, priceLists, priceRules, taxRates] = await Promise.all([
       this.repo.listProducts(),
       this.repo.listVariants(),

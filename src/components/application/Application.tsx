@@ -14,6 +14,18 @@ import PublicHeader from './PublicHeader';
 import {FulfillmentList} from '@/features/inventory/ui/FulfillmentList';
 import {FulfillmentDetailView} from '@/features/inventory/ui/FulfillmentDetailView';
 import {ReportsDashboard} from '@/features/reports/ui/ReportsDashboard';
+import {ProductDashboard} from '@/features/catalog/ui/ProductDashboard';
+import {ProductEditor} from '@/features/catalog/ui/ProductEditor';
+import {CustomersMaster} from '@/features/catalog/ui/CustomersMaster';
+import {PriceListsManager} from '@/features/catalog/ui/PriceListsManager';
+import {WarehousesScreen} from '@/features/inventory/ui/warehouses/WarehousesScreen';
+import {UsersAdmin} from '@/features/users/ui/UsersAdmin';
+import {InvoicesList} from '@/features/billing/ui/InvoicesList';
+import {InvoiceDetail} from '@/features/billing/ui/InvoiceDetail';
+import {SubscriptionsList} from '@/features/billing/ui/SubscriptionsList';
+import {SubscriptionDetail} from '@/features/billing/ui/SubscriptionDetail';
+import {ApprovalsList} from '@/features/approval-ui/ui/ApprovalsList';
+import {ApprovalDetail} from '@/features/approval-ui/ui/ApprovalDetail';
 
 const navigation=[
   ['/home','Overview',LayoutDashboard],
@@ -261,7 +273,7 @@ export default function Application(){
       <main id="main">
         {message&&<div className="notice" role="status">{message}<button type="button" onClick={()=>setMessage('')} aria-label="Dismiss notification">×</button></div>}
         {error&&<div role="alert" className="error">{error}<Button onClick={()=>{setError('');reload().catch(reason=>setError(reason instanceof Error?reason.message:'Retry failed.'));}}>Retry</Button></div>}
-        {sessionActor.role==='CUSTOMER'?<CustomerPortal path={shellPath}/>:!data?null:shellPath==='/home'?<Home ctx={ctx}/>:shellPath.startsWith('/quotes')||shellPath==='/pipeline'||shellPath.startsWith('/approvals')?<Quotes ctx={ctx}/>:shellPath.startsWith('/products')||shellPath.startsWith('/settings')||shellPath==='/policies'||shellPath==='/price-lists'?<Setup ctx={ctx}/>:shellPath.startsWith('/fulfillment')?(shellPath.split('/')[2]?<FulfillmentDetailView orderId={shellPath.split('/')[2]}/>:<FulfillmentList/>):shellPath.startsWith('/reports')?<Suspense fallback={<p className="hint">Loading reports…</p>}><ReportsDashboard/></Suspense>:['/subscriptions','/invoices','/health'].some(p=>shellPath.startsWith(p))?<Operations ctx={ctx}/>:<><Heading title="Page not found" description="This route does not exist."/><Link href="/home">Return to overview</Link></>}
+        {sessionActor.role==='CUSTOMER'?<CustomerPortal path={shellPath}/>:!data?null:<WorkspaceBody path={shellPath} ctx={ctx}/>}
       </main>
     </div>
   </div>;
@@ -356,4 +368,29 @@ function Home({ctx}:{ctx:Context}){
       </Section>
     </div>
   </>;
+}
+
+function WorkspaceBody({path, ctx}:{path:string; ctx:Context}){
+  const parts=path.split('/').filter(Boolean);
+  const first=parts[0];
+  const second=parts[1];
+  if(path==='/home')return <Home ctx={ctx}/>;
+  if(first==='quotes'||path==='/pipeline')return <Quotes ctx={ctx}/>;
+  if(first==='approvals')return second?<ApprovalDetail revisionId={second}/>:<ApprovalsList/>;
+  if(first==='products'){
+    if(second==='new')return <ProductEditor productId={null}/>;
+    if(second)return <ProductEditor productId={second}/>;
+    return <ProductDashboard/>;
+  }
+  if(path==='/price-lists')return <PriceListsManager/>;
+  if(path==='/customers'||path==='/settings/customers')return <CustomersMaster/>;
+  if(path==='/users'||path==='/settings/users')return <UsersAdmin/>;
+  if(path==='/warehouses'||path==='/settings/warehouses')return <WarehousesScreen/>;
+  if(first==='fulfillment')return second?<FulfillmentDetailView orderId={second}/>:<FulfillmentList/>;
+  if(first==='reports')return <Suspense fallback={<p className="hint">Loading reports…</p>}><ReportsDashboard/></Suspense>;
+  if(first==='invoices')return second?<InvoiceDetail id={second}/>:<InvoicesList/>;
+  if(first==='subscriptions')return second?<SubscriptionDetail id={second}/>:<SubscriptionsList/>;
+  if(first==='health')return <Operations ctx={ctx}/>;
+  if(path.startsWith('/settings')||path==='/policies')return <Setup ctx={ctx}/>;
+  return <><Heading title="Page not found" description="This route does not exist."/><Link href="/home">Return to overview</Link></>;
 }

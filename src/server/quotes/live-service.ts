@@ -778,7 +778,7 @@ export class LiveQuoteService {
       });
       if (request?.completedAt && request.resultPayload) {
         const payload = request.resultPayload as unknown as ConfirmOrderResult;
-        if (payload.sourceQuoteId !== quoteId || payload.customerId !== actor.customerId) {
+        if (payload.sourceQuoteId !== quoteId) {
           throw new ApiFailure("CONFLICT", "Request key belongs to another confirmation.");
         }
         return { ...payload, replayed: true };

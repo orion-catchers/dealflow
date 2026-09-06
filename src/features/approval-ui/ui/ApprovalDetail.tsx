@@ -79,7 +79,7 @@ export function ApprovalDetail({ revisionId }: { revisionId: string }) {
         title="Approval detail"
         description={d ? `${d.customerName} · quote ${d.quoteId}` : "Loading revision…"}
         actions={
-          <Link href="/approvals" className="text-sm text-blue-700 hover:underline">
+          <Link href="/approvals" className="text-sm hover:underline">
             ← Back to approvals
           </Link>
         }
