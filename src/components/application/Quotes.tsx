@@ -375,9 +375,16 @@ function QuoteDetail({ q, ctx }: { q: Quote; ctx: Context }) {
   const p = d.products.find((p) => p.id === product);
   const view = previewQuote(d, draft);
   const version = revisionTitle(q.revision);
+  const tierName = TIERS.find((t) => t.toLowerCase() === (customer?.tier ?? "").toLowerCase()) ?? "Gold";
+  const tierCeiling = d.policy.tierLimits[tierName] ?? (tierName === "Bronze" ? 5 : tierName === "Silver" ? 10 : 15);
+  const hardwareCeiling = Math.min(tierCeiling, d.policy.categoryLimits.Hardware ?? 15);
+  const servicesCeiling = Math.min(tierCeiling, d.policy.categoryLimits.Services ?? 10);
   const next = dealNextStep(q, { actor, customerName, dirty });
   const decider = canDecide(q, actor) && q.stage === "PENDING_APPROVAL";
   const steps = flowSteps(q);
+  useEffect(() => {
+    setDraft(structuredClone(q));
+  }, [q.id, q.revision, q.at, q.evaluation.status, q.evaluation.step]);
   useEffect(() => {
     if (!["ADMIN", "SALES_REP", "SALES_MANAGER"].includes(actor.role)) return;
     api<{ items: Recommendation[]; revision: string }>("recommendations/" + q.id)
@@ -464,7 +471,7 @@ function QuoteDetail({ q, ctx }: { q: Quote; ctx: Context }) {
         run(
           "sendQuote",
           { ...v, id: q.id, expectedRevision: q.revision, customerTier: v.customerTier },
-          `Sent ${version} to ${customerName}. ${approvalOk(q) ? "They can accept it in their portal." : "They can review it, but acceptance waits for approval."}`,
+          `Sent ${version} to ${customerName}. It is now in their customer portal${approvalOk(q) ? " and they can accept it." : "; they can review it, but acceptance waits for approval."}`,
         )
       }
     />
@@ -526,11 +533,37 @@ function QuoteDetail({ q, ctx }: { q: Quote; ctx: Context }) {
         )}
       </div>
       <dl className="deal-meta">
-        <div><dt>Customer copy</dt><dd>{q.sent ? "Shared in portal" : "Internal draft"}</dd></div>
+        <div><dt>Customer copy</dt><dd>{q.sent ? "Shared in the customer portal" : "Internal draft"}</dd></div>
+        <div><dt>Customer tier</dt><dd>{tierName} · ceiling {tierCeiling}%</dd></div>
         <div><dt>Delivery promise</dt><dd>{q.promisedDate ?? "Not promised"}</dd></div>
         <div><dt>Approval</dt><dd><StatusBadge status={q.evaluation.status} /></dd></div>
         {q.orderId && <div><dt>Order</dt><dd><Link href={"/fulfillment/" + q.orderId}>Open order</Link></dd></div>}
       </dl>
+      {q.sent && (
+        <p className="notice" role="status">
+          {customerName} can open this quotation in their portal. {approvalOk(q) ? "They can accept the current version." : "They can review it; acceptance waits until the required approvers sign off."}
+        </p>
+      )}
+      {["ADMIN", "SALES_REP"].includes(actor.role) && q.stage !== "CONFIRMED" && (
+        <div className="actions">
+          <FormAction
+            title="Change customer tier"
+            button={`Tier: ${tierName}`}
+            variant="secondary"
+            confirmLabel="Save tier"
+            description={`Discount ceilings for ${customerName} are Bronze ${d.policy.tierLimits.Bronze ?? 5}%, Silver ${d.policy.tierLimits.Silver ?? 10}%, Gold ${d.policy.tierLimits.Gold ?? 15}%. Changing the tier after send creates a new version and re-checks who must approve.`}
+            initial={{ customerTier: tierName }}
+            fields={[{ key: "customerTier", label: "Commercial tier", type: "select", options: [...TIERS], required: true }]}
+            onSubmit={(v) =>
+              run(
+                "setCustomerTier",
+                { ...v, id: q.id, expectedRevision: q.revision, customerTier: v.customerTier },
+                `${customerName} is now on the ${v.customerTier} tier. Policy was re-checked for ${version}.`,
+              )
+            }
+          />
+        </div>
+      )}
       {error && (
         <div className="error" role="alert">
           {error}
@@ -708,31 +741,42 @@ function QuoteDetail({ q, ctx }: { q: Quote; ctx: Context }) {
       {view.lines.length > 0 && (
         <div className="two-columns">
           <Section title={dirty ? "Totals (unsaved preview)" : "Totals"}>
-            {(editable ? view.totals : q.totals).map((t) => (
+            {(editable ? view.totals : q.totals).map((t) => {
+              const group = (editable ? view.lines : q.lines).filter((l) => l.interval === t.interval);
+              const list = group.reduce((n, l) => n + Number(l.unitPrice) * l.quantity, 0);
+              const discounted = Math.max(0, list - Number(t.net));
+              const pct = list === 0 ? 0 : Number(((discounted / list) * 100).toFixed(2));
+              return (
               <div className="total-block" key={t.interval}>
                 <h3>{t.interval === "ONE_TIME" ? "One-time purchase" : `${t.interval.toLowerCase()} commitment`}</h3>
                 <dl>
+                  <div><dt>List (before discount)</dt><dd><Money amount={moneyPreview(list)} currency={q.currency} /></dd></div>
+                  <div><dt>Total discount applied</dt><dd><Money amount={moneyPreview(discounted)} currency={q.currency} /> / {pct.toFixed(2)}%</dd></div>
                   <div><dt>Net</dt><dd><Money amount={t.net} currency={q.currency} /></dd></div>
                   <div><dt>Tax</dt><dd><Money amount={t.tax} currency={q.currency} /></dd></div>
                   <div className="grand"><dt>Total</dt><dd><Money amount={t.total} currency={q.currency} /></dd></div>
                   <div><dt>Profit / margin</dt><dd><Money amount={t.profit} currency={q.currency} /> / {t.marginPct.toFixed(2)}%</dd></div>
                 </dl>
               </div>
-            ))}
+              );
+            })}
           </Section>
           <Section title="Discount policy">
+            <p className="lede">
+              {customerName} is on the <strong>{tierName}</strong> commercial tier. Line discounts cannot exceed {hardwareCeiling}% for hardware or {servicesCeiling}% for services without review. Excess of more than {d.policy.financeExcess} points on a line, or {d.policy.financeWeighted} weighted points, also requires Finance.
+            </p>
             <div className="policy-status">
               <StatusBadge status={q.evaluation.status} />
               <span>
                 {q.evaluation.status === "NOT_REQUIRED"
-                  ? "Within limits. No approval needed."
+                  ? "Within limits. No manager or finance approval needed."
                   : q.evaluation.status === "APPROVED"
                     ? "Approved for these terms."
                     : q.evaluation.status === "REJECTED"
                       ? "Rejected. Change the terms and save to re-evaluate."
                       : q.stage === "PENDING_APPROVAL"
-                        ? "In review."
-                        : "Approval needed before the customer can accept."}
+                        ? `${ROLE_NAME[q.evaluation.chain[q.evaluation.step] ?? "SALES_MANAGER"]} is reviewing this version.`
+                        : "Save, then submit so the required approvers can sign off before the customer can accept."}
               </span>
             </div>
             {q.evaluation.reasons.length > 0 && (
@@ -742,27 +786,40 @@ function QuoteDetail({ q, ctx }: { q: Quote; ctx: Context }) {
                 ))}
               </ul>
             )}
-            {q.evaluation.chain.length > 0 && (
-              <ol className="approval-chain">
-                {q.evaluation.chain.map((r, i) => {
-                  const state =
-                    q.evaluation.status === "APPROVED" || i < q.evaluation.step
-                      ? "done"
-                      : q.evaluation.status === "REJECTED" && i === q.evaluation.step
-                        ? "blocked"
-                        : i === q.evaluation.step
-                          ? "current"
-                          : "upcoming";
-                  return (
-                    <li key={r} className={`is-${state}`}>
-                      <span>{ROLE_NAME[r]}</span>
-                      <small>{state === "done" ? "Approved" : state === "blocked" ? "Rejected" : state === "current" ? (q.stage === "PENDING_APPROVAL" ? "Reviewing now" : "Reviews first") : "Reviews after"}</small>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-            {dirty && <p className="hint">Policy is re-checked when you save.</p>}
+            <ol className="approval-chain">
+              {(["SALES_MANAGER", "FINANCE_OPS"] as const).map((r) => {
+                const requiredIndex = q.evaluation.chain.indexOf(r);
+                const required = requiredIndex >= 0;
+                const state = !required
+                  ? "upcoming"
+                  : q.evaluation.status === "APPROVED" || requiredIndex < q.evaluation.step
+                    ? "done"
+                    : q.evaluation.status === "REJECTED" && requiredIndex === q.evaluation.step
+                      ? "blocked"
+                      : requiredIndex === q.evaluation.step
+                        ? "current"
+                        : "upcoming";
+                return (
+                  <li key={r} className={`is-${state}`}>
+                    <span>{ROLE_NAME[r]}</span>
+                    <small>
+                      {!required
+                        ? "Not required at this discount"
+                        : state === "done"
+                          ? "Approved"
+                          : state === "blocked"
+                            ? "Rejected"
+                            : state === "current"
+                              ? q.stage === "PENDING_APPROVAL"
+                                ? "Reviewing now"
+                                : "Must approve"
+                              : "Reviews after"}
+                    </small>
+                  </li>
+                );
+              })}
+            </ol>
+            {dirty && <p className="hint">Policy is re-checked when you save. Unsaved discounts are previewed in totals but are not yet the persisted terms.</p>}
           </Section>
         </div>
       )}

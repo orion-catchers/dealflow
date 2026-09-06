@@ -563,14 +563,21 @@ export async function loadDataState(): Promise<DataState> {
       }
     : { tierLimits: { Gold: 15, Silver: 10, Bronze: 5 }, categoryLimits: { Hardware: 15, Services: 10 }, financeExcess: 5, financeWeighted: 8, budget: "0.00" };
 
-  const appFlags: HealthFlag[] = flags.map((f) => ({
-    id: f.id,
-    quoteId: f.quoteId ?? orders.find((o) => o.id === f.orderId)?.sourceRevisionId ?? "",
-    type: f.type === "STALLED" ? "STALLED" : f.type === "DISCOUNT_ANOMALY" ? "ANOMALY" : "DELIVERY",
-    reason: f.reason,
-    status: f.resolvedAt ? "RESOLVED" : "OPEN",
-    detectedAt: isoOf(f.detectedAt),
-  }));
+  const appFlags: HealthFlag[] = flags.map((f) => {
+    const order = orders.find((o) => o.id === f.orderId);
+    const quoteId =
+      f.quoteId ??
+      quotes.find((q) => q.revisions.some((revision) => revision.id === order?.sourceRevisionId))?.id ??
+      "";
+    return {
+      id: f.id,
+      quoteId,
+      type: f.type === "STALLED" ? "STALLED" : f.type === "DISCOUNT_ANOMALY" ? "ANOMALY" : "DELIVERY",
+      reason: f.reason,
+      status: f.resolvedAt ? "RESOLVED" : "OPEN",
+      detectedAt: isoOf(f.detectedAt),
+    };
+  });
 
   const appTasks: Task[] = tasks.map((t) => ({
     id: t.id,

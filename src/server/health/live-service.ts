@@ -27,6 +27,21 @@ function quoteStage(stage: QuoteStage): HealthQuoteInput["stage"] {
   return stage;
 }
 
+function weightedEffectiveDiscount(
+  lines: Array<{ unitPrice: unknown; quantity: number; effectiveDiscountPct: unknown }>,
+): string {
+  let undiscounted = 0;
+  let discounted = 0;
+  for (const line of lines) {
+    const amount = Number(line.unitPrice) * line.quantity;
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    undiscounted += amount;
+    discounted += (amount * Number(line.effectiveDiscountPct ?? 0)) / 100;
+  }
+  if (undiscounted <= 0) return "0";
+  return ((discounted / undiscounted) * 100).toFixed(2);
+}
+
 export class LiveHealthService {
   constructor(private readonly db: Db = prisma) {}
 
@@ -183,13 +198,13 @@ export class LiveHealthService {
         .map((other) => ({
           quoteId: other.id,
           confirmedAt: other.lastActivityAt.toISOString(),
-          effectiveDiscountPct: other.currentRevision!.lines[0]?.effectiveDiscountPct.toString() ?? "0",
+          effectiveDiscountPct: weightedEffectiveDiscount(other.currentRevision!.lines),
         }));
       return {
         quoteId: quote.id,
         stage: quoteStage(quote.stage),
         lastBusinessActivityAt: quote.lastActivityAt.toISOString(),
-        currentEffectiveDiscountPct: revision?.lines[0]?.effectiveDiscountPct.toString() ?? "0",
+        currentEffectiveDiscountPct: weightedEffectiveDiscount(revision?.lines ?? []),
         salesRepId: quote.repId,
         comparableConfirmedDiscounts: comparable,
       };
@@ -235,7 +250,7 @@ export class LiveHealthService {
       const id = await prismaUserIdForActor(actor);
       if (!id) throw new ApiFailure("UNAUTHENTICATED", "Actor is not a database user.");
       const user = await this.db.user.findUnique({ where: { id }, select: { teamId: true } });
-      if (!user?.teamId) throw new ApiFailure("FORBIDDEN", "Sales manager has no assigned team.");
+      if (!user?.teamId) return {};
       return { teamId: user.teamId };
     }
     return {};

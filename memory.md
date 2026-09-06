@@ -632,3 +632,22 @@ in the portal; UI copy now says so. (3) Manager approval via `ApprovalUiService`
 whole chain although the workspace `evaluation.chain` listed Finance as a second step —
 engine mismatch for Atharva/Ruchir to reconcile; UI no longer predicts the next reviewer.
 (4) `q.events` load empty in LIVE ("No activity yet" under Versions and activity).
+
+## 2026-09-06T07:25:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Fixed Deagle’s three verified issues plus login 404 / password paste, without redesigning other workflows.
+
+Root causes (LIVE):
+1. **Discounts displayed but not in money:** `priceQuote` already discounted before tax, but `persistQuote` returned early on an existing revision and wrote only `approvalStatus`, leaving list-price `lineSubtotal` / `oneTimeTotal`. Reloads, portal, tax, margin, and policy then used undiscounted persisted totals. Policy snapshot was also hardcoded Gold (`tierId: "gold"`), so Bronze/Silver ceilings never applied, approval chains stayed empty, and the UI hid who must approve.
+2. **Deal Health empty after refresh:** workspace `refreshHealth` used `orderDiscountPct` and empty comparable history (no anomalies), dummy undelivered qty, and delivery flags were mapped to `sourceRevisionId` instead of quote id. UI therefore looked broken even when flags existed.
+3. **Portal one-time total:** `.portal-totals` was a right-justified flex row and `.application .portal-totals>div` inherited raised/hover lift, so the card sat outside the Current terms panel.
+4. **Login 404:** catch-all `src/app/api/[...path]/route.ts` stole `GET /api/integrations/public` (404). Paste/autofill could submit an empty controlled password; dedicated login and catch-all also used different session cookie names.
+
+Changes: persist discounted line/revision money (and approval steps) on every save of the current revision; policy from the customer’s Bronze/Silver/Gold ceiling; send + `setCustomerTier` persist `discountTier` and re-evaluate; Deal Health `refreshHealth` → `LiveHealthService.refresh`; portal totals grid aligned in Current terms; catch-all serves integrations GET and sets both session cookies; login form reads DOM/FormData on submit.
+
+Files: `src/server/live/{pricing,canonical,commands,state}.ts`, `src/server/health/live-service.ts`, `src/features/quotes/engine/pricing.test.ts`, `src/server/live/pricing.test.ts`, `src/server/governance/policy-evaluation.test.ts`, `src/server/health/deal-health.test.ts`, `src/components/application/{Quotes,Operations,Application,CustomerPortal}.tsx`, `src/app/globals.css`, `src/app/api/[...path]/route.ts`, `src/app/api/auth/login/route.ts`, `src/development/adapter.ts`.
+
+Checks: vitest **278/278**; `tsc --noEmit` 0 after regenerating `.next` types; `npm run build` production compile OK. LIVE `GET /api/integrations/public` → 200; `POST /api/auth/login` (Arjun) → 200. Unit: qty 2 × ₹18,000 @ 50% → net ₹18,000 before tax, tax ₹3,240, total ₹21,240; Bronze 50% → PENDING with manager + finance. Did **not** click through a new quote in the browser this pass (dev server was restarted for the login probe only). After Save on a real quote, Net/Total in DB and portal must match the discounted figures; Deal Health must list flags after Refresh and a page reload.
+
+Limitations: Prisma has no `SENT` stage (UI SENT is `UNDER_NEGOTIATION` / `stage !== DRAFT`). Isolated unit tests are not a substitute for a full browser save→portal round-trip. Stripe/carrier remain 503 without keys (NOT CONNECTED).
+

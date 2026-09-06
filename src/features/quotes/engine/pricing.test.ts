@@ -16,6 +16,55 @@ const line = {
 };
 
 describe("priceQuote", () => {
+  it("applies a 50% line discount before tax (qty 2 × 18000)", () => {
+    const result = priceQuote({
+      currency: "INR",
+      orderDiscountPct: "0",
+      lines: [
+        {
+          productId: "product-demo",
+          variantId: "variant-demo",
+          category: "HARDWARE",
+          description: "Workstation",
+          quantity: 2,
+          unitPrice: "18000.00",
+          unitCost: "9000.00",
+          taxPct: "18",
+          discountPct: "50",
+          billingInterval: "ONE_TIME",
+          stockTracked: true,
+        },
+      ],
+    });
+    expect(result.lines[0]).toMatchObject({
+      undiscountedAmount: "36000.00",
+      discountAmount: "18000.00",
+      taxAmount: "3240.00",
+      totalAmount: "21240.00",
+    });
+    expect(result.totals.oneTimeTotal).toBe("21240.00");
+    expect(result.totals.taxTotal).toBe("3240.00");
+  });
+
+  it("stacks line and order discounts on the same subtotal", () => {
+    const result = priceQuote({
+      currency: "INR",
+      orderDiscountPct: "10",
+      lines: [
+        {
+          ...line,
+          quantity: 2,
+          unitPrice: "18000.00",
+          unitCost: "9000.00",
+          taxPct: "0",
+          discountPct: "50",
+        },
+      ],
+    });
+    expect(result.lines[0].discountAmount).toBe("19800.00");
+    expect(result.lines[0].totalAmount).toBe("16200.00");
+  });
+
   it("calculates one-time totals, cost, profit, and margin", () => {
     const result = priceQuote({
       currency: "INR",

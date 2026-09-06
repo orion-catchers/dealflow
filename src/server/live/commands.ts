@@ -7,11 +7,11 @@ import { getBillingService } from "@/server/billing/live";
 import { getCatalogService } from "@/server/catalog/live";
 import { getFulfillmentService } from "@/server/inventory/live";
 import { ApprovalUiService } from "@/server/approval-ui/service";
-import { findHealthCandidates } from "@/server/health/deal-health";
+import { LiveHealthService } from "@/server/health/live-service";
 import { patchUser } from "@/server/users/service";
 import { moneyOf } from "@/server/lib/db/map";
 import { harshActor, prismaCustomerId, prismaUserId, prismaVariantId, prismaWarehouseId, wrapError } from "./ids";
-import { applyAtharvaEvaluation, event, newRevision } from "./pricing";
+import { applyAtharvaEvaluation, displayCustomerTier, event, newRevision } from "./pricing";
 import { persistQuote, type Dirty, liveCanonical } from "./canonical";
 
 function roles(actor: Actor, ...allowed: Actor["role"][]) {
@@ -353,56 +353,8 @@ export async function runLiveCommand(
     }
 
     if (action === "refreshHealth") {
-      roles(actor, "ADMIN", "SALES_MANAGER", "SALES_REP");
-      const now = new Date().toISOString();
-      const candidates = findHealthCandidates({
-        now,
-        settings: {
-          stalledAfterDays: state.healthSettings.stalledDays,
-          anomalyMinimumSamples: state.healthSettings.minimumHistory,
-          anomalyMarginAboveAveragePct: String(state.healthSettings.anomalyPoints),
-        },
-        quotes: state.quotes.map((q) => ({
-          quoteId: q.id,
-          stage: (q.stage === "SENT" ? "UNDER_NEGOTIATION" : q.stage) as "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "UNDER_NEGOTIATION" | "CONFIRMED" | "REJECTED",
-          lastBusinessActivityAt: q.at,
-          currentEffectiveDiscountPct: String(q.orderDiscountPct),
-          salesRepId: q.repId,
-          comparableConfirmedDiscounts: [],
-        })),
-        orders: state.orders.map((o) => ({
-          orderId: o.id,
-          promisedDate: o.promisedDate ?? undefined,
-          undeliveredGoodsQty: o.status === "DELIVERED" || o.status === "CANCELLED" ? 0 : 1,
-          unallocatedGoodsQty: o.allocations.length ? 0 : 1,
-          paid: state.invoices.some((i) => i.orderId === o.id && i.status === "PAID"),
-        })),
-      });
-      const existing = await prisma.healthFlag.findMany();
-      for (const flag of existing) {
-        const still = candidates.some((c) => c.fingerprint === flag.fingerprint);
-        if (!still && !flag.resolvedAt) {
-          await prisma.healthFlag.update({ where: { id: flag.id }, data: { resolvedAt: new Date() } });
-        }
-      }
-      for (const candidate of candidates) {
-        const found = existing.find((f) => f.fingerprint === candidate.fingerprint);
-        if (found) {
-          if (found.resolvedAt) await prisma.healthFlag.update({ where: { id: found.id }, data: { resolvedAt: null } });
-          continue;
-        }
-        await prisma.healthFlag.create({
-          data: {
-            type: candidate.type === "STALLED_QUOTE" ? "STALLED" : candidate.type === "DISCOUNT_ANOMALY" ? "DISCOUNT_ANOMALY" : "DELIVERY_RISK",
-            fingerprint: candidate.fingerprint,
-            quoteId: candidate.quoteId,
-            orderId: candidate.orderId,
-            reason: candidate.reason,
-            detectedAt: new Date(now),
-          },
-        });
-      }
-      return { refreshed: true };
+      roles(actor, "ADMIN", "SALES_MANAGER", "SALES_REP", "FINANCE_OPS");
+      return await new LiveHealthService().refresh(harsh);
     }
 
     if (action === "task") {
@@ -468,7 +420,7 @@ export async function runLiveCommand(
       return q;
     }
 
-    if (["saveQuote", "addLine", "removeLine", "submitQuote", "sendQuote", "decision", "reply", "reviewDate"].includes(action)) {
+    if (["saveQuote", "addLine", "removeLine", "submitQuote", "sendQuote", "setCustomerTier", "decision", "reply", "reviewDate"].includes(action)) {
       roles(actor, "ADMIN", "SALES_REP", "SALES_MANAGER", "FINANCE_OPS");
       const q = getQuote(state, actor, key);
       revisionCheck(q.revision, b.expectedRevision);
@@ -562,11 +514,41 @@ export async function runLiveCommand(
         });
         return q;
       }
+      if (action === "setCustomerTier") {
+        roles(actor, "ADMIN", "SALES_REP");
+        requireValue(q.stage !== "CONFIRMED", "Confirmed quotation is locked");
+        const customer = state.customers.find((row) => row.id === q.customerId);
+        requireValue(customer, "Customer required");
+        const tier = displayCustomerTier(String(b.customerTier ?? ""));
+        requireValue(["Bronze", "Silver", "Gold"].includes(String(b.customerTier ?? "")), "Customer tier must be Bronze, Silver, or Gold");
+        newRevision(q, actor, `Customer tier set to ${tier}`);
+        customer.tier = tier;
+        await prisma.customer.update({
+          where: { id: await prismaCustomerId(customer.id) },
+          data: { discountTier: tier === "Silver" ? "SILVER" : tier === "Gold" ? "GOLD" : "STANDARD" },
+        });
+        applyAtharvaEvaluation(state, q);
+        q.stage = q.sent ? "UNDER_NEGOTIATION" : "DRAFT";
+        dirty.quotes.set(q.id, q);
+        return q;
+      }
       requireValue(q.lines.length && q.totals.some((t) => Number(t.net) > 0), "Add nonzero quotation lines");
       if (action === "submitQuote") {
         applyAtharvaEvaluation(state, q);
         q.stage = q.evaluation.status === "PENDING" ? "PENDING_APPROVAL" : "APPROVED";
       } else {
+        if (b.customerTier != null && String(b.customerTier).trim() !== "") {
+          const customer = state.customers.find((row) => row.id === q.customerId);
+          requireValue(customer, "Customer required");
+          const tier = displayCustomerTier(String(b.customerTier));
+          requireValue(["Bronze", "Silver", "Gold"].includes(String(b.customerTier)), "Customer tier must be Bronze, Silver, or Gold");
+          customer.tier = tier;
+          await prisma.customer.update({
+            where: { id: await prismaCustomerId(customer.id) },
+            data: { discountTier: tier === "Silver" ? "SILVER" : tier === "Gold" ? "GOLD" : "STANDARD" },
+          });
+          applyAtharvaEvaluation(state, q);
+        }
         q.sent = true;
         if (q.stage === "DRAFT") q.stage = "SENT";
       }

@@ -8,14 +8,30 @@ import { scopeWorkspace } from '../../../server/scope';
 import { sameOrigin } from '../../../server/origin';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
-async function handle(req:NextRequest) {
+async function handle(req:NextRequest, ctx?:{params?:Promise<{path?:string[]}>}) {
   try {
-    const adapter=await getAdapter(), path=req.nextUrl.pathname.slice(5).split('/');
+    const adapter=await getAdapter();
+    const paramPath=ctx?.params?(await ctx.params).path??[]:[];
+    const path=(paramPath.length?paramPath:req.nextUrl.pathname.replace(/^\/api\/?/,'').split('/').filter(Boolean));
     const token=req.cookies.get('dealflow_session')?.value??req.cookies.get('dealflow-session')?.value;
     if(req.method==='POST') {const origin=req.headers.get('origin');if(origin&&!sameOrigin(req.url,req.headers,origin))throw new AppError(403,'ORIGIN','Request origin does not match');}
     const body=req.method==='POST'?await req.json().catch(()=>{throw new AppError(400,'INVALID_JSON','Invalid request body');}):{};
     const ok=(data:unknown)=>NextResponse.json({data,mode:adapter.mode},{headers:{'Cache-Control':'no-store'}});
-    if(path.join('/')==='auth/login'&&req.method==='POST') {const result=await adapter.login(String(body.email??''),String(body.password??''));const response=ok({actor:result.actor});response.cookies.set('dealflow-session',result.token,{httpOnly:true,sameSite:'strict',secure:process.env.NODE_ENV==='production',path:'/',maxAge:28800});return response;}
+    if(path.join('/')==='integrations/public'&&req.method==='GET'){
+      const {integrationFlags}=await import('../../../server/integrations/status');
+      const flags=integrationFlags();
+      return ok({googleSso:flags.googleSso,email:flags.email,stripe:flags.stripe});
+    }
+    if(path.join('/')==='auth/login'&&req.method==='POST') {
+      const email=String(body.email??'').trim();
+      const password=String(body.password??'');
+      const result=await adapter.login(email,password);
+      const response=ok({actor:result.actor});
+      const cookie={httpOnly:true,sameSite:'strict' as const,secure:process.env.NODE_ENV==='production',path:'/',maxAge:28800};
+      response.cookies.set('dealflow-session',result.token,cookie);
+      response.cookies.set('dealflow_session',result.token,cookie);
+      return response;
+    }
     if(path.join('/')==='auth/signup'&&req.method==='POST'){await adapter.signup(String(body.name??''),String(body.email??''),String(body.password??''));return ok({message:'Account requested. An administrator must activate access.'});}
     const actor=await adapter.authenticate(token);
     if(!actor)throw new AppError(401,'UNAUTHENTICATED','Sign in to continue');
@@ -50,4 +66,4 @@ async function handle(req:NextRequest) {
     return NextResponse.json({ error: { code: e.code, message: e.message, details: e.details } }, { status: e.status });
   }
 }
-export const GET=handle;export const POST=handle;
+export const GET=handle;export const POST=handle;export const PUT=handle;export const PATCH=handle;export const DELETE=handle;

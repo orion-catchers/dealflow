@@ -7,7 +7,7 @@ import { initializeBilling } from "@/server/billing/initialize";
 import { initializeFulfillment } from "@/server/inventory/initialize";
 import { latestPolicyVersionId } from "./state";
 import { prismaCustomerId, prismaUserId } from "./ids";
-import { applyAtharvaEvaluation, candidatePreview, event, makeLine, newRevision } from "./pricing";
+import { applyAtharvaEvaluation, candidatePreview, event, linePolicyCeilingPct, makeLine, newRevision } from "./pricing";
 
 export type Dirty = {
   quotes: Map<string, Quote>;
@@ -238,26 +238,8 @@ export async function persistQuote(state: DataState, quote: Quote) {
   const existingRev = await prisma.dealRevision.findUnique({
     where: { quoteId_revisionNumber: { quoteId: row.id, revisionNumber } },
   });
-  if (existingRev) {
-    await prisma.dealRevision.update({
-      where: { id: existingRev.id },
-      data: {
-        approvalStatus:
-          quote.evaluation.status === "PENDING"
-            ? "PENDING"
-            : quote.evaluation.status === "REJECTED"
-              ? "REJECTED"
-              : quote.evaluation.status === "APPROVED"
-                ? "APPROVED"
-                : quote.evaluation.status === "SUPERSEDED"
-                  ? "SUPERSEDED"
-                  : "NOT_REQUIRED",
-      },
-    });
-    return;
-  }
 
-  if (row.currentRevisionId) {
+  if (!existingRev && row.currentRevisionId) {
     await prisma.dealRevision.update({
       where: { id: row.currentRevisionId },
       data: { supersededAt: new Date(), approvalStatus: "SUPERSEDED" },
@@ -270,39 +252,50 @@ export async function persistQuote(state: DataState, quote: Quote) {
   const yearly = quote.totals.find((t) => t.interval === "YEARLY");
   const risk =
     quote.evaluation.chain.includes("FINANCE_OPS") ? "FINANCE" : quote.evaluation.chain.includes("SALES_MANAGER") ? "MANAGER" : "NONE";
+  const approvalStatus =
+    quote.evaluation.status === "PENDING"
+      ? "PENDING"
+      : quote.evaluation.status === "REJECTED"
+        ? "REJECTED"
+        : quote.evaluation.status === "APPROVED"
+          ? "APPROVED"
+          : quote.evaluation.status === "SUPERSEDED"
+            ? "SUPERSEDED"
+            : "NOT_REQUIRED";
+  const moneyFields = {
+    riskLevel: risk as "NONE" | "MANAGER" | "FINANCE",
+    weightedExcessPct: quote.evaluation.worstExcess,
+    worstLineExcessPct: quote.evaluation.worstExcess,
+    evaluationReasons: { reasons: quote.evaluation.reasons, chain: quote.evaluation.chain, breaches: [] },
+    approvalStatus: approvalStatus as "PENDING" | "REJECTED" | "APPROVED" | "SUPERSEDED" | "NOT_REQUIRED",
+    orderDiscountPct: quote.orderDiscountPct,
+    currency: quote.currency,
+    promisedDate: quote.promisedDate ? new Date(`${quote.promisedDate}T00:00:00Z`) : null,
+    oneTimeSubtotal: oneTime?.net ?? "0.00",
+    oneTimeTax: oneTime?.tax ?? "0.00",
+    oneTimeTotal: oneTime?.total ?? "0.00",
+    recurringMonthly: monthly?.total ?? "0.00",
+    recurringQuarterly: quarterly?.total ?? "0.00",
+    recurringYearly: yearly?.total ?? "0.00",
+    totalCost: quote.lines.reduce((n, l) => n + Number(l.unitCost) * l.quantity, 0).toFixed(2),
+    marginPct: oneTime?.marginPct ?? 0,
+  };
 
-  const revision = await prisma.dealRevision.create({
-    data: {
-      quoteId: row.id,
-      dealId: row.dealId,
-      revisionNumber,
-      policyVersionId,
-      riskLevel: risk,
-      weightedExcessPct: quote.evaluation.worstExcess,
-      worstLineExcessPct: quote.evaluation.worstExcess,
-      evaluationReasons: { reasons: quote.evaluation.reasons, breaches: [] },
-      approvalStatus:
-        quote.evaluation.status === "PENDING"
-          ? "PENDING"
-          : quote.evaluation.status === "REJECTED"
-            ? "REJECTED"
-            : quote.evaluation.status === "APPROVED"
-              ? "APPROVED"
-              : "NOT_REQUIRED",
-      orderDiscountPct: quote.orderDiscountPct,
-      currency: quote.currency,
-      promisedDate: quote.promisedDate ? new Date(`${quote.promisedDate}T00:00:00Z`) : null,
-      oneTimeSubtotal: oneTime?.net ?? "0.00",
-      oneTimeTax: oneTime?.tax ?? "0.00",
-      oneTimeTotal: oneTime?.total ?? "0.00",
-      recurringMonthly: monthly?.total ?? "0.00",
-      recurringQuarterly: quarterly?.total ?? "0.00",
-      recurringYearly: yearly?.total ?? "0.00",
-      totalCost: quote.lines.reduce((n, l) => n + Number(l.unitCost) * l.quantity, 0).toFixed(2),
-      marginPct: oneTime?.marginPct ?? 0,
-      createdById: repId,
-    },
-  });
+  const revision = existingRev
+    ? await prisma.dealRevision.update({
+        where: { id: existingRev.id },
+        data: moneyFields,
+      })
+    : await prisma.dealRevision.create({
+        data: {
+          quoteId: row.id,
+          dealId: row.dealId,
+          revisionNumber,
+          policyVersionId,
+          createdById: repId,
+          ...moneyFields,
+        },
+      });
 
   await prisma.quote.update({ where: { id: row.id }, data: { currentRevisionId: revision.id } });
   if (row.dealId) {
@@ -312,55 +305,64 @@ export async function persistQuote(state: DataState, quote: Quote) {
     });
   }
 
-  const chain = quote.evaluation.chain;
-  for (let i = 0; i < chain.length; i++) {
-    await prisma.dealApprovalStep.create({
-      data: {
-        revisionId: revision.id,
-        stepIndex: i,
-        role: chain[i] === "FINANCE_OPS" ? "FINANCE" : "SALES_MANAGER",
-        status: i < quote.evaluation.step ? "APPROVED" : i === quote.evaluation.step ? "PENDING" : "BLOCKED",
-      },
+  const sourcedOrder = await prisma.order.findUnique({ where: { sourceRevisionId: revision.id } });
+  if (!sourcedOrder) {
+    await prisma.dealLine.deleteMany({ where: { revisionId: revision.id } });
+    for (const [index, line] of quote.lines.entries()) {
+      const product = await prisma.product.findUnique({ where: { id: line.productId } });
+      requireValue(product, `Product missing for quotation line ${line.description}`);
+      const catalog = state.products.find((row) => row.id === line.productId);
+      const ceiling = linePolicyCeilingPct(state, quote, catalog?.category);
+      const effective = 100 * (1 - (1 - line.discountPct / 100) * (1 - quote.orderDiscountPct / 100));
+      await prisma.dealLine.create({
+        data: {
+          revisionId: revision.id,
+          productId: line.productId,
+          variantId: line.variantId || null,
+          planId: product.defaultPlanId,
+          billingKind: line.interval === "ONE_TIME" ? "ONE_TIME" : "RECURRING",
+          interval: line.interval === "ONE_TIME" ? null : line.interval,
+          quantity: Math.max(1, Math.round(line.quantity)),
+          unitPrice: line.unitPrice,
+          unitCost: line.unitCost,
+          lineDiscountPct: line.discountPct,
+          effectiveDiscountPct: effective,
+          ceilingPct: ceiling,
+          excessPct: Math.max(0, effective - ceiling),
+          excessAmount: ((Number(line.unitPrice) * line.quantity * Math.max(0, effective - ceiling)) / 100).toFixed(2),
+          taxPct: line.taxPct,
+          lineSubtotal: line.net,
+          taxAmount: line.tax,
+          lineTotal: line.total,
+          categoryId: product.categoryId,
+          stockTracked: line.stockTracked,
+          position: index,
+        },
+      });
+    }
+    const savedLines = await prisma.dealLine.findMany({
+      where: { revisionId: revision.id },
+      orderBy: { position: "asc" },
     });
+    for (const [index, line] of quote.lines.entries()) {
+      const saved = savedLines[index];
+      if (saved) line.id = saved.id;
+    }
   }
 
-  for (const [index, line] of quote.lines.entries()) {
-    const product = await prisma.product.findUnique({ where: { id: line.productId } });
-    if (!product) continue;
-    await prisma.dealLine.create({
-      data: {
-        revisionId: revision.id,
-        productId: line.productId,
-        variantId: line.variantId || null,
-        planId: product.defaultPlanId,
-        billingKind: line.interval === "ONE_TIME" ? "ONE_TIME" : "RECURRING",
-        interval: line.interval === "ONE_TIME" ? null : line.interval,
-        quantity: Math.max(1, Math.round(line.quantity)),
-        unitPrice: line.unitPrice,
-        unitCost: line.unitCost,
-        lineDiscountPct: line.discountPct,
-        effectiveDiscountPct: 100 * (1 - (1 - line.discountPct / 100) * (1 - quote.orderDiscountPct / 100)),
-        ceilingPct: 0,
-        excessPct: 0,
-        excessAmount: "0.00",
-        taxPct: line.taxPct,
-        lineSubtotal: line.net,
-        taxAmount: line.tax,
-        lineTotal: line.total,
-        categoryId: product.categoryId,
-        stockTracked: line.stockTracked,
-        position: index,
-      },
-    });
-  }
-
-  const savedLines = await prisma.dealLine.findMany({
-    where: { revisionId: revision.id },
-    orderBy: { position: "asc" },
-  });
-  for (const [index, line] of quote.lines.entries()) {
-    const saved = savedLines[index];
-    if (saved) line.id = saved.id;
+  if (revision.approvalStatus !== "APPROVED" && revision.approvalStatus !== "REJECTED") {
+    await prisma.dealApprovalStep.deleteMany({ where: { revisionId: revision.id } });
+    const chain = quote.evaluation.chain;
+    for (let i = 0; i < chain.length; i++) {
+      await prisma.dealApprovalStep.create({
+        data: {
+          revisionId: revision.id,
+          stepIndex: i,
+          role: chain[i] === "FINANCE_OPS" ? "FINANCE" : "SALES_MANAGER",
+          status: i < quote.evaluation.step ? "APPROVED" : i === quote.evaluation.step ? "PENDING" : "BLOCKED",
+        },
+      });
+    }
   }
 }
 

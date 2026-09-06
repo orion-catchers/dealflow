@@ -318,16 +318,18 @@ function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;on
         {done?<div className="notice" role="status">Account requested. Your administrator must activate access.<Link href="/login">Return to sign in</Link></div>:<form onSubmit={async event=>{
           event.preventDefault();setBusy(true);setIssue('');
           const submitted=new FormData(event.currentTarget);
-          const nextEmail=String(submitted.get('email')??email).trim();
-          const nextPassword=String(submitted.get('password')??password);
+          const passwordField=event.currentTarget.elements.namedItem('password');
+          const emailField=event.currentTarget.elements.namedItem('email');
+          const nextEmail=String(submitted.get('email')??(emailField instanceof HTMLInputElement?emailField.value:email)).trim();
+          const nextPassword=String(submitted.get('password')??(passwordField instanceof HTMLInputElement?passwordField.value:password)).replace(/\r?\n/g,'');
           const nextName=String(submitted.get('name')??name).trim();
           try{if(path==='/signup'){await api('auth/signup',{name:nextName,email:nextEmail,password:nextPassword});setDone(true);}else{const result=await api<{actor?:Actor;mode?:string;id?:string;name?:string;email?:string;role?:Role;active?:boolean;customerId?:string}>('auth/login',{email:nextEmail,password:nextPassword});const actor=result.actor??sessionToActor(result);if(!actor)throw new Error('Sign in could not be completed.');await onLogin(actor,result.mode??'LIVE');}}
           catch(reason){setIssue(reason instanceof Error?reason.message:'Sign in could not be completed.');}
           finally{setBusy(false);}
         }}>
           {path==='/signup'&&<Input label="Full name" name="name" value={name} onChange={event=>setName(event.target.value)} required autoComplete="name"/>}
-          <Input label="Work email" name="email" type="email" value={email} onChange={event=>setEmail(event.target.value)} required autoComplete="username"/>
-          <Input label="Password" name="password" type="password" value={password} onChange={event=>setPassword(event.target.value)} required minLength={8} autoComplete={path==='/signup'?'new-password':'current-password'}/>
+          <Input label="Work email" name="email" type="email" value={email} onChange={event=>setEmail(event.target.value)} onInput={event=>setEmail(event.currentTarget.value)} required autoComplete="username"/>
+          <Input label="Password" name="password" type="password" value={password} onChange={event=>setPassword(event.target.value)} onInput={event=>setPassword(event.currentTarget.value)} required minLength={8} autoComplete={path==='/signup'?'new-password':'current-password'}/>
           {issue&&<p role="alert" className="error">{issue}</p>}
           <Button type="submit" disabled={busy}>{busy?'Please wait…':path==='/signup'?'Request access':'Sign in'}</Button>
         </form>}

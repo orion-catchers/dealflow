@@ -22,6 +22,14 @@ describe("deal health", () => {
           comparableConfirmedDiscounts: [],
         },
         {
+          quoteId: "quote-sent-stalled",
+          stage: "UNDER_NEGOTIATION",
+          lastBusinessActivityAt: "2026-08-01T00:00:00.000Z",
+          currentEffectiveDiscountPct: "8",
+          salesRepId: "rep-arjun",
+          comparableConfirmedDiscounts: [],
+        },
+        {
           quoteId: "quote-anomaly",
           stage: "UNDER_NEGOTIATION",
           lastBusinessActivityAt: "2026-09-09T00:00:00.000Z",
@@ -57,6 +65,7 @@ describe("deal health", () => {
       ],
     });
     expect(candidates.map((candidate) => candidate.type)).toEqual([
+      "STALLED_QUOTE",
       "STALLED_QUOTE",
       "DISCOUNT_ANOMALY",
       "DELIVERY_RISK",

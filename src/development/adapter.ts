@@ -617,6 +617,7 @@ function command(
       "removeLine",
       "submitQuote",
       "sendQuote",
+      "setCustomerTier",
       "decision",
       "reply",
       "reviewDate",
@@ -744,6 +745,19 @@ function command(
       });
       return q;
     }
+    if (action === "setCustomerTier") {
+      const customer = d.customers.find((row) => row.id === q.customerId);
+      requireValue(customer, "Customer required");
+      requireValue(
+        ["Bronze", "Silver", "Gold"].includes(String(b.customerTier)),
+        "Customer tier must be Bronze, Silver, or Gold",
+      );
+      newRevision(q, actor, `Customer tier set to ${b.customerTier}`);
+      customer.tier = String(b.customerTier);
+      reprice(d, q);
+      q.stage = q.sent ? "UNDER_NEGOTIATION" : "DRAFT";
+      return q;
+    }
     requireValue(
       q.lines.length && q.totals.some((t) => dec(t.net).gt(0)),
       "Add nonzero quotation lines",
@@ -765,6 +779,7 @@ function command(
           "Customer tier must be Bronze, Silver, or Gold",
         );
         customer.tier = String(b.customerTier);
+        reprice(d, q);
       }
     }
     q.events.push(

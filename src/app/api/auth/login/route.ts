@@ -37,12 +37,20 @@ export async function POST(request: Request) {
         path: "/",
         maxAge: 8 * 60 * 60,
       });
+      setSessionCookie(response, result.token);
       return response;
     }
     const input = parseLoginBody(await readJson(request));
     const { user, token } = await loginWithPassword(input);
     const response = NextResponse.json({ data: { actor: toAppActor(user), mode: "LIVE" }, mode: "LIVE" });
     setSessionCookie(response, token);
+    response.cookies.set("dealflow-session", token, {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 8 * 60 * 60,
+    });
     return response;
   } catch (e) {
     if (e instanceof ApiFailure) return fail(e.code, e.message, e.details);

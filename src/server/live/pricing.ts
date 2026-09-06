@@ -63,17 +63,32 @@ export function makeLine(s: DataState, q: Quote, productId: string, variantId: s
   };
 }
 
-function policySnapshot(state: DataState): PolicySnapshot {
+export function displayCustomerTier(raw?: string): "Bronze" | "Silver" | "Gold" {
+  const tier = (raw ?? "Gold").trim().toLowerCase();
+  if (tier === "bronze" || tier === "standard") return "Bronze";
+  if (tier === "silver") return "Silver";
+  return "Gold";
+}
+
+export function policySnapshot(state: DataState, quote?: Quote): PolicySnapshot {
+  const customer = quote ? state.customers.find((row) => row.id === quote.customerId) : undefined;
+  const tierName = displayCustomerTier(customer?.tier);
+  const defaultCeiling = state.policy.tierLimits[tierName] ?? (tierName === "Bronze" ? 5 : tierName === "Silver" ? 10 : 15);
+  const hardware = state.policy.categoryLimits.Hardware ?? 15;
+  const services = state.policy.categoryLimits.Services ?? 10;
   return {
     policyVersionId: "live",
     capturedAt: new Date().toISOString().slice(0, 10),
     rules: {
-      tierId: "gold",
-      tierName: "Gold",
-      defaultCeilingPct: String(state.policy.tierLimits.Gold ?? 15),
+      tierId: tierName.toLowerCase(),
+      tierName,
+      defaultCeilingPct: String(defaultCeiling),
       categoryCeilingsPct: {
-        HARDWARE: String(state.policy.categoryLimits.Hardware ?? 15),
-        SERVICES: String(state.policy.categoryLimits.Services ?? 10),
+        HARDWARE: String(hardware),
+        SERVICES: String(services),
+        ACCESSORIES: String(hardware),
+        Hardware: String(hardware),
+        Services: String(services),
       },
       managerThresholdPct: "0",
       financeWorstLineThresholdPct: String(state.policy.financeExcess),
@@ -82,6 +97,19 @@ function policySnapshot(state: DataState): PolicySnapshot {
       minimumHistorySamples: state.healthSettings.minimumHistory,
     },
   };
+}
+
+export function linePolicyCeilingPct(state: DataState, quote: Quote, productCategory?: string): number {
+  const snapshot = policySnapshot(state, quote);
+  const defaultCeiling = Number(snapshot.rules.defaultCeilingPct);
+  const key =
+    productCategory === "Services" || productCategory === "SERVICES"
+      ? "SERVICES"
+      : productCategory === "Accessories" || productCategory === "ACCESSORIES"
+        ? "ACCESSORIES"
+        : "HARDWARE";
+  const categoryCeiling = Number(snapshot.rules.categoryCeilingsPct[key] ?? defaultCeiling);
+  return Math.min(defaultCeiling, categoryCeiling);
 }
 
 export function applyAtharvaEvaluation(state: DataState, quote: Quote) {
@@ -148,7 +176,7 @@ export function applyAtharvaEvaluation(state: DataState, quote: Quote) {
   const evaluation = evaluatePolicy({
     lines: priced.lines,
     orderDiscountPct: String(quote.orderDiscountPct),
-    policySnapshot: policySnapshot(state),
+    policySnapshot: policySnapshot(state, quote),
   });
   const chain: Evaluation["chain"] = evaluation.requiredApprovalChain.map((level) =>
     level === "FINANCE" ? "FINANCE_OPS" : "SALES_MANAGER",

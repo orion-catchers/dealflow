@@ -72,6 +72,25 @@ describe("evaluatePolicy", () => {
     expect(finance.requiredApprovalChain).toEqual(["MANAGER", "FINANCE"]);
   });
 
+  it("uses the Bronze default ceiling so a 12% hardware discount needs Manager and Finance", () => {
+    const result = evaluatePolicy({
+      lines: [line({ discountPct: "12" })],
+      orderDiscountPct: "0",
+      policySnapshot: {
+        ...policy,
+        rules: {
+          ...policy.rules,
+          tierId: "bronze",
+          tierName: "Bronze",
+          defaultCeilingPct: "5",
+          categoryCeilingsPct: { Hardware: "15" },
+        },
+      },
+    });
+    expect(result.status).toBe("PENDING");
+    expect(result.requiredApprovalChain).toEqual(["MANAGER", "FINANCE"]);
+  });
+
   it("never lets a category ceiling exceed the default ceiling", () => {
     const result = evaluatePolicy({
       lines: [line({ discountPct: "16" })],
