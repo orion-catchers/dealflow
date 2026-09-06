@@ -106,6 +106,11 @@ export function currencyOf(value: string): Currency {
 
 export function categoryFromCode(code: string): ProductCategory {
   if (code === "HARDWARE" || code === "ACCESSORIES" || code === "SERVICES" || code === "SUBSCRIPTIONS") return code;
+  const upper = code.toUpperCase();
+  if (upper.includes("PERIPH") || upper.includes("ACCESS")) return "ACCESSORIES";
+  if (upper.includes("SERVICE") || upper.includes("SUPPORT") || upper.includes("SOFTWARE") || upper.includes("SUBSCRIPTION")) {
+    return "SERVICES";
+  }
   return "HARDWARE";
 }
 

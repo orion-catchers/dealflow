@@ -529,6 +529,16 @@ Checks: save Support Yearly to `543.00` then `GET /api/workspace` returned inter
 
 Status: Plan table now reflects stored list price.
 
+## 2026-09-06T05:50:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Imported `dealflow360_synthetic_dataset.json` **beside** existing Nexa demo (no truncate). `scripts/seed-synthetic-dataset.ts` now maps Deal/DealRevision/DealLine, coerces billing/invoice/subscription/request-key shapes the JSON does not satisfy, and refuses `--reset`. Probe: `node scripts/synthetic-probe.mjs`.
+
+Files: `scripts/seed-synthetic-dataset.ts`, `scripts/synthetic-probe.mjs`, `src/server/lib/db/map.ts`.
+
+Checks: `npm run synthetic:seed` (add-only); vitest 272/272; live API probe 20/20. Synthetic admin `admin01@example.test` / `Synthetic-user-0001-2026!`. Nexa `arjun@nexa.example` still logs in. Quotes list 326 (300 synthetic + 26 demo); workspace for synthetic admin is company-scoped (300 quotes / 30 products / 100 customers). Reports CUSTOM 2024-09-06..2026-09-06: 321 quotes, 122 confirmed orders. Approvals 55 pending. Fulfillment 125 orders. Invoices 163. Health 64 flags. Customer `/api/quotes` 403 (portal-scoped). Browser click-through not run.
+
+Status: LIVE mixed dataset. JSON one-time lines with MONTHLY interval were stored as ONE_TIME+null interval. Invoice `orderId` was filled because the schema requires it. One stock row skipped (reserved vs on-hand).
+
 ---
 
 ## 5. Interface notes (cross-lane changes)
