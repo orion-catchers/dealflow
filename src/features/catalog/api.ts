@@ -174,7 +174,7 @@ export const resolvePriceInputSchema = z.object({
 });
 
 export const catalogSearchInputSchema = z.object({
-  customerId: idSchema,
+  customerId: idSchema.optional(),
   query: z.string().trim().max(200).optional(),
   category: productCategorySchema.optional(),
   includeInactive: z.boolean().optional(),

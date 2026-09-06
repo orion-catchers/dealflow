@@ -22,7 +22,7 @@ describe("accessFor", () => {
 
   it("deal health is staff-only data, not a public probe", () => {
     expect(accessFor("/api/health", "GET")).toBe("INTERNAL");
-    expect(accessFor("/api/health/actions", "POST")).toEqual(["ADMIN"]);
+    expect(accessFor("/api/health/actions", "POST")).toBe("INTERNAL");
     expect(canAccess("CUSTOMER", "/api/health", "GET")).toBe(false);
     expect(canAccess("SALES_REP", "/api/health", "GET")).toBe(true);
   });
@@ -44,10 +44,13 @@ describe("role matrix (blueprint §3)", () => {
     expect(canAccess("SALES_REP", "/api/quotes", "POST")).toBe(true);
     expect(canAccess("SALES_REP", "/api/quotes/Q-1/send", "POST")).toBe(true);
     expect(canAccess("SALES_REP", "/api/products", "GET")).toBe(true);
+    expect(canAccess("SALES_REP", "/api/approvals", "GET")).toBe(true);
     expect(canAccess("SALES_REP", "/api/approvals", "POST")).toBe(false);
+    expect(canAccess("SALES_REP", "/api/dashboard", "GET")).toBe(true);
+    expect(canAccess("SALES_REP", "/api/invoices", "GET")).toBe(true);
+    expect(canAccess("SALES_REP", "/api/health/actions", "POST")).toBe(true);
     expect(canAccess("SALES_REP", "/api/products/p1", "PATCH")).toBe(false);
     expect(canAccess("SALES_REP", "/api/fulfillment/O1/ship", "POST")).toBe(false);
-    expect(canAccess("SALES_REP", "/api/dashboard", "GET")).toBe(false);
     expect(canAccess("SALES_REP", "/api/price-lists", "POST")).toBe(false);
   });
 

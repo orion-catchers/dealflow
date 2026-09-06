@@ -43,7 +43,7 @@ export function CustomersMaster() {
       ),
     },
     { key: "contact", header: "Contact", render: (c) => c.contactName ?? <span className="text-slate-400">—</span> },
-    { key: "email", header: "Email", render: (c) => (c.contactEmail ? <a className="text-blue-700 hover:underline" href={`mailto:${c.contactEmail}`}>{c.contactEmail}</a> : <span className="text-slate-400">—</span>) },
+    { key: "email", header: "Email", render: (c) => (c.contactEmail ? <a className="hover:underline" href={`mailto:${c.contactEmail}`}>{c.contactEmail}</a> : <span className="text-slate-400">—</span>) },
     { key: "tier", header: "Tier", render: (c) => <StatusBadge status={c.tier} label={tierLabel(c.tier)} /> },
     { key: "currency", header: "Currency", render: (c) => c.currency },
     { key: "rep", header: "Assigned rep", render: (c) => userName(c.assignedRepId) ?? <span className="text-slate-400">Unassigned</span> },

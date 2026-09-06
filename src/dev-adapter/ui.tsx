@@ -15,7 +15,7 @@
  * competing theme.
  */
 import Link from "next/link";
-import React from "react";
+import React, { useEffect, useId, useRef } from "react";
 
 export function PageHeader({
   title,
@@ -27,17 +27,13 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-4">
+    <header className="df-page-header">
       <div>
-        <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
-        {description ? (
-          <p className="mt-1 text-sm text-slate-600">{description}</p>
-        ) : null}
+        <h1>{title}</h1>
+        {description ? <p>{description}</p> : null}
       </div>
-      {actions ? (
-        <div className="flex flex-wrap items-center gap-2">{actions}</div>
-      ) : null}
-    </div>
+      {actions ? <div className="df-actions">{actions}</div> : null}
+    </header>
   );
 }
 
@@ -121,8 +117,8 @@ export function DataTable<Row>({
   rowKey: (row: Row, index: number) => string;
 }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white df-raised">
-      <table className="min-w-full text-sm">
+    <div className="df-table-scroll" role="region" aria-label="Data table" tabIndex={0}>
+      <table className="df-table">
         <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-600">
           <tr>
             {columns.map((c) => (
@@ -208,34 +204,35 @@ export function Dialog({
   children: React.ReactNode;
   footer?: React.ReactNode;
 }) {
-  if (!open) return null;
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  useEffect(() => {
+    const dialog = ref.current;
+    if (open && dialog && !dialog.open) dialog.showModal();
+    if (!open && dialog?.open) dialog.close();
+  }, [open]);
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
+    <dialog
+      ref={ref}
+      className="df-dialog"
+      aria-labelledby={titleId}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onClick={(event) => {
+        if (event.target === ref.current) onClose();
+      }}
     >
-      <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <h2 className="text-base font-semibold">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded px-2 py-1 text-slate-500 hover:bg-slate-100"
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </div>
-        <div className="px-4 py-4">{children}</div>
-        {footer ? (
-          <div className="flex justify-end gap-2 border-t border-slate-200 px-4 py-3">
-            {footer}
-          </div>
-        ) : null}
+      <div className="df-page-header">
+        <h2 id={titleId}>{title}</h2>
+        <Button variant="secondary" aria-label="Close dialog" onClick={onClose}>
+          Close
+        </Button>
       </div>
-    </div>
+      <div>{children}</div>
+      {footer ? <footer className="df-actions">{footer}</footer> : null}
+    </dialog>
   );
 }
 

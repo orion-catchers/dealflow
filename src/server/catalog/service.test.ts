@@ -242,6 +242,10 @@ describe("catalog boundary — resolve / search", () => {
     expect(hw).toHaveLength(1);
     expect(hw[0].resolved.unitPrice).toBe("52000.00");
     expect(hw[0].variants).toHaveLength(2);
+
+    const unscoped = await svc.search(rep, { query: "laptop" });
+    expect(unscoped.length).toBeGreaterThan(0);
+    await expectFailure(svc.search(neha, { query: "laptop" }), "FORBIDDEN");
   });
 });
 

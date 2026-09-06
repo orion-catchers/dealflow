@@ -38,6 +38,7 @@ const RULES: readonly Rule[] = [
   { prefix: "/api/portal", access: ["CUSTOMER"] },
 
   { prefix: "/api/quotes", access: ["SALES_REP", "SALES_MANAGER", "ADMIN"] },
+  { prefix: "/api/approvals", methods: ["GET"], access: "INTERNAL" },
   { prefix: "/api/approvals", access: ["SALES_MANAGER", "FINANCE", "ADMIN"] },
   { prefix: "/api/catalog", access: "INTERNAL" },
 
@@ -46,14 +47,15 @@ const RULES: readonly Rule[] = [
   { prefix: "/api/stock", methods: ["GET"], access: "INTERNAL" },
   { prefix: "/api/stock", access: ["FINANCE", "ADMIN"] },
 
-  { prefix: "/api/invoices", methods: ["GET"], access: ["SALES_MANAGER", "FINANCE", "ADMIN"] },
+  { prefix: "/api/invoices", methods: ["GET"], access: "INTERNAL" },
   { prefix: "/api/invoices", access: ["FINANCE", "ADMIN"] },
   { prefix: "/api/payments", access: ["FINANCE", "ADMIN"] },
   { prefix: "/api/credits", access: ["FINANCE", "ADMIN"] },
+  { prefix: "/api/subscriptions", methods: ["GET"], access: "INTERNAL" },
   { prefix: "/api/subscriptions", access: ["FINANCE", "ADMIN"] },
   { prefix: "/api/billing", access: ["FINANCE", "ADMIN"] },
 
-  { prefix: "/api/dashboard", access: ["SALES_MANAGER", "ADMIN"] },
+  { prefix: "/api/dashboard", access: "INTERNAL" },
   { prefix: "/api/reports", access: ["SALES_MANAGER", "FINANCE", "ADMIN", "SALES_REP"] },
   { prefix: "/api/fx", methods: ["GET"], access: "INTERNAL" },
   { prefix: "/api/carrier", methods: ["GET"], access: "INTERNAL" },
@@ -76,7 +78,7 @@ const RULES: readonly Rule[] = [
   { prefix: "/api/customers", methods: ["GET"], access: "INTERNAL" },
   { prefix: "/api/customers", access: ["ADMIN"] },
 
-  { prefix: "/api/health/actions", access: ["ADMIN"] },
+  { prefix: "/api/health/actions", access: "INTERNAL" },
   { prefix: "/api/health", access: "INTERNAL" },
 ];
 

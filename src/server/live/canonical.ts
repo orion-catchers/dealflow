@@ -353,6 +353,15 @@ export async function persistQuote(state: DataState, quote: Quote) {
       },
     });
   }
+
+  const savedLines = await prisma.dealLine.findMany({
+    where: { revisionId: revision.id },
+    orderBy: { position: "asc" },
+  });
+  for (const [index, line] of quote.lines.entries()) {
+    const saved = savedLines[index];
+    if (saved) line.id = saved.id;
+  }
 }
 
 async function persistConfirmation(state: DataState, order: Order, actor: Actor) {
