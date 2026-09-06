@@ -216,34 +216,80 @@ export default function Application(){
   },[sessionActor,pathname,router,viewPath]);
 
   useEffect(()=>{
-    if(wasSignedOut()){writeShell(null);return;}
-    let cancelled=false;
-    api<{actor:Actor;data:DataState|null;mode:string}>('auth/me')
-      .then(result=>{
-        if(cancelled)return;
-        const me=sessionToActor(result.actor);
-        if(!me)return;
-        setActor(me);
-        setMode(result.mode);
-        if(me.role==='CUSTOMER'){
+    const onShow=(event:PageTransitionEvent)=>{
+      if(!event.persisted)return;
+      if(wasSignedOut()){
+        writeShell(null);
+        setActor(null);
+        setData(null);
+        clearPortalCache();
+        router.replace('/login');
+        return;
+      }
+      fetch('/api/auth/me',{cache:'no-store'}).then(async response=>{
+        const result=await response.json();
+        if(response.status===401){
+          markSignedOut();
+          setActor(null);
           setData(null);
-          writeShell({actor:me,mode:result.mode,data:null});
-        }else if(result.data){
-          setData(result.data);
-          writeShell({actor:me,mode:result.mode,data:result.data});
+          clearPortalCache();
+          router.replace('/login');
+          return;
         }
-      })
-      .catch(()=>{/* network/session failure falls back to signin */});
-    return ()=>{cancelled=true;};
+        if(response.ok){
+          const next=sessionToActor(result.data);
+          if(next){setActor(next);setMode(result.mode??'LIVE');}
+        }
+      }).catch(()=>{/* pageshow recheck is best-effort */});
+    };
+    window.addEventListener('pageshow',onShow);
+    return()=>window.removeEventListener('pageshow',onShow);
+  },[router]);
+
+  useEffect(()=>{
+    let cancelled=false;
+    if(showAuth)return;
+    fetch('/api/auth/me',{cache:'no-store'}).then(async response=>{
+      const result=await response.json();
+      if(cancelled)return;
+      if(response.ok){
+        const next=sessionToActor(result.data);
+        if(next){setActor(next);setMode(result.mode??'LIVE');}
+      }else if(response.status===401){
+        markSignedOut();
+        writeShell(null);
+        setActor(null);
+        setData(null);
+        clearPortalCache();
+      }else setError(result.error?.message??'The session could not be checked.');
+    }).catch(reason=>{if(!cancelled)setError(reason instanceof Error?reason.message:'The session could not be checked.');});
+    return()=>{cancelled=true;};
+  },[showAuth]);
+
+  useEffect(()=>{reload().catch(reason=>setError(reason instanceof Error?reason.message:'The workspace could not be loaded.'));},[reload]);
+  useEffect(()=>{
+    if(wasSignedOut()&&actor){
+      setActor(null);
+      setData(null);
+      clearPortalCache();
+    }
+  },[actor]);
+  useEffect(()=>{
+    if(sessionActor)writeShell({actor:sessionActor,mode,data});
+  },[sessionActor,mode,data]);
+  useEffect(()=>{setMenu(false);},[pathname]);
+  useEffect(()=>{
+    try{setCollapsed(window.localStorage.getItem('dealflow-sidebar')==='collapsed');}catch{/* local preference is optional */}
   },[]);
 
-  const run=async(action:string,payload?:Record<string,unknown>,notice?:string)=>{
-    const result=await api<{state:DataState}>(action,payload);
-    if(result.state){
-      setData(result.state);
-      if(sessionActor)writeShell({actor:sessionActor,mode,data:result.state});
-    }
-    if(notice) setMessage(notice);
+  const setSidebarCollapsed=(value:boolean)=>{
+    setCollapsed(value);
+    try{window.localStorage.setItem('dealflow-sidebar',value?'collapsed':'expanded');}catch{/* local preference is optional */}
+  };
+  const run=async(action:string,body:Record<string,unknown>={},notice?:string)=>{
+    const result=await api('actions',{...body,action,requestKey:body.requestKey??newId()});
+    await reload();
+    setMessage(notice??(mode==='DEV FIXTURE'?'Development record updated.':'Saved.'));
     return result;
   };
 
@@ -279,7 +325,7 @@ export default function Application(){
     <aside className={menu?'sidebar visible':'sidebar'} aria-label="Primary navigation">
       <div className="sidebar-head">
         <Link className="brand wordmark" href={sessionActor.role==='CUSTOMER'?'/portal':'/home'} aria-label="DealFlow360 home">DealFlow360</Link>
-        <button className="sidebar-toggle" type="button" aria-expanded={!collapsed} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'} title={collapsed?'Expand sidebar':'Collapse sidebar'} onClick={()=>setCollapsed(!collapsed)}>
+        <button className="sidebar-toggle" type="button" aria-expanded={!collapsed} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'} title={collapsed?'Expand sidebar':'Collapse sidebar'} onClick={()=>setSidebarCollapsed(!collapsed)}>
           {collapsed?<PanelLeft size={18}/>:<PanelLeftClose size={18}/>}
         </button>
       </div>
