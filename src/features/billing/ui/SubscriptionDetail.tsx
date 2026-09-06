@@ -23,7 +23,7 @@ export function SubscriptionDetail({ id }: { id: string }) {
       }),
     );
     if (result) {
-      setNotice("Saved");
+      setNotice(body.uncancel ? "Cancellation stopped; subscription remains active." : body.cancel ? "Cancellation scheduled." : "Saved");
       detail.reload();
     }
   }
@@ -57,6 +57,10 @@ export function SubscriptionDetail({ id }: { id: string }) {
                 </dd>
               </div>
               <div className="flex justify-between">
+                <dt>Recurring amount</dt>
+                <dd><Money amount={(Number(sub.unitPrice) * sub.quantity).toFixed(2)} currency={sub.currency ?? "INR"} /></dd>
+              </div>
+              <div className="flex justify-between">
                 <dt>Period</dt>
                 <dd>
                   {sub.currentPeriodStart} → {sub.currentPeriodEnd}
@@ -70,6 +74,12 @@ export function SubscriptionDetail({ id }: { id: string }) {
                 <dt>Cancel policy</dt>
                 <dd>{sub.cancelPolicy}</dd>
               </div>
+              {sub.cancelEffectiveDate ? (
+                <div className="flex justify-between text-amber-700">
+                  <dt>Cancellation</dt>
+                  <dd>Scheduled for {sub.cancelEffectiveDate}</dd>
+                </div>
+              ) : null}
             </dl>
           </Card>
           <Card title="Actions">
@@ -94,9 +104,10 @@ export function SubscriptionDetail({ id }: { id: string }) {
               <Button type="button" variant="secondary" disabled={mutation.pending} onClick={() => void patch({ resume: true })}>
                 Resume
               </Button>
-              <Button type="button" variant="danger" disabled={mutation.pending} onClick={() => void patch({ cancel: true })}>
-                Cancel
+              <Button type="button" variant="danger" disabled={mutation.pending || Boolean(sub.cancelEffectiveDate)} onClick={() => void patch({ cancel: true })}>
+                {sub.cancelEffectiveDate ? "Cancellation scheduled" : sub.cancelPolicy === "PERIOD_END" ? "Cancel at period end" : "Cancel subscription"}
               </Button>
+              {sub.cancelEffectiveDate ? <Button type="button" variant="secondary" disabled={mutation.pending} onClick={() => void patch({ uncancel: true })}>Stop cancellation</Button> : null}
             </div>
           </Card>
         </div>
