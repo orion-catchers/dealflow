@@ -307,39 +307,41 @@ export async function persistQuote(state: DataState, quote: Quote) {
 
   const sourcedOrder = await prisma.order.findUnique({ where: { sourceRevisionId: revision.id } });
   if (!sourcedOrder) {
-    await prisma.dealLine.deleteMany({ where: { revisionId: revision.id } });
-    for (const [index, line] of quote.lines.entries()) {
-      const product = await prisma.product.findUnique({ where: { id: line.productId } });
-      requireValue(product, `Product missing for quotation line ${line.description}`);
-      const catalog = state.products.find((row) => row.id === line.productId);
-      const ceiling = linePolicyCeilingPct(state, quote, catalog?.category);
-      const effective = 100 * (1 - (1 - line.discountPct / 100) * (1 - quote.orderDiscountPct / 100));
-      await prisma.dealLine.create({
-        data: {
-          revisionId: revision.id,
-          productId: line.productId,
-          variantId: line.variantId || null,
-          planId: product.defaultPlanId,
-          billingKind: line.interval === "ONE_TIME" ? "ONE_TIME" : "RECURRING",
-          interval: line.interval === "ONE_TIME" ? null : line.interval,
-          quantity: Math.max(1, Math.round(line.quantity)),
-          unitPrice: line.unitPrice,
-          unitCost: line.unitCost,
-          lineDiscountPct: line.discountPct,
-          effectiveDiscountPct: effective,
-          ceilingPct: ceiling,
-          excessPct: Math.max(0, effective - ceiling),
-          excessAmount: ((Number(line.unitPrice) * line.quantity * Math.max(0, effective - ceiling)) / 100).toFixed(2),
-          taxPct: line.taxPct,
-          lineSubtotal: line.net,
-          taxAmount: line.tax,
-          lineTotal: line.total,
-          categoryId: product.categoryId,
-          stockTracked: line.stockTracked,
-          position: index,
-        },
-      });
-    }
+    await prisma.$transaction(async (tx) => {
+      await tx.dealLine.deleteMany({ where: { revisionId: revision.id } });
+      for (const [index, line] of quote.lines.entries()) {
+        const product = await tx.product.findUnique({ where: { id: line.productId } });
+        requireValue(product, `Product missing for quotation line ${line.description}`);
+        const catalog = state.products.find((row) => row.id === line.productId);
+        const ceiling = linePolicyCeilingPct(state, quote, catalog?.category);
+        const effective = 100 * (1 - (1 - line.discountPct / 100) * (1 - quote.orderDiscountPct / 100));
+        await tx.dealLine.create({
+          data: {
+            revisionId: revision.id,
+            productId: line.productId,
+            variantId: line.variantId || null,
+            planId: product.defaultPlanId,
+            billingKind: line.interval === "ONE_TIME" ? "ONE_TIME" : "RECURRING",
+            interval: line.interval === "ONE_TIME" ? null : line.interval,
+            quantity: Math.max(1, Math.round(line.quantity)),
+            unitPrice: line.unitPrice,
+            unitCost: line.unitCost,
+            lineDiscountPct: line.discountPct,
+            effectiveDiscountPct: effective,
+            ceilingPct: ceiling,
+            excessPct: Math.max(0, effective - ceiling),
+            excessAmount: ((Number(line.unitPrice) * line.quantity * Math.max(0, effective - ceiling)) / 100).toFixed(2),
+            taxPct: line.taxPct,
+            lineSubtotal: line.net,
+            taxAmount: line.tax,
+            lineTotal: line.total,
+            categoryId: product.categoryId,
+            stockTracked: line.stockTracked,
+            position: index,
+          },
+        });
+      }
+    });
     const savedLines = await prisma.dealLine.findMany({
       where: { revisionId: revision.id },
       orderBy: { position: "asc" },

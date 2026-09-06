@@ -650,6 +650,7 @@ export async function loadDataState(): Promise<DataState> {
     priceRules: priceRules.map((r) => ({
       id: r.id,
       productId: r.productId,
+      variantId: r.variantId ?? null,
       tier: r.tier === "STANDARD" ? "Bronze" : r.tier === "SILVER" ? "Silver" : "Gold",
       currency: r.currency,
       price: money(r.unitPrice),
