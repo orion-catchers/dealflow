@@ -268,15 +268,23 @@ export class PrismaInventoryStore implements InventoryStore {
   }
 
   async saveBackorder(backorder: Backorder): Promise<Backorder> {
+    const existing = await this.db.backorder.findUnique({ where: { id: backorder.id } });
     const resolvedAt = backorder.status === "OPEN" ? null : new Date(backorder.updatedAt);
-    const quantity = backorder.status === "CANCELLED" ? 0 : backorder.remainingQuantity;
+    let quantity: number;
+    if (backorder.status === "OPEN") {
+      quantity = backorder.remainingQuantity;
+    } else if (backorder.status === "CANCELLED") {
+      quantity = 0;
+    } else {
+      // FULFILLED: retain original quantity if present, or remainingQuantity if > 0, else 1
+      quantity = existing?.quantity ?? (backorder.remainingQuantity > 0 ? backorder.remainingQuantity : 1);
+    }
     const data = {
       orderLineId: backorder.orderLineId,
       variantId: backorder.variantId,
       quantity,
       resolvedAt,
     };
-    const existing = await this.db.backorder.findUnique({ where: { id: backorder.id } });
     const row = existing
       ? await this.db.backorder.update({ where: { id: backorder.id }, data, include: backorderInclude })
       : await this.db.backorder.create({ data: { id: backorder.id, ...data }, include: backorderInclude });

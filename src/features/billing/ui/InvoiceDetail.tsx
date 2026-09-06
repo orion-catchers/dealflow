@@ -104,25 +104,25 @@ export function InvoiceDetail({ id }: { id: string }) {
               <div className="flex justify-between">
                 <dt>Total</dt>
                 <dd>
-                  <Money amount={row.total} currency={row.currency} />
+                  <Money amount={row.total} currency={row?.currency ?? "INR"} />
                 </dd>
               </div>
               <div className="flex justify-between">
                 <dt>Paid</dt>
                 <dd>
-                  <Money amount={row.paidAmount} currency={row.currency} />
+                  <Money amount={row.paidAmount} currency={row?.currency ?? "INR"} />
                 </dd>
               </div>
               <div className="flex justify-between">
                 <dt>Credits</dt>
                 <dd>
-                  <Money amount={row.creditedAmount} currency={row.currency} />
+                  <Money amount={row.creditedAmount} currency={row?.currency ?? "INR"} />
                 </dd>
               </div>
               <div className="flex justify-between">
                 <dt>Outstanding</dt>
                 <dd>
-                  <Money amount={row.outstanding} currency={row.currency} />
+                  <Money amount={row.outstanding} currency={row?.currency ?? "INR"} />
                 </dd>
               </div>
             </dl>
@@ -157,7 +157,7 @@ export function InvoiceDetail({ id }: { id: string }) {
             <span>
               {line.description} × {line.quantity}
             </span>
-            <span className="tabular-nums">{line.lineTotal}</span>
+            <Money amount={line.lineTotal} currency={row?.currency ?? "INR"} />
           </li>
         ))}
       </ul>

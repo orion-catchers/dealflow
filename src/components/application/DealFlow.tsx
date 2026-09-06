@@ -47,15 +47,25 @@ export function dealNextStep(q:Quote,opts:{actor:Actor;customerName?:string;dirt
     if(actor&&canDecide(q,actor))return {key:'decide',title:`Your decision is needed on ${version}`,detail:q.evaluation.reasons[0]??'This version exceeds the discount policy.',tone:'action',owner:'approver'};
     return {key:'awaiting-review',title:`Waiting for ${ROLE_NAME[reviewer]} review`,detail:q.evaluation.chain.length>1?`Approval runs ${q.evaluation.chain.map(r=>ROLE_NAME[r]).join(', then ')}.`:'You will see the decision here and in the activity history.',tone:'waiting',owner:'approver'};
   }
+  const lastRevEvent = [...(q.events ?? [])].reverse().find((e) => !e.revision || e.revision === q.revision) ?? q.events?.[q.events.length - 1];
+  const isRepRevision = Boolean(
+    lastRevEvent &&
+    (["Terms revised", "Removed a quotation line", "Customer tier set to"].some((t) => lastRevEvent.text?.includes(t)) ||
+     (actor && lastRevEvent.actor === actor.name))
+  );
+  const isCustomerProposal = q.stage === 'UNDER_NEGOTIATION' && !isRepRevision && Boolean(
+    lastRevEvent && (lastRevEvent.actor === customer || lastRevEvent.text?.toLowerCase().includes("proposal"))
+  );
+
   if(q.evaluation.status==='PENDING'){
     const because=q.evaluation.reasons[0]??'These terms exceed the discount policy.';
-    const proposed=q.stage==='UNDER_NEGOTIATION'?`${customer} proposed these changes. `:'';
+    const proposed = isCustomerProposal ? `${customer} proposed these changes. ` : '';
     return {key:'submit',title:'Submit for approval',detail:`${proposed}${because} Submitting shares ${version} with ${customer} in their portal; they can accept once it is approved.`,tone:'action',owner:'rep'};
   }
   if(!q.sent){
     return {key:'send',title:`Send to ${customer}`,detail:q.evaluation.status==='APPROVED'?`${version} is approved. The customer can review and accept it in their portal.`:'Within policy, so no approval is needed. The customer can accept it in their portal.',tone:'action',owner:'rep'};
   }
-  const proposed=q.stage==='UNDER_NEGOTIATION'?`${customer} proposed ${version}; it is within policy and ready for their acceptance.`:`${customer} can accept ${version} in their portal.`;
+  const proposed = isCustomerProposal ? `${customer} proposed ${version}; it is within policy and ready for their acceptance.` : `${customer} can accept ${version} in their portal.`;
   return {key:'awaiting-customer',title:'Waiting for customer acceptance',detail:proposed,tone:'waiting',owner:'customer'};
 }
 

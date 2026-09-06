@@ -105,6 +105,13 @@ describe("applyAtharvaEvaluation", () => {
     expect(quote.evaluation.status).toBe("PENDING");
     expect(quote.evaluation.chain).toEqual(["SALES_MANAGER", "FINANCE_OPS"]);
   });
+
+  it("throws AppError 400 INVALID_ARGUMENT when discount exceeds 100", () => {
+    const { state, quote } = actorQuote("Gold", 118);
+    expect(() => applyAtharvaEvaluation(state, quote)).toThrowError(
+      expect.objectContaining({ status: 400, code: "INVALID_ARGUMENT" })
+    );
+  });
 });
 
 describe("displayCustomerTier", () => {

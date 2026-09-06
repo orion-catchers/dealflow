@@ -95,6 +95,7 @@ export interface SubscriptionRecord {
   pendingPlanId: string | null;
   pendingPlanName: string | null;
   pendingPlanEffectiveDate: IsoDate | null;
+  currency?: string;
 }
 
 export interface SubscriptionChangeRecord {
