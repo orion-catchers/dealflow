@@ -21,7 +21,7 @@ export interface Order { id: string; quoteId: string; revision: string; customer
 export interface Plan { id: string; name: string; interval: BillingInterval; prorate: boolean; cancellation: 'IMMEDIATE_CREDIT' | 'PERIOD_END'; price: string }
 export interface Subscription { id: string; orderId: string; customerId: string; productId: string; planId: string; quantity: number; unitPrice: string; status: string; periodStart: string; periodEnd: string; nextBill: string; pendingPlanId?: string; events: Event[] }
 export interface Invoice { id: string; orderId: string; subscriptionId?: string; period?: string; customerId: string; currency: string; dueDate: string; lines: { id: string; description: string; quantity: number; unitPrice: string; discountPct: number; net: string; tax: string; total: string }[]; net: string; tax: string; total: string; paid: string; credited: string; outstanding: string; status: string; events: Event[] }
-export interface Payment { id: string; invoiceId: string; amount: string; method: string; reference: string; date: string }
+export interface Payment { id: string; invoiceId: string; amount: string; method: string; reference: string; date: string; recordedByName?: string }
 export interface Policy { tierLimits: Record<string, number>; categoryLimits: Record<string, number>; financeExcess: number; financeWeighted: number; budget: string }
 export interface HealthSettings { stalledDays: number; anomalyPoints: number; minimumHistory: number }
 export interface HealthFlag { id: string; quoteId: string; type: string; reason: string; status: string; detectedAt: string }

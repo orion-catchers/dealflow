@@ -69,11 +69,29 @@ function asResultKind(kind: string): RequestResultKind {
 const invoiceInclude = {
   customer: { select: { name: true } },
   lines: { orderBy: { createdAt: "asc" as const } },
-  payments: true,
+  payments: { include: { recordedBy: { select: { name: true, role: true } } }, orderBy: { createdAt: "asc" as const } },
   creditApps: true,
 } as const;
 
 type InvoiceRow = Prisma.InvoiceGetPayload<{ include: typeof invoiceInclude }>;
+
+function toPaymentRecord(
+  row: InvoiceRow["payments"][number],
+  replayed = false,
+): PaymentRecord {
+  return {
+    id: row.id,
+    invoiceId: row.invoiceId,
+    amount: moneyOf(row.amount),
+    method: row.method,
+    reference: row.reference,
+    paidOn: isoDateOf(row.paidOn),
+    recordedById: row.recordedById,
+    recordedByName: row.recordedBy?.name,
+    createdAt: row.createdAt.toISOString(),
+    replayed,
+  };
+}
 
 function toInvoiceRecord(row: InvoiceRow): InvoiceRecord {
   const lines: InvoiceLineRecord[] = row.lines.map((line) => ({
@@ -106,6 +124,7 @@ function toInvoiceRecord(row: InvoiceRow): InvoiceRecord {
       creditedAmount: "0.00",
       outstanding: "0.00",
       lines,
+      payments: row.payments.map((payment) => toPaymentRecord(payment)),
     };
   }
   const paidCents = row.payments.reduce((acc, p) => acc + toCents(moneyOf(p.amount)), 0);
@@ -133,6 +152,7 @@ function toInvoiceRecord(row: InvoiceRow): InvoiceRecord {
     creditedAmount: credited,
     outstanding: fromCents(Math.max(0, toCents(total) - paidCents - creditedCents)),
     lines,
+    payments: row.payments.map((payment) => toPaymentRecord(payment)),
   };
 }
 
@@ -535,7 +555,11 @@ export class PrismaBillingStore implements BillingStore {
   }
 
   async listPayments(invoiceId: string): Promise<PaymentRecord[]> {
-    const rows = await this.db.payment.findMany({ where: { invoiceId }, orderBy: { createdAt: "asc" } });
+    const rows = await this.db.payment.findMany({
+      where: { invoiceId },
+      include: { recordedBy: { select: { name: true, role: true } } },
+      orderBy: { createdAt: "asc" },
+    });
     return rows.map((row) => ({
       id: row.id,
       invoiceId: row.invoiceId,
@@ -544,6 +568,7 @@ export class PrismaBillingStore implements BillingStore {
       reference: row.reference,
       paidOn: isoDateOf(row.paidOn),
       recordedById: row.recordedById,
+      recordedByName: row.recordedBy.name,
       createdAt: row.createdAt.toISOString(),
       replayed: false,
     }));

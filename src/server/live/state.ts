@@ -22,6 +22,7 @@ import type {
   Warehouse,
 } from "@/contracts/application";
 import type { BillingInterval, RecommendationRule } from "@/contracts/krishna";
+import { invoiceStatus } from "@/server/billing/engine/status";
 import { prisma } from "@/server/lib/db";
 import {
   categoryFromCode,
@@ -286,7 +287,7 @@ export async function loadDataState(): Promise<DataState> {
     }),
     prisma.subscription.findMany({ include: { plan: true, sourceOrderLine: { select: { productId: true, orderId: true } } } }),
     prisma.invoice.findMany({ include: { lines: true, payments: true, creditApps: true } }),
-    prisma.payment.findMany(),
+    prisma.payment.findMany({ include: { recordedBy: { select: { name: true } } } }),
     prisma.recommendationRule.findMany(),
     prisma.policyVersion.findMany({
       include: { policyCeilings: { include: { category: true } }, chainSteps: true },
@@ -553,7 +554,7 @@ export async function loadDataState(): Promise<DataState> {
       paid: money(paid),
       credited: money(credited),
       outstanding: money(outstanding),
-      status: i.status,
+      status: invoiceStatus(money(i.total), money(paid), money(credited)),
       events: [],
     };
   });
@@ -565,6 +566,7 @@ export async function loadDataState(): Promise<DataState> {
     method: p.method,
     reference: p.reference,
     date: dateOnly(p.paidOn) ?? "",
+    recordedByName: p.recordedBy?.name,
   }));
 
   const appRules: RecommendationRule[] = recRules.map((r) => ({

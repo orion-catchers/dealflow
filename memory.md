@@ -681,3 +681,15 @@ Checks: security claims matched `password.ts` (scrypt N=16384 default), `session
 
 Limitations: `docs/SECURITY.md` was not rewritten to match the new README precision; they should be read together.
 
+## 2026-09-06T11:20:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Customer pays after accept; finance records books payments and sees who paid. Pay-with-card left finance.
+
+Changes: `POST /api/payments` allowed for CUSTOMER on their invoice; finance InvoiceDetail drops card checkout, defaults amount to outstanding as a text money field, lists payments (payer, method, reference, date, amount). Portal invoice/order/accepted quote show Pay with card (Stripe 503 → Preview) and payment history. Workspace amount fields stay strings so decimals type. Invoice paid/outstanding/status derived from payments.
+
+Files: `src/features/billing/ui/InvoiceDetail.tsx`, `src/components/application/{CustomerPortal,Operations,shared}.tsx`, `src/features/portal/server.ts`, `src/server/live/state.ts`, `src/contracts/application.ts`, `src/server/billing/service.test.ts`, `src/server/lib/auth/permissions.test.ts`.
+
+Checks (LIVE): Farah recorded ₹1,200 on Acme Wireless Mouse — UI amount field kept `100.50` while typing; save of outstanding marked PAID with Farah Khan / BANK_TRANSFER in Payments (no Pay with card). Neha portal invoice Nexa Care Support Seat: Pay with card Preview recorded CARD-PREVIEW-4242; finance GET same invoice PAID, payer Neha Rao, CARD, ₹4,500.00. Vitest billing+permissions 24/24. Stripe remains NOT CONNECTED.
+
+Limitations: Preview card does not charge a network. Isolated Vitest does not prove a new accept→invoice→pay browser cycle. Did not `db:reset`.
+

@@ -49,7 +49,7 @@ const RULES: readonly Rule[] = [
 
   { prefix: "/api/invoices", methods: ["GET"], access: "INTERNAL" },
   { prefix: "/api/invoices", access: ["FINANCE", "ADMIN"] },
-  { prefix: "/api/payments", access: ["FINANCE", "ADMIN"] },
+  { prefix: "/api/payments", access: ["FINANCE", "ADMIN", "CUSTOMER"] },
   { prefix: "/api/credits", access: ["FINANCE", "ADMIN"] },
   { prefix: "/api/subscriptions", methods: ["GET"], access: "INTERNAL" },
   { prefix: "/api/subscriptions", access: ["FINANCE", "ADMIN"] },

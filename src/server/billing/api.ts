@@ -49,9 +49,21 @@ export const planPatchSchema = z.object({
 
 export const paymentBodySchema = z.object({
   invoiceId: z.string().trim().min(1),
-  amount: moneySchema,
+  amount: z.preprocess((value) => {
+    if (typeof value === "number" && Number.isFinite(value)) return value.toFixed(2);
+    if (typeof value === "string") {
+      const n = Number(value.trim().replace(/,/g, ""));
+      if (Number.isFinite(n)) return n.toFixed(2);
+    }
+    return value;
+  }, moneySchema),
   method: paymentMethodSchema,
-  reference: z.string().trim().min(1).max(120),
+  reference: z
+    .string()
+    .trim()
+    .max(120)
+    .optional()
+    .transform((value) => (value && value.length > 0 ? value : `PAY-${Date.now()}`)),
   paidOn: isoDateSchema,
   requestKey: requestKeySchema,
 });

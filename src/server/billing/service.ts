@@ -208,9 +208,16 @@ export class BillingService {
   }
 
   async recordPayment(actor: Actor, raw: unknown): Promise<PaymentRecord> {
-    this.assertMutate(actor);
+    if (actor.role === "CUSTOMER") {
+      if (!actor.active) throw new ApiFailure("FORBIDDEN", "Inactive account");
+    } else {
+      this.assertMutate(actor);
+    }
     const input = parseInput(paymentBodySchema, raw);
     return this.repo.withTransaction(async (tx) => {
+      const invoice = await tx.getInvoice(input.invoiceId);
+      if (!invoice) throw new ApiFailure("NOT_FOUND", "Invoice not found");
+      await this.ensureInvoiceVisible(tx, actor, invoice);
       const recordedById = await tx.resolveActorUserId(actor);
       return executePayment(tx, { ...input, recordedById });
     });

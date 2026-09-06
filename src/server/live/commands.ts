@@ -71,13 +71,14 @@ export async function runLiveCommand(
     if (action === "reset") throw new AppError(403, "FORBIDDEN", "Development reset is not available on the live adapter");
 
     if (action === "payment") {
-      roles(actor, "ADMIN", "FINANCE_OPS");
+      roles(actor, "ADMIN", "FINANCE_OPS", "CUSTOMER");
+      const amount = Number(String(b.amount).replace(/,/g, ""));
       return await getBillingService().recordPayment(harsh, {
         invoiceId: key,
-        amount: String(b.amount),
+        amount: Number.isFinite(amount) ? amount.toFixed(2) : String(b.amount),
         method: paymentMethod(b.method),
-        reference: String(b.reference ?? ""),
-        paidOn: String(b.date ?? b.paidOn ?? ""),
+        reference: String(b.reference ?? "").trim() || `PAY-${requestKey.slice(0, 8)}`,
+        paidOn: String(b.date ?? b.paidOn ?? new Date().toISOString().slice(0, 10)),
         requestKey,
       });
     }

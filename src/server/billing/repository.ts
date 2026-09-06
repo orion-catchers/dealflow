@@ -165,17 +165,22 @@ function hydrateInvoice(inv: StoredInvoice, payments: StoredPayment[], apps: Sto
       paidAmount: "0.00",
       creditedAmount: "0.00",
       outstanding: "0.00",
+      payments: [],
     };
   }
   const paid = sumMoney(payments.filter((p) => p.invoiceId === inv.id).map((p) => p.amount));
   const credited = sumMoney(apps.filter((a) => a.invoiceId === inv.id).map((a) => a.amount));
   const outstandingCents = Math.max(0, toCents(inv.total) - toCents(paid) - toCents(credited));
+  const invoicePayments = payments
+    .filter((p) => p.invoiceId === inv.id)
+    .map((p) => ({ ...clone(p), replayed: false as const }));
   return {
     ...clone(inv),
     status: invoiceStatus(inv.total, paid, credited),
     paidAmount: paid,
     creditedAmount: credited,
     outstanding: fromCents(outstandingCents),
+    payments: invoicePayments,
   };
 }
 
