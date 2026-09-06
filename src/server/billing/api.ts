@@ -70,9 +70,10 @@ export const subscriptionPatchSchema = z
     pause: z.boolean().optional(),
     resume: z.boolean().optional(),
     cancel: z.boolean().optional(),
+    uncancel: z.boolean().optional(),
   })
   .refine(
-    (v) => [v.quantity !== undefined, Boolean(v.planId), v.pause, v.resume, v.cancel].filter(Boolean).length === 1,
+    (v) => [v.quantity !== undefined, Boolean(v.planId), v.pause, v.resume, v.cancel, v.uncancel].filter(Boolean).length === 1,
     { message: "Specify exactly one of quantity, planId, pause, resume, or cancel" },
   );
 
