@@ -117,7 +117,7 @@ export function ProductDashboard() {
         description="Catalog, variants and price lists. Products are archived, never deleted."
         actions={
           <>
-            <StatusBadge status="DEV FIXTURE" label="DEV FIXTURE data" />
+            <StatusBadge status="LIVE" label="LIVE catalog" />
             <Link href="/price-lists" className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50">
               Manage Price Lists
             </Link>

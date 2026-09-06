@@ -120,7 +120,7 @@ export function PriceListsManager() {
         description="A customer resolves to exactly one list (tier/currency default or explicit override). Rules inside a list set fixed prices or discounts per product or variant."
         actions={
           <>
-            <StatusBadge status="DEV FIXTURE" label="DEV FIXTURE data" />
+            <StatusBadge status="LIVE" label="LIVE price lists" />
             <Link href="/products" className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50">
               ← Products
             </Link>

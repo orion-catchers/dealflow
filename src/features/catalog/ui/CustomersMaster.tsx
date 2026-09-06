@@ -6,31 +6,42 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import type { Currency, Customer, CustomerTier, PriceList } from "@/contracts/harsh";
+import type { UserAdminRow } from "@/contracts/ruchir";
 import { Button, DataTable, Dialog, EmptyState, ErrorState, Input, PageHeader, Select, StatusBadge, type Column } from "@/dev-adapter/ui";
-// DEV FIXTURE: rep names come from the fixture user list. Ruchir's users API replaces this
-// lookup (same `{ id, name }` shape) once it is live.
-import { fixtureUsers } from "@/fixtures/harsh-dev";
 import { api } from "@/lib/api/client";
+import { actorIdForEmail } from "@/server/lib/auth/actor-helpers";
 import { CURRENCY_OPTIONS, CheckboxField, FormField, TIER_OPTIONS, tierLabel } from "./form";
 import { useApi, useMutation } from "./useApi";
 
-const REP_OPTIONS = fixtureUsers.filter((u) => u.role === "SALES_REP" || u.role === "SALES_MANAGER");
-const userName = (id: string | undefined) => (id ? fixtureUsers.find((u) => u.id === id)?.name ?? id : undefined);
+function isSalesAssigner(role: string) {
+  return role === "SALES_REP" || role === "SALES_MANAGER" || role === "ADMIN";
+}
 
 export function CustomersMaster() {
   const customers = useApi<Customer[]>("/api/customers");
   const priceLists = useApi<PriceList[]>("/api/price-lists");
+  const staff = useApi<UserAdminRow[]>("/api/admin/users");
   const [search, setSearch] = useState("");
   const [dialog, setDialog] = useState<{ open: boolean; customer: Customer | null }>({ open: false, customer: null });
 
   const listById = useMemo(() => new Map((priceLists.data ?? []).map((pl) => [pl.id, pl])), [priceLists.data]);
+  const staffById = useMemo(() => {
+    const map = new Map<string, UserAdminRow>();
+    for (const user of staff.data ?? []) {
+      map.set(user.id, user);
+      map.set(actorIdForEmail(user.email, user.id), user);
+    }
+    return map;
+  }, [staff.data]);
+  const userName = (id: string | undefined) => (id ? staffById.get(id)?.name : undefined);
+  const repOptions = (staff.data ?? []).filter((u) => isSalesAssigner(u.role) && u.status === "ACTIVE");
 
   const filtered = useMemo(() => {
     const rows = customers.data ?? [];
     const q = search.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((c) => [c.name, c.contactName, c.contactEmail, c.tier, userName(c.assignedRepId)].some((v) => v?.toLowerCase().includes(q)));
-  }, [customers.data, search]);
+  }, [customers.data, search, staffById]);
 
   const columns: Column<Customer>[] = [
     {
@@ -72,7 +83,7 @@ export function CustomersMaster() {
         description="Tier and currency pick the default price list; an override pins a specific list."
         actions={
           <>
-            <StatusBadge status="DEV FIXTURE" label="DEV FIXTURE data" />
+            <StatusBadge status="LIVE" label="LIVE customers" />
             <Button onClick={() => setDialog({ open: true, customer: null })}>New Customer</Button>
           </>
         }
@@ -98,6 +109,7 @@ export function CustomersMaster() {
         open={dialog.open}
         customer={dialog.customer}
         priceLists={priceLists.data ?? []}
+        reps={repOptions}
         onClose={() => setDialog({ open: false, customer: null })}
         onSaved={() => {
           setDialog({ open: false, customer: null });
@@ -142,12 +154,14 @@ function CustomerDialog({
   open,
   customer,
   priceLists,
+  reps,
   onClose,
   onSaved,
 }: {
   open: boolean;
   customer: Customer | null;
   priceLists: PriceList[];
+  reps: UserAdminRow[];
   onClose: () => void;
   onSaved: (c: Customer) => void;
 }) {
@@ -254,11 +268,11 @@ function CustomerDialog({
             </Select>
           </FormField>
         </div>
-        <FormField label="Assigned sales rep" htmlFor="c-rep" error={errors.assignedRepId} hint="DEV FIXTURE user list; Ruchir's users API replaces it.">
+        <FormField label="Assigned sales rep" htmlFor="c-rep" error={errors.assignedRepId} hint="Live staff directory.">
           <Select id="c-rep" value={form.assignedRepId} disabled={busy} onChange={(e) => set({ assignedRepId: e.target.value })}>
             <option value="">Unassigned</option>
-            {REP_OPTIONS.map((u) => (
-              <option key={u.id} value={u.id}>
+            {reps.map((u) => (
+              <option key={u.id} value={actorIdForEmail(u.email, u.id)}>
                 {u.name} — {u.role.replaceAll("_", " ")}
               </option>
             ))}

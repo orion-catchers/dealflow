@@ -88,10 +88,11 @@ describe("ReportService.export", () => {
     expect(agg.rows).toHaveLength(2);
   });
 
-  it("source label flags DEV FIXTURE outside production", () => {
-    expect(exportSourceLabel("development")).toContain("DEV FIXTURE");
-    expect(exportSourceLabel("test")).toContain("DEV FIXTURE");
-    expect(exportSourceLabel("production")).not.toContain("DEV FIXTURE");
+  it("source label flags DEV FIXTURE only for the development adapter", () => {
+    expect(exportSourceLabel("development", "development")).toContain("DEV FIXTURE");
+    expect(exportSourceLabel("development")).not.toContain("DEV FIXTURE");
+    expect(exportSourceLabel("test")).not.toContain("DEV FIXTURE");
+    expect(exportSourceLabel("production", "development")).not.toContain("DEV FIXTURE");
   });
 });
 

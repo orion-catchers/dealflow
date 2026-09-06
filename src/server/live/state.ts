@@ -47,6 +47,31 @@ function revisionLabel(n: number): string {
   return `r${n}`;
 }
 
+function looksLikeRawId(value: string): boolean {
+  const text = value.trim();
+  return (
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text) ||
+    text.includes(":") && /[0-9a-f]{8}-[0-9a-f]{4}/i.test(text)
+  );
+}
+
+function followUpLabel(task: {
+  action: string;
+  actionKey: string;
+  flag: { reason: string; type: string } | null;
+}): string {
+  const reason = task.flag?.reason?.trim();
+  if (reason && !looksLikeRawId(reason)) return reason;
+  const verb = task.action === "ESCALATE" ? "Escalate" : "Nudge";
+  const about =
+    task.flag?.type === "DISCOUNT_ANOMALY"
+      ? "discount anomaly"
+      : task.flag?.type === "DELIVERY_RISK"
+        ? "delivery risk"
+        : "stalled quotation";
+  return `${verb} ${about}`;
+}
+
 function intervalOf(kind: string, interval: string | null): BillingInterval {
   if (kind !== "RECURRING") return "ONE_TIME";
   if (interval === "QUARTERLY" || interval === "YEARLY") return interval;
@@ -270,7 +295,7 @@ export async function loadDataState(): Promise<DataState> {
     }),
     prisma.healthSettings.findUnique({ where: { id: "default" } }),
     prisma.healthFlag.findMany(),
-    prisma.task.findMany(),
+    prisma.task.findMany({ include: { flag: true } }),
     prisma.portalMessage.findMany({ include: { author: true, baseRevision: true } }),
   ]);
 
@@ -584,7 +609,7 @@ export async function loadDataState(): Promise<DataState> {
     quoteId: t.quoteId ?? "",
     assigneeId: publicUserId(users.find((u) => u.id === t.assigneeId) ?? { id: t.assigneeId, email: null }),
     dueDate: dateOnly(t.dueDate) ?? "",
-    text: t.actionKey.includes(":") ? t.actionKey.slice(t.actionKey.indexOf(":") + 1) : t.action,
+    text: followUpLabel(t),
     status: t.status === "DONE" ? "DONE" : "OPEN",
   }));
 

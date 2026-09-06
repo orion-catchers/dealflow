@@ -50,7 +50,7 @@ export function ProductEditor({ productId }: { productId: string | null }) {
         description={isNew ? "General info first; variants and price rules become available after the first save." : product ? `Updated ${new Date(product.updatedAt).toLocaleString()}` : undefined}
         actions={
           <>
-            <StatusBadge status="DEV FIXTURE" label="DEV FIXTURE data" />
+            <StatusBadge status="LIVE" label="LIVE catalog" />
             {product?.archivedAt ? <StatusBadge status="ARCHIVED" /> : product ? <StatusBadge status={product.active ? "ACTIVE" : "INACTIVE"} /> : null}
             <BackLink />
           </>
@@ -324,7 +324,7 @@ function GeneralInfoForm({
           />
           {form.isSubscription ? (
             <div className="mt-3 max-w-md">
-              <FormField label="Plan" htmlFor="p-plan" error={errors.planId} hint="Plans come from Ruchir's /api/plans (DEV FIXTURE until live).">
+              <FormField label="Plan" htmlFor="p-plan" error={errors.planId} hint="Plans come from the live billing catalog.">
                 <Select id="p-plan" value={form.planId} disabled={busy || plans.loading} onChange={(e) => update({ planId: e.target.value })}>
                   <option value="">{plans.loading ? "Loading plans…" : "Select a plan…"}</option>
                   {(plans.data ?? []).map((pl) => (
