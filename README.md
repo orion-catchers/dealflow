@@ -206,7 +206,7 @@ stateDiagram-v2
     dateReviewPending.
   end note
 
-  note bottom of Order
+  note right of Order
     Order creation requires: same current revision
     + valid approval (or none required)
     + customer acceptance.
