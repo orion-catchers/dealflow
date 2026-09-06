@@ -38,8 +38,14 @@ const EXTENSIONS: Record<ExportFormat, string> = { PDF: "pdf", XLSX: "xlsx" };
 const ALL_CATEGORIES: ProductCategory[] = ["HARDWARE", "ACCESSORIES", "SERVICES", "SUBSCRIPTIONS"];
 
 /** Provenance label for exports; computed here so the pure exporters never read env. */
-export function exportSourceLabel(nodeEnv: string | undefined = process.env.NODE_ENV): string {
-  return nodeEnv !== "production" ? "Generated from stored records; DEV FIXTURE data" : "Generated from stored records";
+export function exportSourceLabel(
+  nodeEnv: string | undefined = process.env.NODE_ENV,
+  adapter: string | undefined = process.env.DEALFLOW_ADAPTER,
+): string {
+  if (nodeEnv !== "production" && adapter === "development") {
+    return "Generated from stored records; DEV FIXTURE data";
+  }
+  return "Generated from stored records";
 }
 
 export class ReportService {

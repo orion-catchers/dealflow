@@ -144,6 +144,7 @@ export interface InvoiceRecord {
   creditedAmount: Money;
   outstanding: Money;
   lines: InvoiceLineRecord[];
+  payments: PaymentRecord[];
 }
 
 export interface PaymentRecord {
@@ -154,6 +155,7 @@ export interface PaymentRecord {
   reference: string;
   paidOn: IsoDate;
   recordedById: string;
+  recordedByName?: string;
   createdAt: IsoTimestamp;
   replayed: boolean;
 }

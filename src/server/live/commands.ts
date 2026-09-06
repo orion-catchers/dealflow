@@ -71,13 +71,14 @@ export async function runLiveCommand(
     if (action === "reset") throw new AppError(403, "FORBIDDEN", "Development reset is not available on the live adapter");
 
     if (action === "payment") {
-      roles(actor, "ADMIN", "FINANCE_OPS");
+      roles(actor, "ADMIN", "FINANCE_OPS", "CUSTOMER");
+      const amount = Number(String(b.amount).replace(/,/g, ""));
       return await getBillingService().recordPayment(harsh, {
         invoiceId: key,
-        amount: String(b.amount),
+        amount: Number.isFinite(amount) ? amount.toFixed(2) : String(b.amount),
         method: paymentMethod(b.method),
-        reference: String(b.reference ?? ""),
-        paidOn: String(b.date ?? b.paidOn ?? ""),
+        reference: String(b.reference ?? "").trim() || `PAY-${requestKey.slice(0, 8)}`,
+        paidOn: String(b.date ?? b.paidOn ?? new Date().toISOString().slice(0, 10)),
         requestKey,
       });
     }
@@ -275,8 +276,10 @@ export async function runLiveCommand(
         const list = await prisma.priceList.findFirst();
         requireValue(list, "Create a price list before adding customer prices");
         const tier = String(r.tier) === "Gold" ? "GOLD" : String(r.tier) === "Silver" ? "SILVER" : "STANDARD";
+        const variantId = r.variantId ? String(r.variantId) : null;
         const data = {
           productId: String(r.productId),
+          variantId,
           priceListId: list.id,
           unitPrice: String(r.price ?? "0.00"),
           tier: tier as "STANDARD" | "SILVER" | "GOLD",
@@ -284,7 +287,16 @@ export async function runLiveCommand(
           active: true,
         };
         if (key) {
-          return await prisma.priceRule.update({ where: { id: key }, data: { unitPrice: data.unitPrice, productId: data.productId, tier: data.tier, currency: data.currency } });
+          return await prisma.priceRule.update({
+            where: { id: key },
+            data: {
+              unitPrice: data.unitPrice,
+              productId: data.productId,
+              variantId: data.variantId,
+              tier: data.tier,
+              currency: data.currency,
+            },
+          });
         }
         return await prisma.priceRule.create({ data });
       }

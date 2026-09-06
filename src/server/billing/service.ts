@@ -169,6 +169,7 @@ export class BillingService {
       if (input.pause) return pauseSubscription(tx, sub, asOf, input.requestKey);
       if (input.resume) return resumeSubscription(tx, sub, asOf, input.requestKey);
       if (input.cancel) return cancelSubscription(tx, actorUserId, sub, asOf, input.requestKey);
+      if (input.uncancel) return uncancelSubscription(tx, actorUserId, sub, input.requestKey);
       if (input.quantity !== undefined) {
         return changeQuantity(tx, actorUserId, sub, input.quantity, asOf, input.requestKey);
       }
@@ -207,9 +208,16 @@ export class BillingService {
   }
 
   async recordPayment(actor: Actor, raw: unknown): Promise<PaymentRecord> {
-    this.assertMutate(actor);
+    if (actor.role === "CUSTOMER") {
+      if (!actor.active) throw new ApiFailure("FORBIDDEN", "Inactive account");
+    } else {
+      this.assertMutate(actor);
+    }
     const input = parseInput(paymentBodySchema, raw);
     return this.repo.withTransaction(async (tx) => {
+      const invoice = await tx.getInvoice(input.invoiceId);
+      if (!invoice) throw new ApiFailure("NOT_FOUND", "Invoice not found");
+      await this.ensureInvoiceVisible(tx, actor, invoice);
       const recordedById = await tx.resolveActorUserId(actor);
       return executePayment(tx, { ...input, recordedById });
     });
@@ -221,6 +229,17 @@ export class BillingService {
     const asOf = input.asOf ?? this.repo.today();
     return this.repo.withTransaction((tx) => executeDueBilling(tx, input.requestKey, asOf));
   }
+}
+
+async function uncancelSubscription(tx: BillingStore, actorUserId: string, sub: StoredSubscription, requestKey: string): Promise<StoredSubscription> {
+  const claim = await tx.claimRequest("CREDIT_APPLY", `${requestKey}:uncancel`, actorUserId);
+  if (claim.replayed) return (await tx.getSubscription(sub.id))!;
+  if (!sub.cancelEffectiveDate) throw new ApiFailure("INVALID_INPUT", "Subscription has no scheduled cancellation");
+  if (sub.status !== "ACTIVE") throw new ApiFailure("INVALID_INPUT", "Only an active subscription can resume billing");
+  sub.cancelEffectiveDate = null;
+  await tx.saveSubscription(sub);
+  await tx.completeRequest(claim.claimId, "SUBSCRIPTION_SET", sub.id, { subscriptionId: sub.id });
+  return sub;
 }
 
 async function changeQuantity(

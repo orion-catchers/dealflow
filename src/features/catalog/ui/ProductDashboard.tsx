@@ -1,51 +1,57 @@
 "use client";
 /**
  * Screen 16 — Product Dashboard (blueprint §5 row 16).
- * Summary counts from GET /api/products/summary, catalog table from GET /api/products
- * (`?includeArchived=1` when "Show archived" is on). Archive/Restore ask for confirmation
- * and only refresh after the server responds.
+ *
+ * Product catalog master dashboard: summary stats, category filter, active/archived
+ * filter, text search, table with pricing and status, and archive/restore actions.
  */
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import type { CatalogDashboardSummary, PlanRef, Product, TaxRate } from "@/contracts/harsh";
-import { Button, Card, DataTable, Dialog, EmptyState, ErrorState, Input, Money, PageHeader, StatusBadge, type Column } from "@/dev-adapter/ui";
+import { Button, Card, DataTable, Dialog, EmptyState, ErrorState, Input, Money, PageHeader, Select, StatusBadge, type Column } from "@/dev-adapter/ui";
 import { api } from "@/lib/api/client";
-import { CheckboxField, categoryLabel, unitLabel } from "./form";
+import { CATEGORY_OPTIONS, categoryLabel, CheckboxField } from "./form";
 import { useApi, useMutation } from "./useApi";
 
 const CURRENCY = "INR";
 
-export function ProductDashboard() {
+export function ProductDashboard({ readOnly = false }: { readOnly?: boolean } = {}) {
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
   const [confirm, setConfirm] = useState<{ product: Product; action: "archive" | "restore" } | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
 
   const summary = useApi<CatalogDashboardSummary>("/api/products/summary");
-  const products = useApi<Product[]>(showArchived ? "/api/products?includeArchived=1" : "/api/products");
+  const products = useApi<Product[]>(`/api/products${showArchived ? "?includeArchived=true" : ""}`);
   const taxRates = useApi<TaxRate[]>("/api/tax-rates");
   const plans = useApi<PlanRef[]>("/api/plans");
   const mutation = useMutation();
 
-  const taxById = useMemo(() => new Map((taxRates.data ?? []).map((t) => [t.id, t])), [taxRates.data]);
-  const planById = useMemo(() => new Map((plans.data ?? []).map((p) => [p.id, p])), [plans.data]);
+  const taxMap = useMemo(() => new Map((taxRates.data ?? []).map((t) => [t.id, t.name])), [taxRates.data]);
+  const planMap = useMemo(() => new Map((plans.data ?? []).map((p) => [p.id, p.name])), [plans.data]);
 
   const filtered = useMemo(() => {
-    const rows = products.data ?? [];
+    let list = products.data ?? [];
+    if (categoryFilter !== "ALL") list = list.filter((p) => p.category === categoryFilter);
     const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((p) => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q) || categoryLabel(p.category).toLowerCase().includes(q));
-  }, [products.data, search]);
+    if (q) list = list.filter((p) => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
+    return list;
+  }, [products.data, categoryFilter, search]);
+
+  function reloadAll() {
+    products.reload();
+    summary.reload();
+  }
 
   async function confirmAction() {
     if (!confirm) return;
     const { product, action } = confirm;
-    const result = await mutation.run(() =>
-      action === "archive" ? api<Product>(`/api/products/${product.id}`, { method: "DELETE" }) : api<Product>(`/api/products/${product.id}/restore`, { method: "POST" }),
-    );
-    if (result === undefined) return; // keep dialog open, error visible
+    const path = action === "archive" ? `/api/products/${product.id}` : `/api/products/${product.id}/restore`;
+    const method = action === "archive" ? "DELETE" : "POST";
+    const result = await mutation.run(() => api<Product>(path, { method }));
+    if (result === undefined) return;
     setConfirm(null);
-    products.reload();
-    summary.reload();
+    reloadAll();
   }
 
   const columns: Column<Product>[] = [
@@ -55,34 +61,32 @@ export function ProductDashboard() {
       className: "catalog-col-product",
       render: (p) => (
         <div>
-          <Link href={`/products/${p.id}`} className="catalog-product-link font-medium hover:underline">
+          <Link href={`/products/${p.id}`} className="catalog-product-link font-medium text-blue-600 hover:underline">
             {p.name}
           </Link>
+          <div className="text-xs text-slate-500 line-clamp-1">{p.description || "No description"}</div>
         </div>
       ),
     },
     { key: "category", header: "Category", className: "catalog-col-category", render: (p) => categoryLabel(p.category) },
-    { key: "unit", header: "Unit", className: "catalog-col-unit", render: (p) => unitLabel(p.unit) },
+    { key: "unit", header: "Unit", className: "catalog-col-unit", render: (p) => p.unit },
     { key: "basePrice", header: "Base price", className: "catalog-col-price", align: "right", render: (p) => <Money amount={p.basePrice} currency={CURRENCY} /> },
     { key: "baseCost", header: "Base cost", className: "catalog-col-cost", align: "right", render: (p) => <Money amount={p.baseCost} currency={CURRENCY} /> },
     {
       key: "tax",
       header: "Tax",
       className: "catalog-col-tax",
-      render: (p) => {
-        const t = taxById.get(p.taxRateId);
-        return t ? `${t.name} (${t.ratePct}%)` : <span className="text-slate-500">{p.taxRateId}</span>;
-      },
+      render: (p) => taxMap.get(p.taxRateId) ?? <span className="text-slate-400">—</span>,
     },
-    { key: "stock", header: "Stock-tracked", className: "catalog-col-stock", render: (p) => (p.stockTracked ? "Yes" : "No") },
     {
-      key: "subscription",
-      header: "Subscription",
-      className: "catalog-col-subscription",
+      key: "type",
+      header: "Type",
+      className: "catalog-col-type",
       render: (p) => {
-        if (!p.isSubscription) return <span className="text-slate-500">No</span>;
-        const plan = p.planId ? planById.get(p.planId) : undefined;
-        return plan ? `${plan.name} · ${plan.interval}` : (p.planId ?? "Yes");
+        if (p.isSubscription) {
+          return <span className="text-xs text-indigo-700">Subscription ({p.planId ? planMap.get(p.planId) ?? "plan" : "plan"})</span>;
+        }
+        return p.stockTracked ? <span className="text-xs text-slate-600">Stock-tracked</span> : <span className="text-xs text-slate-400">Standard</span>;
       },
     },
     {
@@ -99,9 +103,9 @@ export function ProductDashboard() {
       render: (p) => (
         <div className="catalog-row-actions flex justify-end gap-1">
           <Link href={`/products/${p.id}`} className="catalog-action-button catalog-action-button--secondary">
-            Edit
+            {readOnly ? "View" : "Edit"}
           </Link>
-          {p.archivedAt ? (
+          {!readOnly && (p.archivedAt ? (
             <Button className="catalog-action-button catalog-action-button--secondary" variant="secondary" onClick={() => setConfirm({ product: p, action: "restore" })}>
               Restore
             </Button>
@@ -109,7 +113,7 @@ export function ProductDashboard() {
             <Button className="catalog-action-button catalog-action-button--danger" variant="danger" onClick={() => setConfirm({ product: p, action: "archive" })}>
               Archive
             </Button>
-          )}
+          ))}
         </div>
       ),
     },
@@ -118,16 +122,19 @@ export function ProductDashboard() {
   return (
     <div className="catalog-page catalog-products-page">
       <PageHeader
-        title="Products"
-        description="Catalog, variants and price lists. Products are archived, never deleted."
+        title="Product catalog"
+        description="All sellable products, subscription services, variants, and pricing."
         actions={
           <div className="catalog-header-actions">
+            <StatusBadge status="LIVE" label="LIVE catalog" />
+            {!readOnly && <>
             <Link href="/price-lists" className="catalog-button catalog-button--secondary">
               Manage Price Lists
             </Link>
             <Link href="/products/new" className="catalog-button catalog-button--primary">
               New Product
             </Link>
+            </>}
           </div>
         }
       />
@@ -138,8 +145,16 @@ export function ProductDashboard() {
 
       <div className="catalog-product-toolbar mb-3 mt-6 flex flex-wrap items-center gap-3">
         <div className="catalog-search-control w-72">
-          <Input placeholder="Search by name or category…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search products" />
+          <Input placeholder="Search by name or description…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search products" />
         </div>
+        <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} aria-label="Filter by category">
+          <option value="ALL">All categories</option>
+          {CATEGORY_OPTIONS.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </Select>
         <CheckboxField id="show-archived" label="Show archived" checked={showArchived} onChange={setShowArchived} />
         <span className="catalog-results-count ml-auto text-xs text-slate-500">
           {products.data ? `${filtered.length} of ${products.data.length} products` : null}

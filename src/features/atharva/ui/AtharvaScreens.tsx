@@ -181,13 +181,14 @@ export function HealthDashboardScreen() {
   };
   useEffect(() => load(true), []);
   const createTask = async (flagId: string, action: "NUDGE" | "ESCALATE") => {
+    const session = await fetchJson<{ actor: { id: string } }>("/api/auth/me");
     await fetchJson("/api/health/actions", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         flagId,
         action,
-        assigneeId: "rep-arjun",
+        assigneeId: session.actor.id,
         dueDate: defaultDueDate,
       }),
     });

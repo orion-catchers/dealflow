@@ -20,7 +20,7 @@ import type {
   ReportQuoteRecord,
 } from "@/contracts/harsh";
 import { Button, Card, DataTable, EmptyState, ErrorState, Input, Money, PageHeader, Select, StatusBadge, type Column } from "@/dev-adapter/ui";
-import { api, ApiClientError, getDevActor } from "@/lib/api/client";
+import { api, ApiClientError } from "@/lib/api/client";
 import type { ReportFilterOptions } from "@/server/reports/service";
 
 // ---------------------------------------------------------------------------
@@ -263,7 +263,6 @@ export function ReportsDashboard() {
       try {
         const res = await fetch(`/api/reports/export?${appliedQuery}&format=${format}`, {
           credentials: "include",
-          headers: { "x-dev-actor": getDevActor() },
           cache: "no-store",
         });
         if (!res.ok) {

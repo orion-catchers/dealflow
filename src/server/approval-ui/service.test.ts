@@ -112,6 +112,7 @@ describe("applyApprovalDecision", () => {
       stepIndex: 0,
     });
     expect(result.revision.approvalStatus).toBe("PENDING");
+    expect(result.quote.stage).toBe("UNDER_NEGOTIATION");
     expect(result.steps[0]).toMatchObject({ status: "PENDING", decisionId: null });
     expect(result.decision.kind).toBe("RETURN");
   });

@@ -600,6 +600,7 @@ function QuoteDetail({ q, ctx }: { q: Quote; ctx: Context }) {
               max={100}
               step="any"
               value={draft.orderDiscountPct}
+              onFocus={(e) => e.currentTarget.select()}
               onChange={(e) => {
                 const val = Number(e.target.value);
                 const clamped = Number.isFinite(val) ? Math.min(100, Math.max(0, val)) : 0;
@@ -659,6 +660,7 @@ function QuoteDetail({ q, ctx }: { q: Quote; ctx: Context }) {
                 max={100}
                 step="any"
                 value={l.discountPct}
+                onFocus={(e) => e.currentTarget.select()}
                 onChange={(e) => {
                   const val = Number(e.target.value);
                   const clamped = Number.isFinite(val) ? Math.min(100, Math.max(0, val)) : 0;
