@@ -4,7 +4,7 @@ import type { PricedCandidate } from "@/contracts/krishna";
 import { priceQuote } from "@/features/quotes/engine/pricing";
 import { evaluatePolicy } from "@/server/governance/policy-evaluation";
 import type { PolicySnapshot } from "@/contracts/atharva";
-import { requireValue } from "@/server/errors";
+import { AppError, requireValue } from "@/server/errors";
 
 export const money = (n: number | string) => (Math.round((Number(n) + Number.EPSILON) * 100) / 100).toFixed(2);
 
@@ -123,27 +123,35 @@ export function applyAtharvaEvaluation(state: DataState, quote: Quote) {
     requireValue(p, "Product missing");
     l.unitPrice = resolvedPrice(state, quote, p, l.variantId);
   }
-  const priced = priceQuote({
-    currency: "INR",
-    orderDiscountPct: String(quote.orderDiscountPct),
-    lines: quote.lines.map((l) => {
-      const product = state.products.find((p) => p.id === l.productId);
-      return {
-        lineId: l.id,
-        productId: l.productId,
-        variantId: l.variantId || undefined,
-        category: product?.category === "Services" ? "SERVICES" : product?.category === "Accessories" ? "ACCESSORIES" : "HARDWARE",
-        description: l.description,
-        quantity: l.quantity,
-        unitPrice: l.unitPrice,
-        unitCost: l.unitCost,
-        taxPct: String(l.taxPct),
-        discountPct: String(l.discountPct),
-        billingInterval: l.interval,
-        stockTracked: l.stockTracked,
-      };
-    }),
-  });
+  let priced;
+  try {
+    priced = priceQuote({
+      currency: "INR",
+      orderDiscountPct: String(quote.orderDiscountPct),
+      lines: quote.lines.map((l) => {
+        const product = state.products.find((p) => p.id === l.productId);
+        return {
+          lineId: l.id,
+          productId: l.productId,
+          variantId: l.variantId || undefined,
+          category: product?.category === "Services" ? "SERVICES" : product?.category === "Accessories" ? "ACCESSORIES" : "HARDWARE",
+          description: l.description,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          unitCost: l.unitCost,
+          taxPct: String(l.taxPct),
+          discountPct: String(l.discountPct),
+          billingInterval: l.interval,
+          stockTracked: l.stockTracked,
+        };
+      }),
+    });
+  } catch (err) {
+    if (err instanceof RangeError) {
+      throw new AppError(400, "INVALID_ARGUMENT", err.message);
+    }
+    throw err;
+  }
   const byId = new Map(priced.lines.map((l) => [l.lineId, l]));
   for (const l of quote.lines) {
     const row = byId.get(l.id);

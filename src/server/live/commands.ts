@@ -358,7 +358,7 @@ export async function runLiveCommand(
     }
 
     if (action === "task") {
-      roles(actor, "ADMIN", "SALES_MANAGER", "SALES_REP");
+      roles(actor, "ADMIN", "SALES_MANAGER", "SALES_REP", "FINANCE_OPS");
       if (b.complete === true) {
         const task = await prisma.task.findUnique({ where: { id: key } });
         requireValue(task, "Task missing");
@@ -473,15 +473,22 @@ export async function runLiveCommand(
         q.name = String(b.name ?? q.name);
         q.currency = customer.currency;
         q.orderDiscountPct = Number(b.orderDiscountPct);
-        requireValue(Number.isFinite(q.orderDiscountPct) && q.orderDiscountPct >= 0 && q.orderDiscountPct <= 100, "Order discount must be 0–100%");
+        if (!Number.isFinite(q.orderDiscountPct) || q.orderDiscountPct < 0 || q.orderDiscountPct > 100) {
+          throw new AppError(400, "INVALID_ARGUMENT", "Order discount must be between 0% and 100%");
+        }
         q.promisedDate = b.promisedDate ? String(b.promisedDate) : null;
-        const changes = b.lines as { id: string; quantity: number; discountPct: number }[];
+        const changes = (b.lines ?? []) as { id: string; quantity: number; discountPct: number }[];
         requireValue(Array.isArray(changes), "Lines required");
-        q.lines = q.lines.filter((l) => changes.some((c) => c.id === l.id));
         for (const l of q.lines) {
-          const c = changes.find((change) => change.id === l.id)!;
-          l.quantity = Math.round(Number(c.quantity));
-          l.discountPct = Number(c.discountPct);
+          const c = changes.find((change) => change.id === l.id);
+          if (!c) continue;
+          const qty = Math.round(Number(c.quantity));
+          if (Number.isFinite(qty) && qty > 0) l.quantity = qty;
+          const disc = Number(c.discountPct);
+          if (!Number.isFinite(disc) || disc < 0 || disc > 100) {
+            throw new AppError(400, "INVALID_ARGUMENT", "Discount must be between 0% and 100%");
+          }
+          l.discountPct = disc;
         }
         applyAtharvaEvaluation(state, q);
         q.stage = q.sent ? "UNDER_NEGOTIATION" : "DRAFT";

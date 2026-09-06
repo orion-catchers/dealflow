@@ -352,7 +352,7 @@ export function toBackorder(row: {
     orderId: row.orderLine.orderId,
     orderLineId: row.orderLineId,
     variantId: row.variantId,
-    remainingQuantity: row.quantity,
+    remainingQuantity: status === "OPEN" ? row.quantity : 0,
     status,
     createdAt: isoOf(row.createdAt),
     updatedAt: isoOf(row.updatedAt),

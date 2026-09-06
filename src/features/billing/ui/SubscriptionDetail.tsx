@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { SubscriptionChangeRecord, SubscriptionRecord } from "@/contracts/ruchir";
-import { Button, Card, DataTable, ErrorState, Input, PageHeader, StatusBadge } from "@/dev-adapter/ui";
+import { Button, Card, DataTable, ErrorState, Input, Money, PageHeader, StatusBadge } from "@/dev-adapter/ui";
 import { useApi, useMutation } from "@/features/catalog/ui/useApi";
 import { api, newRequestKey } from "@/lib/api/client";
 
@@ -52,7 +52,9 @@ export function SubscriptionDetail({ id }: { id: string }) {
               </div>
               <div className="flex justify-between">
                 <dt>Unit price</dt>
-                <dd>{sub.unitPrice}</dd>
+                <dd>
+                  <Money amount={sub.unitPrice} currency={sub.currency ?? "INR"} />
+                </dd>
               </div>
               <div className="flex justify-between">
                 <dt>Period</dt>
@@ -75,6 +77,7 @@ export function SubscriptionDetail({ id }: { id: string }) {
               <Input
                 className="w-24"
                 placeholder="Qty"
+                aria-label="New subscription quantity"
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
               />
@@ -103,7 +106,17 @@ export function SubscriptionDetail({ id }: { id: string }) {
         columns={[
           { key: "kind", header: "Kind", render: (c) => c.kind },
           { key: "when", header: "Effective", render: (c) => c.effectiveDate },
-          { key: "adj", header: "Adjustment", align: "right", render: (c) => c.adjustmentAmount ?? "—" },
+          {
+            key: "adj",
+            header: "Adjustment",
+            align: "right",
+            render: (c) =>
+              c.adjustmentAmount != null ? (
+                <Money amount={c.adjustmentAmount} currency={sub?.currency ?? "INR"} />
+              ) : (
+                "—"
+              ),
+          },
         ]}
         rows={sub?.changes ?? []}
         loading={detail.loading}
