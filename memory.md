@@ -731,3 +731,20 @@ Limitations: None.
 
 
 
+
+## 2026-09-06T16:05:00+05:30 (Asia/Kolkata) - Owner: Ruchir
+
+Elevated the DealFlow360 public landing experience on the `design/refined-editorial-landing-ui` branch to a production-grade, distinctive editorial SaaS presentation adhering to the `frontend-design` guidelines:
+- Synchronized all recent updates and bugfixes from `main` into `design/refined-editorial-landing-ui` cleanly.
+- Upgraded interactive deal simulator in `LandingPage.tsx` with dual scenario presets (Enterprise Cloud Suite vs Edge Logistics & IoT Cluster), line-item quantity steppers, live discount slider with policy threshold escalation guardrails, dynamic co-purchase add-on toggle, and interactive Finance Director concurrence simulation.
+- Built an interactive Deal Velocity & ROI Calculator allowing prospective enterprise revenue leaders to simulate annual protected margin, reclaimed deal cycle hours, and quote turnaround acceleration.
+- Integrated an Instant Persona Launchpad highlighting pre-seeded credentials (Admin, Sales Rep, Finance Director, Enterprise Buyer) with 1-click login navigation.
+- Added an architectural Competitive Comparison Matrix contrasting DealFlow360 against fragile spreadsheets and legacy CPQs.
+- Added an interactive FAQ accordion addressing the Commitment Rule, Decimal.js precision, and customer-scoped portal boundaries.
+- Polished the travertine warm stone and antique teal brand styling in `src/styles/editorial-brand.css` with responsive mobile/tablet breakpoints.
+
+Files: `src/components/application/LandingPage.tsx`, `src/styles/editorial-brand.css`, `memory.md`.
+
+Checks: `pnpm run typecheck` (passed, 0 errors); `pnpm test` (43 files, 305/305 tests passed); `pnpm run test:krishna` (30/30 tests passed); `pnpm run lint` (0 errors, 8 pre-existing warnings).
+
+Limitations: Isolated on `design/refined-editorial-landing-ui` branch for testing; not merged to `main`.
