@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { SubscriptionChangeRecord, SubscriptionRecord } from "@/contracts/ruchir";
-import { Button, Card, DataTable, ErrorState, Input, PageHeader, StatusBadge } from "@/dev-adapter/ui";
+import { Button, Card, DataTable, ErrorState, Input, Money, PageHeader, StatusBadge } from "@/dev-adapter/ui";
 import { useApi, useMutation } from "@/features/catalog/ui/useApi";
 import { api, newRequestKey } from "@/lib/api/client";
 
@@ -23,7 +23,7 @@ export function SubscriptionDetail({ id }: { id: string }) {
       }),
     );
     if (result) {
-      setNotice("Saved");
+      setNotice(body.uncancel ? "Cancellation stopped; subscription remains active." : body.cancel ? "Cancellation scheduled." : "Saved");
       detail.reload();
     }
   }
@@ -52,7 +52,13 @@ export function SubscriptionDetail({ id }: { id: string }) {
               </div>
               <div className="flex justify-between">
                 <dt>Unit price</dt>
-                <dd>{sub.unitPrice}</dd>
+                <dd>
+                  <Money amount={sub.unitPrice} currency={sub.currency ?? "INR"} />
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt>Recurring amount</dt>
+                <dd><Money amount={(Number(sub.unitPrice) * sub.quantity).toFixed(2)} currency={sub.currency ?? "INR"} /></dd>
               </div>
               <div className="flex justify-between">
                 <dt>Period</dt>
@@ -68,6 +74,12 @@ export function SubscriptionDetail({ id }: { id: string }) {
                 <dt>Cancel policy</dt>
                 <dd>{sub.cancelPolicy}</dd>
               </div>
+              {sub.cancelEffectiveDate ? (
+                <div className="flex justify-between text-amber-700">
+                  <dt>Cancellation</dt>
+                  <dd>Scheduled for {sub.cancelEffectiveDate}</dd>
+                </div>
+              ) : null}
             </dl>
           </Card>
           <Card title="Actions">
@@ -75,6 +87,7 @@ export function SubscriptionDetail({ id }: { id: string }) {
               <Input
                 className="w-24"
                 placeholder="Qty"
+                aria-label="New subscription quantity"
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
               />
@@ -91,9 +104,10 @@ export function SubscriptionDetail({ id }: { id: string }) {
               <Button type="button" variant="secondary" disabled={mutation.pending} onClick={() => void patch({ resume: true })}>
                 Resume
               </Button>
-              <Button type="button" variant="danger" disabled={mutation.pending} onClick={() => void patch({ cancel: true })}>
-                Cancel
+              <Button type="button" variant="danger" disabled={mutation.pending || Boolean(sub.cancelEffectiveDate)} onClick={() => void patch({ cancel: true })}>
+                {sub.cancelEffectiveDate ? "Cancellation scheduled" : sub.cancelPolicy === "PERIOD_END" ? "Cancel at period end" : "Cancel subscription"}
               </Button>
+              {sub.cancelEffectiveDate ? <Button type="button" variant="secondary" disabled={mutation.pending} onClick={() => void patch({ uncancel: true })}>Stop cancellation</Button> : null}
             </div>
           </Card>
         </div>
@@ -103,7 +117,17 @@ export function SubscriptionDetail({ id }: { id: string }) {
         columns={[
           { key: "kind", header: "Kind", render: (c) => c.kind },
           { key: "when", header: "Effective", render: (c) => c.effectiveDate },
-          { key: "adj", header: "Adjustment", align: "right", render: (c) => c.adjustmentAmount ?? "—" },
+          {
+            key: "adj",
+            header: "Adjustment",
+            align: "right",
+            render: (c) =>
+              c.adjustmentAmount != null ? (
+                <Money amount={c.adjustmentAmount} currency={sub?.currency ?? "INR"} />
+              ) : (
+                "—"
+              ),
+          },
         ]}
         rows={sub?.changes ?? []}
         loading={detail.loading}

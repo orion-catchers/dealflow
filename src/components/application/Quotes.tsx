@@ -386,7 +386,7 @@ function QuoteDetail({ q, ctx }: { q: Quote; ctx: Context }) {
   const steps = flowSteps(q);
   useEffect(() => {
     setDraft(structuredClone(q));
-  }, [q.id, q.revision, q.at, q.evaluation.status, q.evaluation.step]);
+  }, [q.id, q.revision, q.stage, q.at, q.evaluation.status, q.evaluation.step]);
   useEffect(() => {
     if (!["ADMIN", "SALES_REP", "SALES_MANAGER"].includes(actor.role)) return;
     api<{ items: Recommendation[]; revision: string }>("recommendations/" + q.id)
@@ -457,26 +457,19 @@ function QuoteDetail({ q, ctx }: { q: Quote; ctx: Context }) {
   };
 
   const sendAction = (variant: "primary" | "secondary") => (
-    <FormAction
-      title={`Send to ${customerName}`}
-      button={`Send to ${customerName}`}
+    <Button
       variant={variant}
-      confirmLabel="Send quotation"
-      description={
-        approvalOk(q)
-          ? `${customerName} will see ${version} in their portal and can accept it, ask a question, or propose changes.`
-          : `${customerName} will see ${version} in their portal and can ask questions or propose changes, but cannot accept until it is approved.`
-      }
-      initial={{ customerTier: TIERS.find((t) => t.toLowerCase() === customer?.tier.toLowerCase()) ?? "" }}
-      fields={[{ key: "customerTier", label: "Commercial tier for this customer", type: "select", options: [...TIERS], required: true }]}
-      onSubmit={(v) =>
-        run(
+      disabled={busy}
+      onClick={() => {
+        void act(
           "sendQuote",
-          { ...v, id: q.id, expectedRevision: q.revision, customerTier: v.customerTier },
+          { customerTier: tierName },
           `Sent ${version} to ${customerName}. It is now in their customer portal${approvalOk(q) ? " and they can accept it." : "; they can review it, but acceptance waits for approval."}`,
-        )
-      }
-    />
+        );
+      }}
+    >
+      {busy ? "Sendingâ€¦" : `Send to ${customerName}`}
+    </Button>
   );
 
   const replyAction = (
@@ -522,7 +515,9 @@ function QuoteDetail({ q, ctx }: { q: Quote; ctx: Context }) {
   return (
     <>
       <Heading title={quoteTitle(q)} description={`${customerName}${customer ? ` · ${customer.tier} tier` : ""} · ${version} saved ${new Date(q.at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`}>
-        <BackLink href="/quotes">Back to quotations</BackLink>
+        <BackLink href={actor.role === "FINANCE_OPS" ? "/approvals" : "/quotes"}>
+          {actor.role === "FINANCE_OPS" ? "Back to approvals" : "Back to quotations"}
+        </BackLink>
       </Heading>
       <div className="deal-flow">
         <FlowSteps steps={steps} />
@@ -599,13 +594,20 @@ function QuoteDetail({ q, ctx }: { q: Quote; ctx: Context }) {
               ))}
             </Select>
             <Input
+              id="quote-order-discount"
               label="Order discount (%)"
+              aria-label="Order discount percentage"
               type="number"
               min={0}
               max={100}
               step="any"
               value={draft.orderDiscountPct}
-              onChange={(e) => setDraft({ ...draft, orderDiscountPct: Number(e.target.value) })}
+              onFocus={(e) => e.currentTarget.select()}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                const clamped = Number.isFinite(val) ? Math.min(100, Math.max(0, val)) : 0;
+                setDraft({ ...draft, orderDiscountPct: clamped });
+              }}
             />
             <Input
               label="Promised delivery date"
@@ -634,7 +636,9 @@ function QuoteDetail({ q, ctx }: { q: Quote; ctx: Context }) {
             </>,
             editable ? (
               <Input
-                label={`Quantity ${l.description}`}
+                id={`quote-line-qty-${l.id}`}
+                label={`Quantity for ${l.description}`}
+                aria-label={`Quantity for ${l.description}`}
                 type="number"
                 min={1}
                 step={1}
@@ -650,14 +654,19 @@ function QuoteDetail({ q, ctx }: { q: Quote; ctx: Context }) {
             <Money amount={l.unitPrice} currency={q.currency} />,
             editable ? (
               <Input
-                label={`Discount ${l.description}`}
+                id={`quote-line-discount-${l.id}`}
+                label={`Discount percentage for ${l.description}`}
+                aria-label={`Discount percentage for ${l.description}`}
                 type="number"
                 min={0}
                 max={100}
                 step="any"
                 value={l.discountPct}
+                onFocus={(e) => e.currentTarget.select()}
                 onChange={(e) => {
-                  setDraft({ ...draft, lines: draft.lines.map((x) => (x.id === l.id ? { ...x, discountPct: Number(e.target.value) } : x)) });
+                  const val = Number(e.target.value);
+                  const clamped = Number.isFinite(val) ? Math.min(100, Math.max(0, val)) : 0;
+                  setDraft({ ...draft, lines: draft.lines.map((x) => (x.id === l.id ? { ...x, discountPct: clamped } : x)) });
                 }}
               />
             ) : (

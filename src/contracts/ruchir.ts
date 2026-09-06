@@ -95,6 +95,7 @@ export interface SubscriptionRecord {
   pendingPlanId: string | null;
   pendingPlanName: string | null;
   pendingPlanEffectiveDate: IsoDate | null;
+  currency?: string;
 }
 
 export interface SubscriptionChangeRecord {
@@ -143,6 +144,7 @@ export interface InvoiceRecord {
   creditedAmount: Money;
   outstanding: Money;
   lines: InvoiceLineRecord[];
+  payments: PaymentRecord[];
 }
 
 export interface PaymentRecord {
@@ -153,6 +155,7 @@ export interface PaymentRecord {
   reference: string;
   paidOn: IsoDate;
   recordedById: string;
+  recordedByName?: string;
   createdAt: IsoTimestamp;
   replayed: boolean;
 }

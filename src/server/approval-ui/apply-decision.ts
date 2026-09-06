@@ -89,6 +89,10 @@ export function applyApprovalDecision(input: ApplyDecisionInput): ApplyDecisionR
     }
   } else {
     revision.approvalStatus = "PENDING";
+    // Returning sends the current terms back to the rep. The pending
+    // evaluation remains attached to this revision for history, while the
+    // quote leaves the manager's approval queue until a new revision is sent.
+    quote.stage = "UNDER_NEGOTIATION";
   }
 
   return { revision, quote, steps, decision };

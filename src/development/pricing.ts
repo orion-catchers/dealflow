@@ -13,7 +13,18 @@ export function plusPeriod(start:string, interval:string) { const d=new Date(sta
 export function event(actor:Actor,text:string,revision?:string) {return {id:randomUUID(),at:new Date().toISOString(),actor:actor.name,text,revision};}
 export function snapshot(q:Quote):DealRevision {return structuredClone({revision:q.revision,lines:q.lines,totals:q.totals,orderDiscountPct:q.orderDiscountPct,promisedDate:q.promisedDate,evaluation:q.evaluation,at:q.at});}
 export function newRevision(q:Quote,actor:Actor,text:string) {requireValue(q.stage!=='CONFIRMED','Confirmed quotations are locked');q.history.push(snapshot(q));q.revision=`r${Number(q.revision.slice(1))+1}`;q.at=new Date().toISOString();q.acceptedAt=undefined;q.events.push(event(actor,text,q.revision));}
-export function resolvedPrice(s:DataState,q:Quote,p:Product,variantId:string) {const c=s.customers.find(c=>c.id===q.customerId)!;const rule=s.priceRules.find(r=>r.productId===p.id&&r.tier===c.tier&&r.currency===q.currency);return money(dec(rule?.price??p.price).plus(p.variants.find(v=>v.id===variantId)?.extraPrice??0));}
+export function resolvedPrice(s:DataState,q:Quote,p:Product,variantId:string) {
+  const c=s.customers.find(c=>c.id===q.customerId);
+  const tier=c?.tier??'Gold';
+  if(variantId){
+    const variantRule=s.priceRules.find(r=>r.productId===p.id&&r.variantId===variantId&&r.tier===tier&&r.currency===q.currency);
+    if(variantRule&&Number(variantRule.price)>0) return money(variantRule.price);
+  }
+  const baseRule=s.priceRules.find(r=>r.productId===p.id&&!r.variantId&&r.tier===tier&&r.currency===q.currency);
+  const basePrice=baseRule&&Number(baseRule.price)>0?baseRule.price:p.price;
+  const extra=p.variants.find(v=>v.id===variantId)?.extraPrice??0;
+  return money(dec(basePrice).plus(extra));
+}
 export function makeLine(s:DataState,q:Quote,productId:string,variantId:string,quantity:number):Line {const p=s.products.find(p=>p.id===productId);requireValue(p?.active,'Choose an active product');requireValue(p.variants.some(v=>v.id===variantId),'Choose a valid variant');requireValue(Number.isFinite(quantity)&&quantity>0&&quantity<=1e6,'Quantity must be positive');return {id:randomUUID(),productId,variantId,description:`${p.name} · ${p.variants.find(v=>v.id===variantId)!.name}`,quantity,discountPct:0,unitPrice:resolvedPrice(s,q,p,variantId),unitCost:p.cost,taxPct:p.taxPct,tax:'0.00',net:'0.00',total:'0.00',profit:'0.00',interval:p.interval,stockTracked:p.stockTracked};}
 export function reprice(s:DataState,q:Quote) {
   for(const l of q.lines){requireValue(l.quantity>0&&Number.isFinite(l.quantity),'Invalid quantity');requireValue(Number.isFinite(l.discountPct)&&l.discountPct>=0&&l.discountPct<=100,'Discount must be 0–100%');const p=s.products.find(p=>p.id===l.productId)!;l.unitPrice=resolvedPrice(s,q,p,l.variantId);l.net=money(dec(l.unitPrice).mul(l.quantity).mul(dec(1).minus(dec(l.discountPct).div(100))).mul(dec(1).minus(dec(q.orderDiscountPct).div(100))));l.tax=money(dec(l.net).mul(l.taxPct).div(100));l.total=money(dec(l.net).plus(l.tax));l.profit=money(dec(l.net).minus(dec(l.unitCost).mul(l.quantity)));}

@@ -35,6 +35,7 @@ describe("role matrix (blueprint §3)", () => {
     expect(canAccess("CUSTOMER", "/api/quotes", "GET")).toBe(false);
     expect(canAccess("CUSTOMER", "/api/products", "GET")).toBe(false);
     expect(canAccess("CUSTOMER", "/api/admin/users", "GET")).toBe(false);
+    expect(canAccess("CUSTOMER", "/api/payments", "POST")).toBe(true);
     for (const role of INTERNAL) {
       expect(canAccess(role, "/api/portal/quotes/Q1", "GET")).toBe(false);
     }

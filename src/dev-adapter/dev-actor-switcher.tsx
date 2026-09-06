@@ -11,7 +11,7 @@ import { getDevActor, setDevActor } from "@/lib/api/client";
 
 export function DevActorSwitcher() {
   const [actor, setActor] = useState("admin-dev");
-  useEffect(() => setActor(getDevActor()), []);
+  useEffect(() => setActor(getDevActor() ?? "admin-dev"), []);
   if (process.env.NODE_ENV === "production") return null;
   return (
     <div className="mb-4 flex items-center gap-2 rounded-md border border-yellow-300 bg-yellow-50 px-3 py-1.5 text-xs text-yellow-900">

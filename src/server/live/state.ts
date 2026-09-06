@@ -22,6 +22,7 @@ import type {
   Warehouse,
 } from "@/contracts/application";
 import type { BillingInterval, RecommendationRule } from "@/contracts/krishna";
+import { invoiceStatus } from "@/server/billing/engine/status";
 import { prisma } from "@/server/lib/db";
 import {
   categoryFromCode,
@@ -45,6 +46,31 @@ function money(n: unknown): string {
 
 function revisionLabel(n: number): string {
   return `r${n}`;
+}
+
+function looksLikeRawId(value: string): boolean {
+  const text = value.trim();
+  return (
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text) ||
+    text.includes(":") && /[0-9a-f]{8}-[0-9a-f]{4}/i.test(text)
+  );
+}
+
+function followUpLabel(task: {
+  action: string;
+  actionKey: string;
+  flag: { reason: string; type: string } | null;
+}): string {
+  const reason = task.flag?.reason?.trim();
+  if (reason && !looksLikeRawId(reason)) return reason;
+  const verb = task.action === "ESCALATE" ? "Escalate" : "Nudge";
+  const about =
+    task.flag?.type === "DISCOUNT_ANOMALY"
+      ? "discount anomaly"
+      : task.flag?.type === "DELIVERY_RISK"
+        ? "delivery risk"
+        : "stalled quotation";
+  return `${verb} ${about}`;
 }
 
 function intervalOf(kind: string, interval: string | null): BillingInterval {
@@ -261,7 +287,7 @@ export async function loadDataState(): Promise<DataState> {
     }),
     prisma.subscription.findMany({ include: { plan: true, sourceOrderLine: { select: { productId: true, orderId: true } } } }),
     prisma.invoice.findMany({ include: { lines: true, payments: true, creditApps: true } }),
-    prisma.payment.findMany(),
+    prisma.payment.findMany({ include: { recordedBy: { select: { name: true } } } }),
     prisma.recommendationRule.findMany(),
     prisma.policyVersion.findMany({
       include: { policyCeilings: { include: { category: true } }, chainSteps: true },
@@ -270,7 +296,7 @@ export async function loadDataState(): Promise<DataState> {
     }),
     prisma.healthSettings.findUnique({ where: { id: "default" } }),
     prisma.healthFlag.findMany(),
-    prisma.task.findMany(),
+    prisma.task.findMany({ include: { flag: true } }),
     prisma.portalMessage.findMany({ include: { author: true, baseRevision: true } }),
   ]);
 
@@ -528,7 +554,7 @@ export async function loadDataState(): Promise<DataState> {
       paid: money(paid),
       credited: money(credited),
       outstanding: money(outstanding),
-      status: i.status,
+      status: invoiceStatus(money(i.total), money(paid), money(credited)),
       events: [],
     };
   });
@@ -540,6 +566,7 @@ export async function loadDataState(): Promise<DataState> {
     method: p.method,
     reference: p.reference,
     date: dateOnly(p.paidOn) ?? "",
+    recordedByName: p.recordedBy?.name,
   }));
 
   const appRules: RecommendationRule[] = recRules.map((r) => ({
@@ -584,7 +611,7 @@ export async function loadDataState(): Promise<DataState> {
     quoteId: t.quoteId ?? "",
     assigneeId: publicUserId(users.find((u) => u.id === t.assigneeId) ?? { id: t.assigneeId, email: null }),
     dueDate: dateOnly(t.dueDate) ?? "",
-    text: t.actionKey.includes(":") ? t.actionKey.slice(t.actionKey.indexOf(":") + 1) : t.action,
+    text: followUpLabel(t),
     status: t.status === "DONE" ? "DONE" : "OPEN",
   }));
 
@@ -623,6 +650,7 @@ export async function loadDataState(): Promise<DataState> {
     priceRules: priceRules.map((r) => ({
       id: r.id,
       productId: r.productId,
+      variantId: r.variantId ?? null,
       tier: r.tier === "STANDARD" ? "Bronze" : r.tier === "SILVER" ? "Silver" : "Gold",
       currency: r.currency,
       price: money(r.unitPrice),

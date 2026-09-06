@@ -143,7 +143,7 @@ export function WarehousesScreen() {
         description="Create warehouses, set stock levels and replenishment thresholds, and record receipts. Shipping costs weight the auto-split heuristic."
         actions={
           <>
-            <StatusBadge status="DEV FIXTURE" label="DEV FIXTURE data" />
+            <StatusBadge status="LIVE" label="LIVE stock" />
             <Button onClick={() => setReceiptOpen(true)}>Record Receipt</Button>
           </>
         }

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Prisma CatalogRepository — maps Ruchir's catalog tables onto Harsh contracts.
  * Used when DATABASE_URL is set (not during Vitest).
  */
@@ -330,14 +330,26 @@ export class PrismaCatalogRepository implements CatalogRepository {
 
   async insertPriceRule(r: PriceRule): Promise<PriceRule> {
     const list = await this.db.priceList.findUnique({ where: { id: r.priceListId } });
+    const product = await this.db.product.findUnique({ where: { id: r.productId } });
+    let calculatedPrice = r.fixedPrice;
+    if (calculatedPrice === undefined && r.discountPct !== undefined && product) {
+      let base = Number(product.basePrice);
+      if (r.variantId) {
+        const variant = await this.db.variant.findUnique({ where: { id: r.variantId } });
+        if (variant) base += Number(variant.extraPrice);
+      }
+      const discounted = Math.max(0, base * (1 - r.discountPct / 100));
+      calculatedPrice = moneyOf(discounted);
+    }
+    const tier = list?.code === "SILVER" ? "SILVER" : list?.code === "GOLD" ? "GOLD" : "STANDARD";
     const row = await this.db.priceRule.create({
       data: {
         priceListId: r.priceListId,
         productId: r.productId,
         variantId: r.variantId ?? null,
-        tier: "GOLD",
+        tier,
         currency: list?.currency ?? "INR",
-        unitPrice: r.fixedPrice ?? "0.00",
+        unitPrice: calculatedPrice ?? product?.basePrice ?? "0.00",
         active: true,
       },
     });
@@ -345,12 +357,27 @@ export class PrismaCatalogRepository implements CatalogRepository {
   }
 
   async updatePriceRule(r: PriceRule): Promise<PriceRule> {
+    const existing = await this.db.priceRule.findUnique({ where: { id: r.id } });
+    let calculatedPrice = r.fixedPrice;
+    if (calculatedPrice === undefined && r.discountPct !== undefined) {
+      const product = await this.db.product.findUnique({ where: { id: r.productId } });
+      if (product) {
+        let base = Number(product.basePrice);
+        const variantId = r.variantId ?? existing?.variantId;
+        if (variantId) {
+          const variant = await this.db.variant.findUnique({ where: { id: variantId } });
+          if (variant) base += Number(variant.extraPrice);
+        }
+        const discounted = Math.max(0, base * (1 - r.discountPct / 100));
+        calculatedPrice = moneyOf(discounted);
+      }
+    }
     const row = await this.db.priceRule.update({
       where: { id: r.id },
       data: {
         productId: r.productId,
-        variantId: r.variantId ?? null,
-        unitPrice: r.fixedPrice ?? "0.00",
+        variantId: r.variantId !== undefined ? (r.variantId ?? null) : undefined,
+        unitPrice: calculatedPrice !== undefined ? calculatedPrice : existing?.unitPrice ?? "0.00",
         active: true,
       },
     });

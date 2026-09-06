@@ -197,18 +197,31 @@ describe("payments", () => {
     );
   });
 
-  it("forbids customers from recording payments", async () => {
+  it("lets a customer pay their own invoice and hides another customer's invoice", async () => {
     const init = await svc.initializeOnStore(order(), "init-1");
+    const paid = await svc.recordPayment(neha, {
+      invoiceId: init.oneTimeInvoice!.id,
+      amount: "10.00",
+      method: "CARD",
+      reference: "CARD-PREVIEW-4242",
+      paidOn: "2026-09-02",
+      requestKey: "pay-cust",
+    });
+    expect(paid.amount).toBe("10.00");
+    const invoice = await svc.getInvoice(finance, init.oneTimeInvoice!.id);
+    expect(invoice.paidAmount).toBe("10.00");
+    expect(invoice.payments).toHaveLength(1);
+    const other: Actor = { id: "customer-beta-user", role: "CUSTOMER", customerId: "customer-beta", active: true };
     await expectFailure(
-      svc.recordPayment(neha, {
+      svc.recordPayment(other, {
         invoiceId: init.oneTimeInvoice!.id,
-        amount: "10.00",
+        amount: "5.00",
         method: "CASH",
         reference: "x",
         paidOn: "2026-09-02",
-        requestKey: "pay-cust",
+        requestKey: "pay-other",
       }),
-      "FORBIDDEN",
+      "NOT_FOUND",
     );
   });
 });

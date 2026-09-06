@@ -34,6 +34,7 @@ const dateFields = new Set([
   "periodEnd",
   "dueDate",
   "paidOn",
+  "proposedPromisedDate",
   "detectedAt",
   "resolvedAt",
   "completedAt",

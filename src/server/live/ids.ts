@@ -59,6 +59,9 @@ export function wrapError(error: unknown): never {
   if (error instanceof Error && (error.name === "PrismaClientValidationError" || /Unknown arg|Unknown field/i.test(error.message))) {
     throw new AppError(422, "VALIDATION", "The record could not be saved", { reason: error.message });
   }
+  if (error instanceof RangeError) {
+    throw new AppError(400, "INVALID_ARGUMENT", error.message);
+  }
   if (error instanceof Error && /not found/i.test(error.message)) {
     throw new AppError(404, "NOT_FOUND", error.message);
   }

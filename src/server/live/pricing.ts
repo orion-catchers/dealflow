@@ -4,7 +4,7 @@ import type { PricedCandidate } from "@/contracts/krishna";
 import { priceQuote } from "@/features/quotes/engine/pricing";
 import { evaluatePolicy } from "@/server/governance/policy-evaluation";
 import type { PolicySnapshot } from "@/contracts/atharva";
-import { requireValue } from "@/server/errors";
+import { AppError, requireValue } from "@/server/errors";
 
 export const money = (n: number | string) => (Math.round((Number(n) + Number.EPSILON) * 100) / 100).toFixed(2);
 
@@ -27,16 +27,47 @@ export function snapshot(q: Quote): DealRevision {
 export function newRevision(q: Quote, actor: Actor, text: string) {
   requireValue(q.stage !== "CONFIRMED", "Confirmed quotations are locked");
   q.history.push(snapshot(q));
-  q.revision = `r${Number(q.revision.slice(1) || "1") + 1}`;
+  q.revision = `r${Number(q.revision.slice(1) || "1") + 1}` as `r${number}`;
   q.at = new Date().toISOString();
   q.acceptedAt = undefined;
   q.events.push(event(actor, text, q.revision));
 }
 
+export function displayCustomerTier(raw?: string): "Bronze" | "Silver" | "Gold" {
+  const tier = (raw ?? "Gold").trim().toLowerCase();
+  if (tier === "bronze" || tier === "standard") return "Bronze";
+  if (tier === "silver") return "Silver";
+  return "Gold";
+}
+
 export function resolvedPrice(s: DataState, q: Quote, p: Product, variantId: string) {
-  const c = s.customers.find((customer) => customer.id === q.customerId)!;
-  const rule = s.priceRules.find((r) => r.productId === p.id && r.tier === c.tier && r.currency === q.currency);
-  return money(Number(rule?.price ?? p.price) + Number(p.variants.find((v) => v.id === variantId)?.extraPrice ?? 0));
+  const c = s.customers.find((customer) => customer.id === q.customerId);
+  const tier = displayCustomerTier(c?.tier);
+  const currency = q.currency;
+
+  if (variantId) {
+    const variantRule = s.priceRules.find(
+      (r) =>
+        r.productId === p.id &&
+        r.variantId === variantId &&
+        displayCustomerTier(r.tier) === tier &&
+        r.currency === currency,
+    );
+    if (variantRule && Number(variantRule.price) > 0) {
+      return money(variantRule.price);
+    }
+  }
+
+  const baseRule = s.priceRules.find(
+    (r) =>
+      r.productId === p.id &&
+      !r.variantId &&
+      displayCustomerTier(r.tier) === tier &&
+      r.currency === currency,
+  );
+  const basePrice = baseRule && Number(baseRule.price) > 0 ? Number(baseRule.price) : Number(p.price);
+  const extraPrice = Number(p.variants.find((v) => v.id === variantId)?.extraPrice ?? 0);
+  return money(basePrice + extraPrice);
 }
 
 export function makeLine(s: DataState, q: Quote, productId: string, variantId: string, quantity: number): Line {
@@ -61,13 +92,6 @@ export function makeLine(s: DataState, q: Quote, productId: string, variantId: s
     interval: p.interval,
     stockTracked: p.stockTracked,
   };
-}
-
-export function displayCustomerTier(raw?: string): "Bronze" | "Silver" | "Gold" {
-  const tier = (raw ?? "Gold").trim().toLowerCase();
-  if (tier === "bronze" || tier === "standard") return "Bronze";
-  if (tier === "silver") return "Silver";
-  return "Gold";
 }
 
 export function policySnapshot(state: DataState, quote?: Quote): PolicySnapshot {
@@ -123,27 +147,35 @@ export function applyAtharvaEvaluation(state: DataState, quote: Quote) {
     requireValue(p, "Product missing");
     l.unitPrice = resolvedPrice(state, quote, p, l.variantId);
   }
-  const priced = priceQuote({
-    currency: "INR",
-    orderDiscountPct: String(quote.orderDiscountPct),
-    lines: quote.lines.map((l) => {
-      const product = state.products.find((p) => p.id === l.productId);
-      return {
-        lineId: l.id,
-        productId: l.productId,
-        variantId: l.variantId || undefined,
-        category: product?.category === "Services" ? "SERVICES" : product?.category === "Accessories" ? "ACCESSORIES" : "HARDWARE",
-        description: l.description,
-        quantity: l.quantity,
-        unitPrice: l.unitPrice,
-        unitCost: l.unitCost,
-        taxPct: String(l.taxPct),
-        discountPct: String(l.discountPct),
-        billingInterval: l.interval,
-        stockTracked: l.stockTracked,
-      };
-    }),
-  });
+  let priced;
+  try {
+    priced = priceQuote({
+      currency: "INR",
+      orderDiscountPct: String(quote.orderDiscountPct),
+      lines: quote.lines.map((l) => {
+        const product = state.products.find((p) => p.id === l.productId);
+        return {
+          lineId: l.id,
+          productId: l.productId,
+          variantId: l.variantId || undefined,
+          category: product?.category === "Services" ? "SERVICES" : product?.category === "Accessories" ? "ACCESSORIES" : "HARDWARE",
+          description: l.description,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          unitCost: l.unitCost,
+          taxPct: String(l.taxPct),
+          discountPct: String(l.discountPct),
+          billingInterval: l.interval,
+          stockTracked: l.stockTracked,
+        };
+      }),
+    });
+  } catch (err) {
+    if (err instanceof RangeError) {
+      throw new AppError(400, "INVALID_ARGUMENT", err.message);
+    }
+    throw err;
+  }
   const byId = new Map(priced.lines.map((l) => [l.lineId, l]));
   for (const l of quote.lines) {
     const row = byId.get(l.id);

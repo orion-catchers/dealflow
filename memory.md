@@ -681,3 +681,53 @@ Checks: security claims matched `password.ts` (scrypt N=16384 default), `session
 
 Limitations: `docs/SECURITY.md` was not rewritten to match the new README precision; they should be read together.
 
+## 2026-09-06T11:20:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Customer pays after accept; finance records books payments and sees who paid. Pay-with-card left finance.
+
+Changes: `POST /api/payments` allowed for CUSTOMER on their invoice; finance InvoiceDetail drops card checkout, defaults amount to outstanding as a text money field, lists payments (payer, method, reference, date, amount). Portal invoice/order/accepted quote show Pay with card (Stripe 503 → Preview) and payment history. Workspace amount fields stay strings so decimals type. Invoice paid/outstanding/status derived from payments.
+
+Files: `src/features/billing/ui/InvoiceDetail.tsx`, `src/components/application/{CustomerPortal,Operations,shared}.tsx`, `src/features/portal/server.ts`, `src/server/live/state.ts`, `src/contracts/application.ts`, `src/server/billing/service.test.ts`, `src/server/lib/auth/permissions.test.ts`.
+
+Checks (LIVE): Farah recorded ₹1,200 on Acme Wireless Mouse — UI amount field kept `100.50` while typing; save of outstanding marked PAID with Farah Khan / BANK_TRANSFER in Payments (no Pay with card). Neha portal invoice Nexa Care Support Seat: Pay with card Preview recorded CARD-PREVIEW-4242; finance GET same invoice PAID, payer Neha Rao, CARD, ₹4,500.00. Vitest billing+permissions 24/24. Stripe remains NOT CONNECTED.
+
+Limitations: Preview card does not charge a network. Isolated Vitest does not prove a new accept→invoice→pay browser cycle. Did not `db:reset`.
+
+## 2026-09-06T11:25:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Propose-a-change: quotation qty/discount stay in read-only columns; changed qty/discount start from those values; submit stays disabled until comment and delivery date are also filled. View order shows Amount to pay + Pay with card for open invoices on that order (same POST /api/payments finance already reads).
+
+Checks: Neha `/portal/orders/cmtokg4gi005o8stnhyrjpoym` showed Balance due ₹4,650.00 and Pay with card above delivery. Neha’s quotes in this DB are all CONFIRMED so propose columns were not clicked this pass.
+
+Limitations: Stripe checkout remains Preview / NOT CONNECTED.
+
+## 2026-09-06T11:28:00+05:30 (Asia/Kolkata) - Owner: Harsh
+
+Catalog “Show archived” was a full-width 40px input because global `input` rules set `width:100%` and `min-height:40px`. Checkboxes/radios are now 16px; catalog uses the compact `.check` row.
+
+Checks: `/products` Show archived box measured 17×17.
+
+Limitations: none.
+
+## 2026-09-06T15:33:00+05:30 (Asia/Kolkata) - Owner: Ruchir
+
+Fixed Finance route access for quote decision reviews: `canAccessRoute` previously forbade all `/quotes/*` paths for `FINANCE_OPS`, causing clicks on "Decide on [Customer] · Version [N]" from Home (and quote links from approvals/fulfillment) to bounce back to `/home`. Allowed `/quotes/:id` for Finance Ops while keeping `/quotes` and `/quotes/new` forbidden. Added role-aware `BackLink` in `Quotes.tsx` returning to `/approvals` for Finance.
+
+Files: `src/components/application/Application.tsx`, `src/components/application/Quotes.tsx`, `src/components/application/RoleAccess.test.ts`.
+
+Checks: `npx vitest run src/components/application/RoleAccess.test.ts` (14/14 passed); `npm test` (305/305 passed); `npm run test:krishna` (30/30 passed); `npm run typecheck` passed (0 errors); `npm run lint` passed (0 errors, 8 pre-existing warnings).
+
+Limitations: None. Quotation editing/creation remains restricted to Reps/Admin; Finance Ops has review/decision access only.
+
+## 2026-09-06T15:50:00+05:30 (Asia/Kolkata) - Owner: Ruchir
+
+Added default login buttons on the login screen for Admin (Dev Sharma) and 3 distinct customers (Acme: Neha Rao, Beta: Rohan Das, Gamma: Meera Joshi) with clear name labels. Enhanced development adapter and seed to support all 7 demo personas and aliases across both LIVE and DEV FIXTURE modes. Documented full login tables in README and testing-credentials docs.
+
+Files: `src/components/application/Application.tsx`, `src/development/seed.ts`, `src/development/adapter.ts`, `docs/testing-credentials.md`, `README.md`.
+
+Checks: `npm test` (305/305 passed); `npm run test:krishna` (30/30 passed); `npm run typecheck` passed (0 errors); `npm run lint` passed (0 errors, 8 pre-existing warnings).
+
+Limitations: None.
+
+
+

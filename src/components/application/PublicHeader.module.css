@@ -31,7 +31,6 @@
   align-items: center;
   gap: 8px;
 }
-
 .wordmark::before {
   content: '';
   display: inline-block;
@@ -44,8 +43,14 @@
 
 .wordmark:hover {
   color: #0c696b;
+  text-decoration: none !important;
 }
 
+.landing .wordmark {
+  grid-column: 1;
+  justify-self: start;
+  text-align: left;
+}
 .navigation {
   display: flex;
   align-items: center;

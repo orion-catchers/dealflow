@@ -3,9 +3,8 @@
  * Browser-side fetch helper for Harsh's screens. Unwraps the `{data}` / `{error}`
  * envelope and throws `ApiClientError` on failure so UIs show visible failed saves.
  *
- * DEV FIXTURE: sends `x-dev-actor` from localStorage (`dealflow.devActor`, default
- * `admin-dev`) until Ruchir's session cookie auth lands; then this header is ignored
- * server-side and can be removed.
+ * Session cookie is the LIVE credential. `x-dev-actor` is sent only when a
+ * developer explicitly chose a fixture actor in localStorage (`dealflow.devActor`).
  */
 import type { ApiErrorCode } from "@/contracts/harsh";
 
@@ -21,13 +20,18 @@ export class ApiClientError extends Error {
   }
 }
 
-export function getDevActor(): string {
-  if (typeof window === "undefined") return "admin-dev";
-  return window.localStorage.getItem("dealflow.devActor") ?? "admin-dev";
+export function getDevActor(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem("dealflow.devActor");
 }
 
 export function setDevActor(id: string) {
   if (typeof window !== "undefined") window.localStorage.setItem("dealflow.devActor", id);
+}
+
+function impersonationHeaders(): Record<string, string> {
+  const actor = getDevActor();
+  return actor ? { "x-dev-actor": actor } : {};
 }
 
 export async function api<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
@@ -39,7 +43,7 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
       credentials: "include",
       headers: {
         ...(json !== undefined ? { "content-type": "application/json" } : {}),
-        "x-dev-actor": getDevActor(),
+        ...impersonationHeaders(),
         ...(headers ?? {}),
       },
       body: json !== undefined ? JSON.stringify(json) : rest.body,

@@ -71,13 +71,14 @@ export async function runLiveCommand(
     if (action === "reset") throw new AppError(403, "FORBIDDEN", "Development reset is not available on the live adapter");
 
     if (action === "payment") {
-      roles(actor, "ADMIN", "FINANCE_OPS");
+      roles(actor, "ADMIN", "FINANCE_OPS", "CUSTOMER");
+      const amount = Number(String(b.amount).replace(/,/g, ""));
       return await getBillingService().recordPayment(harsh, {
         invoiceId: key,
-        amount: String(b.amount),
+        amount: Number.isFinite(amount) ? amount.toFixed(2) : String(b.amount),
         method: paymentMethod(b.method),
-        reference: String(b.reference ?? ""),
-        paidOn: String(b.date ?? b.paidOn ?? ""),
+        reference: String(b.reference ?? "").trim() || `PAY-${requestKey.slice(0, 8)}`,
+        paidOn: String(b.date ?? b.paidOn ?? new Date().toISOString().slice(0, 10)),
         requestKey,
       });
     }
@@ -275,8 +276,10 @@ export async function runLiveCommand(
         const list = await prisma.priceList.findFirst();
         requireValue(list, "Create a price list before adding customer prices");
         const tier = String(r.tier) === "Gold" ? "GOLD" : String(r.tier) === "Silver" ? "SILVER" : "STANDARD";
+        const variantId = r.variantId ? String(r.variantId) : null;
         const data = {
           productId: String(r.productId),
+          variantId,
           priceListId: list.id,
           unitPrice: String(r.price ?? "0.00"),
           tier: tier as "STANDARD" | "SILVER" | "GOLD",
@@ -284,7 +287,16 @@ export async function runLiveCommand(
           active: true,
         };
         if (key) {
-          return await prisma.priceRule.update({ where: { id: key }, data: { unitPrice: data.unitPrice, productId: data.productId, tier: data.tier, currency: data.currency } });
+          return await prisma.priceRule.update({
+            where: { id: key },
+            data: {
+              unitPrice: data.unitPrice,
+              productId: data.productId,
+              variantId: data.variantId,
+              tier: data.tier,
+              currency: data.currency,
+            },
+          });
         }
         return await prisma.priceRule.create({ data });
       }
@@ -358,7 +370,7 @@ export async function runLiveCommand(
     }
 
     if (action === "task") {
-      roles(actor, "ADMIN", "SALES_MANAGER", "SALES_REP");
+      roles(actor, "ADMIN", "SALES_MANAGER", "SALES_REP", "FINANCE_OPS");
       if (b.complete === true) {
         const task = await prisma.task.findUnique({ where: { id: key } });
         requireValue(task, "Task missing");
@@ -473,15 +485,25 @@ export async function runLiveCommand(
         q.name = String(b.name ?? q.name);
         q.currency = customer.currency;
         q.orderDiscountPct = Number(b.orderDiscountPct);
-        requireValue(Number.isFinite(q.orderDiscountPct) && q.orderDiscountPct >= 0 && q.orderDiscountPct <= 100, "Order discount must be 0–100%");
+        if (!Number.isFinite(q.orderDiscountPct) || q.orderDiscountPct < 0 || q.orderDiscountPct > 100) {
+          throw new AppError(400, "INVALID_ARGUMENT", "Order discount must be between 0% and 100%");
+        }
         q.promisedDate = b.promisedDate ? String(b.promisedDate) : null;
-        const changes = b.lines as { id: string; quantity: number; discountPct: number }[];
+        const changes = (b.lines ?? []) as { id: string; quantity: number; discountPct: number }[];
         requireValue(Array.isArray(changes), "Lines required");
-        q.lines = q.lines.filter((l) => changes.some((c) => c.id === l.id));
         for (const l of q.lines) {
-          const c = changes.find((change) => change.id === l.id)!;
-          l.quantity = Math.round(Number(c.quantity));
-          l.discountPct = Number(c.discountPct);
+          const c = changes.find((change) => change.id === l.id);
+          if (!c) continue;
+          const qty = Math.round(Number(c.quantity));
+          if (!Number.isFinite(qty) || qty <= 0) {
+            throw new AppError(400, "INVALID_ARGUMENT", "Quantity must be a positive number");
+          }
+          l.quantity = qty;
+          const disc = Number(c.discountPct);
+          if (!Number.isFinite(disc) || disc < 0 || disc > 100) {
+            throw new AppError(400, "INVALID_ARGUMENT", "Discount must be between 0% and 100%");
+          }
+          l.discountPct = disc;
         }
         applyAtharvaEvaluation(state, q);
         q.stage = q.sent ? "UNDER_NEGOTIATION" : "DRAFT";

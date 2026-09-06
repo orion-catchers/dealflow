@@ -24,7 +24,7 @@ const CURRENCY = "INR";
 // Page
 // ---------------------------------------------------------------------------
 
-export function ProductEditor({ productId }: { productId: string | null }) {
+export function ProductEditor({ productId, readOnly = false }: { productId: string | null; readOnly?: boolean }) {
   const detail = useApi<{ product: Product; variants: Variant[] }>(productId ? `/api/products/${productId}` : null);
   const taxRates = useApi<TaxRate[]>("/api/tax-rates");
   const plans = useApi<PlanRef[]>("/api/plans");
@@ -34,9 +34,18 @@ export function ProductEditor({ productId }: { productId: string | null }) {
   const isNew = productId === null;
   const product = detail.data?.product;
 
-  if (!isNew && detail.error) {
+  if (isNew && readOnly) {
     return (
       <div>
+        <PageHeader title="Product" actions={<BackLink />} />
+        <ErrorState message="You do not have permission to create products." />
+      </div>
+    );
+  }
+
+  if (!isNew && detail.error) {
+    return (
+      <div className="catalog-page catalog-editor-page">
         <PageHeader title="Product" actions={<BackLink />} />
         <ErrorState message={`Could not load product: ${detail.error}`} onRetry={detail.reload} />
       </div>
@@ -44,29 +53,30 @@ export function ProductEditor({ productId }: { productId: string | null }) {
   }
 
   return (
-    <div>
+    <div className="catalog-page catalog-editor-page">
       <PageHeader
         title={isNew ? "New product" : product ? product.name : "Product"}
         description={isNew ? "General info first; variants and price rules become available after the first save." : product ? `Updated ${new Date(product.updatedAt).toLocaleString()}` : undefined}
         actions={
-          <>
-            <StatusBadge status="DEV FIXTURE" label="DEV FIXTURE data" />
+          <div className="catalog-header-actions">
+            <StatusBadge status="LIVE" label="LIVE catalog" />
             {product?.archivedAt ? <StatusBadge status="ARCHIVED" /> : product ? <StatusBadge status={product.active ? "ACTIVE" : "INACTIVE"} /> : null}
             <BackLink />
-          </>
+          </div>
         }
       />
 
       {!isNew && detail.loading && !product ? (
         <div className="py-6 text-sm text-slate-500">Loading product…</div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="space-y-6 lg:col-span-2">
+        <div className="catalog-editor-layout grid gap-6 lg:grid-cols-3">
+          <div className="catalog-editor-main space-y-6 lg:col-span-2">
             <GeneralInfoForm
               key={product?.id ?? "new"}
               product={product ?? null}
               taxRates={taxRates}
               plans={plans}
+              readOnly={readOnly}
               onSaved={() => {
                 detail.reload();
                 bumpPreview();
@@ -77,19 +87,24 @@ export function ProductEditor({ productId }: { productId: string | null }) {
                 <VariantsSection
                   product={product}
                   variants={detail.data?.variants ?? []}
+                  readOnly={readOnly}
                   onChanged={() => {
                     detail.reload();
                     bumpPreview();
                   }}
                 />
-                <ProductRulesSection product={product} variants={detail.data?.variants ?? []} onChanged={bumpPreview} />
+                <ProductRulesSection product={product} variants={detail.data?.variants ?? []} readOnly={readOnly} onChanged={bumpPreview} />
               </>
             ) : null}
           </div>
-          <div className="space-y-6">
-            {product ? <ResolvePreviewCard product={product} variants={detail.data?.variants ?? []} refreshKey={previewKey} /> : <Card title="Resolved price preview">
-              <p className="text-sm text-slate-500">Save the product to preview how it prices for a customer.</p>
-            </Card>}
+          <div className="catalog-editor-aside space-y-6">
+            {product ? (
+              <ResolvePreviewCard product={product} variants={detail.data?.variants ?? []} refreshKey={previewKey} />
+            ) : (
+              <Card className="catalog-preview-card" title="Resolved price for customer">
+                <p className="text-sm text-slate-500">Save the product to preview how it prices for a customer.</p>
+              </Card>
+            )}
           </div>
         </div>
       )}
@@ -99,7 +114,7 @@ export function ProductEditor({ productId }: { productId: string | null }) {
 
 function BackLink() {
   return (
-    <Link href="/products" className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50">
+    <Link href="/products" className="catalog-button catalog-button--secondary catalog-back-link">
       ← Products
     </Link>
   );
@@ -160,11 +175,13 @@ function GeneralInfoForm({
   product,
   taxRates,
   plans,
+  readOnly = false,
   onSaved,
 }: {
   product: Product | null;
   taxRates: ReturnType<typeof useApi<TaxRate[]>>;
   plans: ReturnType<typeof useApi<PlanRef[]>>;
+  readOnly?: boolean;
   onSaved: () => void;
 }) {
   const router = useRouter();
@@ -187,6 +204,7 @@ function GeneralInfoForm({
   }, [form.basePrice, form.baseCost]);
 
   async function submit() {
+    if (readOnly) return;
     const errs: Record<string, string> = {};
     if (!form.name.trim()) errs.name = "Name is required";
     const basePrice = normalizeMoney(form.basePrice);
@@ -242,14 +260,14 @@ function GeneralInfoForm({
   const activeTaxRates = (taxRates.data ?? []).filter((t) => t.active || t.id === form.taxRateId);
 
   return (
-    <Card title="General info">
-      <div className="grid gap-3 md:grid-cols-2">
+    <Card title="General info" className="catalog-form-card">
+      <div className="catalog-form-grid grid gap-3 md:grid-cols-2">
         <FormField label="Name" htmlFor="p-name" error={errors.name} className="md:col-span-2">
-          <Input id="p-name" value={form.name} disabled={busy} onChange={(e) => update({ name: e.target.value })} />
+          <Input id="p-name" value={form.name} disabled={busy || readOnly} onChange={(e) => update({ name: e.target.value })} />
         </FormField>
 
         <FormField label="Category" htmlFor="p-category" error={errors.category} hint="Category drives discount ceilings; billing behavior is set by the subscription flag.">
-          <Select id="p-category" value={form.category} disabled={busy} onChange={(e) => update({ category: e.target.value as ProductCategory })}>
+          <Select id="p-category" value={form.category} disabled={busy || readOnly} onChange={(e) => update({ category: e.target.value as ProductCategory })}>
             {CATEGORY_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -259,7 +277,7 @@ function GeneralInfoForm({
         </FormField>
 
         <FormField label="Unit" htmlFor="p-unit" error={errors.unit}>
-          <Select id="p-unit" value={form.unit} disabled={busy} onChange={(e) => update({ unit: e.target.value as Unit })}>
+          <Select id="p-unit" value={form.unit} disabled={busy || readOnly} onChange={(e) => update({ unit: e.target.value as Unit })}>
             {UNIT_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -269,19 +287,19 @@ function GeneralInfoForm({
         </FormField>
 
         <FormField label="Description" htmlFor="p-description" error={errors.description} className="md:col-span-2">
-          <textarea id="p-description" className={TEXTAREA_CLASS} rows={3} value={form.description} disabled={busy} onChange={(e) => update({ description: e.target.value })} />
+          <textarea id="p-description" className={`${TEXTAREA_CLASS} catalog-textarea`} rows={3} value={form.description} disabled={busy || readOnly} onChange={(e) => update({ description: e.target.value })} />
         </FormField>
 
         <FormField label={`Base price (${CURRENCY})`} htmlFor="p-price" error={errors.basePrice}>
-          <Input id="p-price" inputMode="decimal" placeholder="50000.00" value={form.basePrice} disabled={busy} onChange={(e) => update({ basePrice: e.target.value })} />
+          <Input id="p-price" inputMode="decimal" placeholder="50000.00" value={form.basePrice} disabled={busy || readOnly} onChange={(e) => update({ basePrice: e.target.value })} />
         </FormField>
 
         <FormField label={`Base cost (${CURRENCY})`} htmlFor="p-cost" error={errors.baseCost} hint={margin !== null ? `Margin at base price: ${margin.toFixed(1)}%` : undefined}>
-          <Input id="p-cost" inputMode="decimal" placeholder="40000.00" value={form.baseCost} disabled={busy} onChange={(e) => update({ baseCost: e.target.value })} />
+          <Input id="p-cost" inputMode="decimal" placeholder="40000.00" value={form.baseCost} disabled={busy || readOnly} onChange={(e) => update({ baseCost: e.target.value })} />
         </FormField>
 
         <FormField label="Tax rate" htmlFor="p-tax" error={errors.taxRateId}>
-          <Select id="p-tax" value={form.taxRateId} disabled={busy || taxRates.loading} onChange={(e) => update({ taxRateId: e.target.value })}>
+          <Select id="p-tax" value={form.taxRateId} disabled={busy || taxRates.loading || readOnly} onChange={(e) => update({ taxRateId: e.target.value })}>
             <option value="">{taxRates.loading ? "Loading tax rates…" : "Select a tax rate…"}</option>
             {activeTaxRates.map((t) => (
               <option key={t.id} value={t.id}>
@@ -299,33 +317,33 @@ function GeneralInfoForm({
           ) : null}
         </FormField>
 
-        <div className="flex flex-col justify-end gap-2 pb-1">
-          <CheckboxField id="p-active" label="Active (visible in the quote builder)" checked={form.active} disabled={busy} onChange={(v) => update({ active: v })} />
+        <div className="catalog-check-standalone flex flex-col justify-end gap-2 pb-1">
+          <CheckboxField id="p-active" label="Active (visible in the quote builder)" checked={form.active} disabled={busy || readOnly} onChange={(v) => update({ active: v })} />
         </div>
 
-        <div className="rounded-md border border-slate-200 p-3 md:col-span-2">
-          <CheckboxField id="p-stock" label="Stock-tracked (physical good handled by fulfillment)" checked={form.stockTracked} disabled={busy} onChange={(v) => update({ stockTracked: v })} />
+        <div className="catalog-check-section rounded-md border border-slate-200 p-3 md:col-span-2">
+          <CheckboxField id="p-stock" label="Stock-tracked (physical good handled by fulfillment)" checked={form.stockTracked} disabled={busy || readOnly} onChange={(v) => update({ stockTracked: v })} />
           {form.stockTracked ? (
             <div className="mt-3 max-w-xs">
               <FormField label="Shipping weight (kg per unit, optional)" htmlFor="p-weight" error={errors.shippingWeightKg}>
-                <Input id="p-weight" inputMode="decimal" placeholder="2.1" value={form.shippingWeightKg} disabled={busy} onChange={(e) => update({ shippingWeightKg: e.target.value })} />
+                <Input id="p-weight" inputMode="decimal" placeholder="2.1" value={form.shippingWeightKg} disabled={busy || readOnly} onChange={(e) => update({ shippingWeightKg: e.target.value })} />
               </FormField>
             </div>
           ) : null}
         </div>
 
-        <div className="rounded-md border border-slate-200 p-3 md:col-span-2">
+        <div className="catalog-check-section rounded-md border border-slate-200 p-3 md:col-span-2">
           <CheckboxField
             id="p-subscription"
             label="Subscription (recurring; billed against a plan)"
             checked={form.isSubscription}
-            disabled={busy}
+            disabled={busy || readOnly}
             onChange={(v) => update({ isSubscription: v, planId: v ? form.planId : "" })}
           />
           {form.isSubscription ? (
             <div className="mt-3 max-w-md">
-              <FormField label="Plan" htmlFor="p-plan" error={errors.planId} hint="Plans come from Ruchir's /api/plans (DEV FIXTURE until live).">
-                <Select id="p-plan" value={form.planId} disabled={busy || plans.loading} onChange={(e) => update({ planId: e.target.value })}>
+              <FormField label="Plan" htmlFor="p-plan" error={errors.planId} hint="Plans come from the live billing catalog.">
+                <Select id="p-plan" value={form.planId} disabled={busy || plans.loading || readOnly} onChange={(e) => update({ planId: e.target.value })}>
                   <option value="">{plans.loading ? "Loading plans…" : "Select a plan…"}</option>
                   {(plans.data ?? []).map((pl) => (
                     <option key={pl.id} value={pl.id}>
@@ -353,13 +371,15 @@ function GeneralInfoForm({
         </div>
       ) : null}
 
-      <div className="mt-4 flex items-center gap-3 border-t border-slate-200 pt-3">
-        <Button disabled={busy} onClick={submit}>
-          {busy ? "Saving…" : product ? "Save changes" : "Create product"}
-        </Button>
-        {savedAt ? <span className="text-sm text-emerald-700">Saved {savedAt.toLocaleTimeString()}</span> : null}
-        {product?.archivedAt ? <span className="text-xs text-slate-500">This product is archived; restore it from the dashboard to make it active.</span> : null}
-      </div>
+      {!readOnly && (
+        <div className="catalog-save-bar mt-4 flex items-center gap-3 border-t border-slate-200 pt-3">
+          <Button className="catalog-save-button" disabled={busy} onClick={submit}>
+            {busy ? "Saving…" : product ? "Save changes" : "Create product"}
+          </Button>
+          {savedAt ? <span className="text-sm text-emerald-700">Saved {savedAt.toLocaleTimeString()}</span> : null}
+          {product?.archivedAt ? <span className="text-xs text-slate-500">This product is archived; restore it from the dashboard to make it active.</span> : null}
+        </div>
+      )}
     </Card>
   );
 }
@@ -368,7 +388,17 @@ function GeneralInfoForm({
 // Variants
 // ---------------------------------------------------------------------------
 
-function VariantsSection({ product, variants, onChanged }: { product: Product; variants: Variant[]; onChanged: () => void }) {
+function VariantsSection({
+  product,
+  variants,
+  readOnly = false,
+  onChanged,
+}: {
+  product: Product;
+  variants: Variant[];
+  readOnly?: boolean;
+  onChanged: () => void;
+}) {
   const [dialog, setDialog] = useState<{ open: boolean; variant: Variant | null }>({ open: false, variant: null });
   const [deactivating, setDeactivating] = useState<Variant | null>(null);
   const mutation = useMutation();
@@ -411,37 +441,45 @@ function VariantsSection({ product, variants, onChanged }: { product: Product; v
     { key: "extraCost", header: "Extra cost", align: "right", render: (v) => <Money amount={v.extraCost} currency={CURRENCY} /> },
     { key: "sku", header: "SKU", render: (v) => <code className="text-xs">{v.sku}</code> },
     { key: "status", header: "Status", render: (v) => <StatusBadge status={v.active ? "ACTIVE" : "INACTIVE"} /> },
-    {
-      key: "actions",
-      header: "Actions",
-      align: "right",
-      render: (v) => (
-        <div className="flex justify-end gap-1">
-          <Button variant="secondary" onClick={() => setDialog({ open: true, variant: v })}>
-            Edit
-          </Button>
-          {v.active ? (
-            <Button variant="danger" onClick={() => setDeactivating(v)}>
-              Deactivate
-            </Button>
-          ) : null}
-        </div>
-      ),
-    },
+    ...(!readOnly
+      ? ([
+          {
+            key: "actions",
+            header: "Actions",
+            align: "right",
+            render: (v: Variant) => (
+              <div className="catalog-row-actions flex justify-end gap-1">
+                <Button className="catalog-action-button catalog-action-button--secondary" variant="secondary" onClick={() => setDialog({ open: true, variant: v })}>
+                  Edit
+                </Button>
+                {v.active ? (
+                  <Button className="catalog-action-button catalog-action-button--danger" variant="danger" onClick={() => setDeactivating(v)}>
+                    Deactivate
+                  </Button>
+                ) : null}
+              </div>
+            ),
+          },
+         ] as Column<Variant>[])
+       : []),
   ];
 
   return (
-    <Card>
-      <div className="mb-3 flex items-center justify-between">
+    <Card className="catalog-section-card">
+      <div className="catalog-section-header mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-700">Variants ({variants.length})</h3>
-        <Button variant="secondary" disabled={Boolean(product.archivedAt)} onClick={() => setDialog({ open: true, variant: null })}>
-          Add Variant
-        </Button>
+        {!readOnly && (
+          <Button variant="secondary" disabled={Boolean(product.archivedAt)} onClick={() => setDialog({ open: true, variant: null })}>
+            Add Variant
+          </Button>
+        )}
       </div>
       {variants.length === 0 ? (
         <EmptyState message="No variants. Quotes will use the product's base price and cost." />
       ) : (
-        <DataTable columns={columns} rows={variants} rowKey={(v) => v.id} />
+        <div className="catalog-table-shell">
+          <DataTable columns={columns} rows={variants} rowKey={(v) => v.id} />
+        </div>
       )}
       {product.archivedAt ? <p className="mt-2 text-xs text-slate-500">Variants cannot be added to an archived product.</p> : null}
 
@@ -491,7 +529,7 @@ function VariantsSection({ product, variants, onChanged }: { product: Product; v
 // Price rules for this product (across all lists)
 // ---------------------------------------------------------------------------
 
-function ProductRulesSection({ product, variants, onChanged }: { product: Product; variants: Variant[]; onChanged: () => void }) {
+function ProductRulesSection({ product, variants, readOnly = false, onChanged }: { product: Product; variants: Variant[]; readOnly?: boolean; onChanged: () => void }) {
   const lists = useApi<PriceList[]>("/api/price-lists");
   const rulePaths = useMemo(() => (lists.data ? lists.data.map((pl) => `/api/price-lists/${pl.id}/rules`) : null), [lists.data]);
   const rules = useApiMany<PriceRule[]>(rulePaths);
@@ -548,39 +586,44 @@ function ProductRulesSection({ product, variants, onChanged }: { product: Produc
         r.fixedPrice !== undefined ? <Money amount={r.fixedPrice} currency={CURRENCY} /> : r.discountPct !== undefined ? `${r.discountPct}% off` : <span className="text-slate-400">no effect</span>,
     },
     { key: "minQty", header: "Min qty", align: "right", render: (r) => r.minQty ?? 1 },
-    {
-      key: "actions",
-      header: "Actions",
-      align: "right",
-      render: (r) => (
-        <div className="flex justify-end gap-1">
-          <Button variant="secondary" onClick={() => setDialog({ open: true, rule: r })}>
-            Edit
-          </Button>
-          <Button variant="danger" onClick={() => setDeleting(r)}>
-            Delete
-          </Button>
-        </div>
-      ),
-    },
+    ...(!readOnly
+      ? ([
+          {
+            key: "actions",
+            header: "Actions",
+            align: "right",
+            render: (r: PriceRule) => (
+              <div className="catalog-row-actions flex justify-end gap-1">
+                <Button className="catalog-action-button catalog-action-button--secondary" variant="secondary" onClick={() => setDialog({ open: true, rule: r })}>
+                  Edit
+                </Button>
+                <Button className="catalog-action-button catalog-action-button--danger" variant="danger" onClick={() => setDeleting(r)}>
+                  Delete
+                </Button>
+              </div>
+            ),
+          },
+         ] as Column<PriceRule>[])
+       : []),
   ];
 
   const error = lists.error ?? rules.error;
   const loading = lists.loading || rules.loading;
 
   return (
-    <Card>
-      <div className="mb-3 flex items-center justify-between">
+    <Card className="catalog-section-card">
+      <div className="catalog-section-header mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-700">Price rules for this product</h3>
-        <div className="flex gap-2">
-          <Link href="/price-lists" className="inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100">
+        {!readOnly && <div className="catalog-section-actions flex gap-2">
+          <Link href="/price-lists" className="catalog-action-button catalog-action-button--secondary">
             Manage Price Lists
           </Link>
           <Button variant="secondary" disabled={!lists.data || lists.data.length === 0} onClick={() => setDialog({ open: true, rule: null })}>
             Add Rule
           </Button>
-        </div>
+        </div>}
       </div>
+
       {error ? (
         <ErrorState
           message={`Could not load price rules: ${error}`}
@@ -592,7 +635,9 @@ function ProductRulesSection({ product, variants, onChanged }: { product: Produc
       ) : !loading && productRules.length === 0 ? (
         <EmptyState message="No price rules. Every customer pays the base price (plus variant extras) for this product." />
       ) : (
-        <DataTable columns={columns} rows={productRules} loading={loading} rowKey={(r) => r.id} />
+        <div className="catalog-table-shell">
+          <DataTable columns={columns} rows={productRules} loading={loading} rowKey={(r) => r.id} />
+        </div>
       )}
 
       <PriceRuleDialog
@@ -665,8 +710,6 @@ function ResolvePreviewCard({ product, variants, refreshKey }: { product: Produc
     if (!customerId) return;
     const qty = Number(quantity);
     let cancelled = false;
-    setLoading(true);
-    setError(null);
     api<ResolvedPrice>("/api/catalog/resolve", {
       method: "POST",
       json: { customerId, productId: product.id, ...(variantId ? { variantId } : {}), ...(Number.isFinite(qty) && qty > 0 ? { quantity: qty } : {}) },
@@ -689,7 +732,7 @@ function ResolvePreviewCard({ product, variants, refreshKey }: { product: Produc
   const margin = result ? marginPct(result.unitPrice, result.unitCost) : null;
 
   return (
-    <Card title="Resolved price for customer">
+    <Card title="Resolved price for customer" className="catalog-preview-card">
       <p className="mb-3 text-xs text-slate-500">Live call to POST /api/catalog/resolve — the same boundary the quote builder uses. Refreshes after every save.</p>
       <div className="space-y-3">
         <FormField label="Customer" htmlFor="rp-customer">
