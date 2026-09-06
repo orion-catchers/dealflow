@@ -21,6 +21,8 @@
     "db:reset": "prisma migrate reset --force",
     "db:seed": "prisma db seed",
     "synthetic:seed": "tsx scripts/seed-synthetic-dataset.ts",
+    "tester:generate": "tsx scripts/generate-tester-dataset.ts",
+    "tester:seed": "tsx scripts/seed-synthetic-dataset.ts data/tester-dataset.json",
     "db:studio": "prisma studio",
     "jobs": "tsx scripts/run-jobs.ts"
   },

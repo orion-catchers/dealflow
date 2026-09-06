@@ -717,6 +717,7 @@ Full text: [docs/OPERATIONS.md](docs/OPERATIONS.md).
 | --- | --- |
 | [README.md](./README.md) | Reviewers (this file) |
 | [docs/testing-credentials.md](docs/testing-credentials.md) | Demo logins |
+| [data/](./data/) | Tester dummy dataset (298 Prisma-shaped rows; `pnpm tester:seed`) |
 | [docs/env-keys.md](docs/env-keys.md) | Full env list |
 | [docs/recording-script.md](docs/recording-script.md) | UI walk order |
 | [docs/assets/](docs/assets/) | Architecture SVG + public landing screenshot |

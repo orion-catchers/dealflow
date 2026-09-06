@@ -85,3 +85,15 @@ Forbidden when `NODE_ENV=production`.
 | Stripe / Resend / carrier | Without keys, those APIs return **503** `INTEGRATION_REQUIRED`. Core quote, confirm, bank payment, and reports still work. |
 | `SESSION_SECRET=change-me` | Local cookie signing only. Rotate on any shared host. |
 | Impersonation | `DEALFLOW_DEV_IMPERSONATION=1` plus `x-dev-actor` skips real login. Never in production. |
+
+---
+
+## Tester dummy dataset (`pnpm tester:seed`)
+
+Add-only import of [data/tester-dataset.json](../data/tester-dataset.json) (298 records). Does not replace the Nexa seed. Passwords are `Synthetic-<user.id>-2026!`. Full table and load steps: [data/README.md](../data/README.md).
+
+| Role | Email | Password |
+| --- | --- | --- |
+| ADMIN | `admin.tester@example.test` | `Synthetic-tester-user-admin-2026!` |
+| SALES_REP | `rep01.tester@example.test` | `Synthetic-tester-user-rep-01-2026!` |
+| CUSTOMER | `buyer01.tester@example.test` | `Synthetic-tester-user-portal-01-2026!` |
