@@ -69,9 +69,7 @@ If an item fails, do not treat the corresponding claim as demonstrated.
 | 2 | Live path has no silent fixture fallback | `src/server/adapters.ts` | `DEALFLOW_ADAPTER=development` only when `NODE_ENV !== production`; missing `DATABASE_URL` → **503 INTEGRATION_REQUIRED** |
 | 3 | Money and percentages | Contracts + API payloads | Money is decimal **strings**; percentages **0..100** |
 | 4 | Quote mutations are revision-safe | POST bodies on quote/portal actions | `expectedRevision` required; stale → **409 STALE_REVISION** |
-| 5 | Commitment rule | Confirm + allocate | Confirm creates Order + billing/fulfillment **init**; **no** `Stock.reserved` increment until allocate |
-
-Confirm vs allocate (checklist row 5) is drawn under [Design principles](#design-principles-acceptance-criteria).
+| 5 | Commitment rule | Confirm + allocate (sequence under [Design principles](#design-principles-acceptance-criteria)) | Confirm creates Order + billing/fulfillment **init**; **no** `Stock.reserved` increment until allocate |
 | 6 | Portal isolation | Two customer accounts | Acme cannot read Beta quotes (**404**); portal JSON has no cost/margin/rep internals |
 | 7 | Signup is not privileged | POST `/api/auth/signup` | Creates **PENDING**; cannot sign in until an admin activates |
 | 8 | CSRF on mutations | POST with `Origin: http://evil.example` | **403 ORIGIN** when Origin is present and mismatched |
