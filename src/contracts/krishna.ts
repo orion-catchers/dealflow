@@ -12,7 +12,7 @@ export interface PageHeaderProps<Slot> { title: string; description?: string; ac
 export interface StatusBadgeProps { status: string; label?: string }
 export interface MoneyProps { amount: DecimalString; currency: string }
 export interface DialogProps<Slot> {
-  open: boolean; onClose: () => void; title: string; children: Slot; footer?: Slot;
+  open: boolean; onClose: () => void; title: string; children: Slot; footer?: Slot | null;
 }
 export interface DataTableProps<Row, Slot> {
   columns: readonly { id: string; heading: string; render: (row: Row) => Slot }[];

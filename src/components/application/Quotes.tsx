@@ -24,6 +24,17 @@ import {
   BackLink,
   type Context,
 } from "./shared";
+import {
+  ROLE_NAME,
+  approvalOk,
+  canDecide,
+  dealNextStep,
+  flowSteps,
+  nextStepHref,
+  nextStepLabel,
+  FlowSteps,
+  NextStepCard,
+} from "./DealFlow";
 
 const PIPELINE_STAGES = [
   "DRAFT",
@@ -35,6 +46,7 @@ const PIPELINE_STAGES = [
   "REJECTED",
 ] as const;
 const PIPELINE_WIDTH_KEY = "dealflow-pipeline-widths";
+const TIERS = ["Bronze", "Silver", "Gold"] as const;
 
 function moneyPreview(n: number) {
   return (Math.round((n + Number.EPSILON) * 100) / 100).toFixed(2);
@@ -78,14 +90,30 @@ function previewQuote(d: DataState, draft: Quote): Quote {
   return { ...draft, lines, totals };
 }
 
+/** The editable fields of a quotation, in a stable shape, so "unsaved changes" is a plain comparison. */
+function editedShape(q: Quote) {
+  return JSON.stringify({
+    customerId: q.customerId,
+    orderDiscountPct: Number(q.orderDiscountPct),
+    promisedDate: q.promisedDate ?? null,
+    lines: q.lines.map((l) => [l.id, Math.max(1, Math.round(Number(l.quantity) || 1)), Number(l.discountPct)]),
+  });
+}
+
+function intervalLabel(interval: Line["interval"]) {
+  return interval === "ONE_TIME" ? "one-time" : interval.toLowerCase();
+}
+
 function PipelineBoard({
   stages,
   rows,
   customers,
+  actor,
 }: {
   stages: readonly string[];
   rows: Quote[];
   customers: { id: string; name: string }[];
+  actor: Context["actor"];
 }) {
   const [widths, setWidths] = useState<Record<string, number>>(() =>
     Object.fromEntries(stages.map((s) => [s, 220])),
@@ -144,10 +172,10 @@ function PipelineBoard({
                   <span>{customers.find((c) => c.id === q.customerId)?.name}</span>
                   {q.totals.map((t) => (
                     <small key={t.interval}>
-                      <Money amount={t.total} currency={q.currency} /> ·{" "}
-                      {t.interval.replaceAll("_", " ").toLowerCase()}
+                      <Money amount={t.total} currency={q.currency} /> · {intervalLabel(t.interval)}
                     </small>
                   ))}
+                  <small className="pipeline-next">{nextStepLabel(q, actor)}</small>
                   <OpenLink href={"/quotes/" + q.id} />
                 </article>
               ))
@@ -168,144 +196,89 @@ function PipelineBoard({
 }
 
 export default function Quotes({ ctx }: { ctx: Context }) {
-  const { d, path, run, actor } = ctx,
-    router = useRouter(),
+  const { d, path, actor } = ctx,
     [search, setSearch] = useState(""),
     [status, setStatus] = useState("");
-  const approval = path.startsWith("/approvals"),
-    id = path.split("/")[2],
+  const id = path.split("/")[2],
     q = d.quotes.find((q) => q.id === id);
-  if (id === "new")
-    return (
-      <>
-        <Heading
-          title="Create a quotation"
-          description="Start with the customer. Pricing comes from their applicable price list."
-        >
-          <BackLink href="/quotes">Back to quotations</BackLink>
-        </Heading>
-        <Section title="Deal details">
-          <FormAction
-            title="New quotation"
-            button="Choose customer and create"
-            d={d}
-            fields={[
-              {
-                key: "customerId",
-                label: "Customer",
-                type: "select",
-                source: "customers",
-                required: true,
-              },
-              { key: "text", label: "Deal name", required: true },
-            ]}
-            onSubmit={async (v) => {
-              const q = (await run("newQuote", v)) as Quote;
-              router.push("/quotes/" + q.id);
-            }}
-          />
-        </Section>
-      </>
-    );
+  if (id === "new") return <NewQuote ctx={ctx} />;
   if (id && !q)
     return (
       <Heading
         title="Quotation unavailable"
         description="The record was removed or is outside your access."
       >
-        <BackLink href={approval ? "/approvals" : "/quotes"}>Back to list</BackLink>
+        <BackLink href="/quotes">Back to quotations</BackLink>
       </Heading>
     );
-  if (q)
-    return (
-      <QuoteDetail
-        key={q.id + q.revision}
-        q={q}
-        ctx={ctx}
-        approval={approval}
-      />
-    );
+  if (q) return <QuoteDetail key={q.id + q.revision} q={q} ctx={ctx} />;
   const rows = d.quotes
     .filter(
-    (q) =>
-      (!approval || q.evaluation.status !== "NOT_REQUIRED") &&
-      (!status || (approval ? q.evaluation.status : q.stage) === status) &&
-      `${quoteTitle(q)} ${d.customers.find((c) => c.id === q.customerId)?.name}`
-        .toLowerCase()
-        .includes(search.toLowerCase()),
-  )
+      (q) =>
+        (!status || q.stage === status) &&
+        `${quoteTitle(q)} ${d.customers.find((c) => c.id === q.customerId)?.name}`
+          .toLowerCase()
+          .includes(search.toLowerCase()),
+    )
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at) || b.id.localeCompare(a.id));
   return (
     <>
       <Heading
-        title={approval ? "Approval inbox" : "Quotations"}
+        title="Quotations"
         description={
-          approval
-            ? "Review the exact revision and follow the assigned approval sequence."
-            : path === "/pipeline"
-              ? "Same quotations as the list, arranged by stage so you can see what is waiting, stuck, or ready to confirm."
-              : "Build clear proposals and keep every revision in view."
+          path === "/pipeline"
+            ? "The same quotations, arranged by stage. Each card says what happens next."
+            : "Every quotation with its current stage and the next step it is waiting on."
         }
       >
-        {!approval && ["ADMIN", "SALES_REP"].includes(actor.role) && (
+        <div className="view-toggle" role="tablist" aria-label="Quotation layout">
+          <Link role="tab" aria-selected={path === "/quotes"} className={`df-button ${path === "/quotes" ? "df-button--primary" : "df-button--secondary"}`} href="/quotes">
+            List
+          </Link>
+          <Link role="tab" aria-selected={path === "/pipeline"} className={`df-button ${path === "/pipeline" ? "df-button--primary" : "df-button--secondary"}`} href="/pipeline">
+            Pipeline
+          </Link>
+        </div>
+        {["ADMIN", "SALES_REP"].includes(actor.role) && (
           <Link className="primary-link" href="/quotes/new">
             New quotation
           </Link>
         )}
       </Heading>
-      {!approval && (
-        <div className="view-toggle" role="tablist" aria-label="Quotation layout">
-          <Link className={`df-button ${path === "/quotes" ? "df-button--primary" : "df-button--secondary"}`} href="/quotes">
-            List view
-          </Link>
-          <Link className={`df-button ${path === "/pipeline" ? "df-button--primary" : "df-button--secondary"}`} href="/pipeline">
-            Pipeline
-          </Link>
-        </div>
-      )}
       <Filter
         search={search}
         setSearch={setSearch}
         status={status}
         setStatus={setStatus}
-        statuses={d.quotes.map((q) =>
-          approval ? q.evaluation.status : q.stage,
-        )}
+        statuses={d.quotes.map((q) => q.stage)}
       />
       {path === "/pipeline" ? (
-        <>
-          <p className="lede">Drag the right edge of a column to make it wider.</p>
-          <PipelineBoard
-            stages={PIPELINE_STAGES}
-            rows={rows}
-            customers={d.customers}
-          />
-        </>
+        <PipelineBoard stages={PIPELINE_STAGES} rows={rows} customers={d.customers} actor={actor} />
       ) : (
-        <Section title={approval ? "Requests" : "All quotations"}>
+        <Section title={`${rows.length} quotation${rows.length === 1 ? "" : "s"}`}>
           <Table
-            head={[
-              "Quotation",
-              "Customer",
-              "Status",
-              approval ? "Assigned next" : "Charges",
-              "Updated",
-              "",
-            ]}
+            head={["Quotation", "Customer", "Stage", "Charges", "Next step", "Updated", ""]}
+            empty={
+              search || status
+                ? "No quotations match this search."
+                : "No quotations yet. Create one to start pricing for a customer."
+            }
             rows={rows.map((q) => [
-              quoteTitle(q),
+              <Link key="t" href={"/quotes/" + q.id} className="row-title">
+                {quoteTitle(q)}
+              </Link>,
               d.customers.find((c) => c.id === q.customerId)?.name,
-              <StatusBadge status={approval ? q.evaluation.status : q.stage} />,
-              approval
-                ? (q.evaluation.chain[q.evaluation.step] ?? "Review complete")
-                : q.totals.map((t) => (
+              <StatusBadge status={q.stage} />,
+              q.totals.length
+                ? q.totals.map((t) => (
                     <small key={t.interval}>
-                      <Money amount={t.total} currency={q.currency} /> /{" "}
-                      {t.interval.replaceAll("_", " ").toLowerCase()}
+                      <Money amount={t.total} currency={q.currency} /> / {intervalLabel(t.interval)}
                     </small>
-                  )),
-              new Date(q.at).toLocaleDateString(),
-              <OpenLink href={(approval ? "/approvals/" : "/quotes/") + q.id} />,
+                  ))
+                : <small>No lines yet</small>,
+              nextStepLabel(q, actor),
+              new Date(q.at).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+              <OpenLink href={nextStepHref(q, actor)} />,
             ])}
           />
         </Section>
@@ -313,15 +286,78 @@ export default function Quotes({ ctx }: { ctx: Context }) {
     </>
   );
 }
-function QuoteDetail({
-  q,
-  ctx,
-  approval,
-}: {
-  q: Quote;
-  ctx: Context;
-  approval: boolean;
-}) {
+
+function NewQuote({ ctx }: { ctx: Context }) {
+  const { d, run } = ctx;
+  const router = useRouter();
+  const [customerId, setCustomerId] = useState(d.customers[0]?.id ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const customer = d.customers.find((c) => c.id === customerId);
+  return (
+    <>
+      <Heading
+        title="New quotation"
+        description="Pick the customer first: their tier and price list decide every unit price on this quotation."
+      >
+        <BackLink href="/quotes">Back to quotations</BackLink>
+      </Heading>
+      <Section title="Who is this for?">
+        <form
+          className="new-quote"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            if (!customer) {
+              setError("Choose a customer.");
+              return;
+            }
+            setBusy(true);
+            setError("");
+            try {
+              const created = (await run(
+                "newQuote",
+                { customerId, text: customer.name },
+                `Quotation created for ${customer.name}. Add the first product.`,
+              )) as Quote;
+              router.push("/quotes/" + created.id);
+            } catch (reason) {
+              setError(reason instanceof Error ? reason.message : "The quotation could not be created.");
+              setBusy(false);
+            }
+          }}
+        >
+          <div className="form-grid">
+            <Select label="Customer" value={customerId} required onChange={(e) => setCustomerId(e.target.value)}>
+              <option value="">Choose a customer</option>
+              {d.customers.map((c) => (
+                <option value={c.id} key={c.id}>
+                  {c.name} · {c.tier}
+                </option>
+              ))}
+            </Select>
+          </div>
+          {customer && (
+            <p className="hint">
+              {customer.name} is on the {customer.tier} tier and is billed in {customer.currency}. Discount limits for this tier are checked automatically when you save.
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="error">
+              {error}
+            </p>
+          )}
+          <div className="actions">
+            <Button type="submit" disabled={busy || !customer}>
+              {busy ? "Creating…" : "Create and add products"}
+            </Button>
+          </div>
+        </form>
+      </Section>
+    </>
+  );
+}
+
+function QuoteDetail({ q, ctx }: { q: Quote; ctx: Context }) {
   const { d, run, actor, reload } = ctx,
     [draft, setDraft] = useState(structuredClone(q)),
     [product, setProduct] = useState(""),
@@ -330,74 +366,171 @@ function QuoteDetail({
     [items, setItems] = useState<Recommendation[]>([]),
     [dismissed, setDismissed] = useState<string[]>([]),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(false),
-    [revision, setRevision] = useState(q.revision),
-    [opKey, setOpKey] = useState(newId());
-  const editable =
-      !approval &&
-      q.stage !== "CONFIRMED" &&
-      ["ADMIN", "SALES_REP"].includes(actor.role),
-    p = d.products.find((p) => p.id === product);
+    [busy, setBusy] = useState(false);
+  const addLineRef = useRef<HTMLDivElement>(null);
+  const customer = d.customers.find((c) => c.id === q.customerId);
+  const customerName = customer?.name ?? "the customer";
+  const editable = q.stage !== "CONFIRMED" && ["ADMIN", "SALES_REP"].includes(actor.role);
+  const dirty = editable && editedShape(draft) !== editedShape(q);
+  const p = d.products.find((p) => p.id === product);
   const view = previewQuote(d, draft);
+  const version = revisionTitle(q.revision);
+  const next = dealNextStep(q, { actor, customerName, dirty });
+  const decider = canDecide(q, actor) && q.stage === "PENDING_APPROVAL";
+  const steps = flowSteps(q);
   useEffect(() => {
     if (!["ADMIN", "SALES_REP", "SALES_MANAGER"].includes(actor.role)) return;
-    api<{ items: Recommendation[]; revision: string }>(
-      "recommendations/" + q.id,
-    )
-      .then((r) => {
-        setItems(r.items);
-        setRevision(r.revision);
-      })
+    api<{ items: Recommendation[]; revision: string }>("recommendations/" + q.id)
+      .then((r) => setItems(r.items))
       .catch((e) => setError(e.message));
   }, [q.id, q.revision, actor.role]);
-  async function act(action: string, body: Record<string, unknown> = {}) {
+
+  const savePayload = () => ({
+    id: q.id,
+    expectedRevision: q.revision,
+    customerId: draft.customerId,
+    name: draft.name,
+    orderDiscountPct: draft.orderDiscountPct,
+    promisedDate: draft.promisedDate,
+    lines: draft.lines,
+  });
+
+  /** Run one workflow action against the current revision. */
+  async function act(action: string, body: Record<string, unknown> = {}, notice?: string) {
     setBusy(true);
     setError("");
     try {
-      await run(action, {
-        id: q.id,
-        expectedRevision: q.revision,
-        ...body,
-        requestKey: opKey,
-      });
-      setOpKey(newId());
+      await run(action, { id: q.id, expectedRevision: q.revision, ...body, requestKey: newId() }, notice);
+      return true;
+    } catch (e) {
+      setError((e as Error).message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Line mutations are server-side and reload the quotation, which would silently
+   * discard unsaved quantity or discount edits. Save first, then apply the change
+   * to the new revision, so the rep never loses work.
+   */
+  async function saveThen(perform: (expectedRevision: string) => Promise<unknown>) {
+    setBusy(true);
+    setError("");
+    try {
+      let expected = q.revision;
+      if (dirty) {
+        const saved = (await run("saveQuote", { ...savePayload(), requestKey: newId() })) as Partial<Quote> | undefined;
+        if (saved && typeof saved.revision === "string") expected = saved.revision;
+      }
+      await perform(expected);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
     }
   }
+
+  const save = () =>
+    act(
+      "saveQuote",
+      savePayload(),
+      `Saved as ${revisionTitle(`r${Number(q.revision.slice(1) || "1") + 1}`)}. Totals and policy were re-checked.`,
+    );
+
+  const focusAddLine = () => {
+    const root = addLineRef.current;
+    if (!root) return;
+    root.scrollIntoView({ block: "center", behavior: "smooth" });
+    const control = root.querySelector<HTMLElement>("button, select, input");
+    control?.focus();
+  };
+
+  const sendAction = (variant: "primary" | "secondary") => (
+    <FormAction
+      title={`Send to ${customerName}`}
+      button={`Send to ${customerName}`}
+      variant={variant}
+      confirmLabel="Send quotation"
+      description={
+        approvalOk(q)
+          ? `${customerName} will see ${version} in their portal and can accept it, ask a question, or propose changes.`
+          : `${customerName} will see ${version} in their portal and can ask questions or propose changes, but cannot accept until it is approved.`
+      }
+      initial={{ customerTier: TIERS.find((t) => t.toLowerCase() === customer?.tier.toLowerCase()) ?? "" }}
+      fields={[{ key: "customerTier", label: "Commercial tier for this customer", type: "select", options: [...TIERS], required: true }]}
+      onSubmit={(v) =>
+        run(
+          "sendQuote",
+          { ...v, id: q.id, expectedRevision: q.revision, customerTier: v.customerTier },
+          `Sent ${version} to ${customerName}. ${approvalOk(q) ? "They can accept it in their portal." : "They can review it, but acceptance waits for approval."}`,
+        )
+      }
+    />
+  );
+
+  const replyAction = (
+    <FormAction
+      title={`Message ${customerName}`}
+      button="Message customer"
+      confirmLabel="Send message"
+      fields={[{ key: "text", label: "Message", type: "textarea", required: true }]}
+      onSubmit={(v) => run("reply", { ...v, id: q.id, expectedRevision: q.revision }, `Message sent to ${customerName}.`)}
+    />
+  );
+
+  const nextActions = !editable
+    ? next.key === "order" && next.href
+      ? <OpenLink href={next.href}>Open order</OpenLink>
+      : null
+    : next.key === "save"
+      ? (
+        <>
+          <Button disabled={busy} onClick={save}>{busy ? "Saving…" : "Save changes"}</Button>
+          <Button variant="secondary" disabled={busy} onClick={() => setDraft(structuredClone(q))}>Discard</Button>
+        </>
+      )
+      : next.key === "first-line"
+        ? <Button onClick={focusAddLine}>Choose a product</Button>
+        : next.key === "date-request"
+          ? (
+            <>
+              <Button disabled={busy} onClick={() => act("reviewDate", { accept: true }, `Delivery promise set to ${q.requestedDate}. ${customerName} must accept the new version.`)}>Accept requested date</Button>
+              <Button variant="secondary" disabled={busy} onClick={() => act("reviewDate", { accept: false }, "Date request declined. The current promise is unchanged.")}>Decline</Button>
+            </>
+          )
+          : next.key === "submit"
+            ? <Button disabled={busy} onClick={() => act("submitQuote", {}, `Submitted ${version} for ${ROLE_NAME[q.evaluation.chain[0] ?? "SALES_MANAGER"]} review. ${customerName} can see it in their portal.`)}>Submit for approval</Button>
+            : next.key === "send"
+              ? sendAction("primary")
+              : next.key === "awaiting-customer"
+                ? replyAction
+                : next.key === "order" && next.href
+                  ? <OpenLink href={next.href}>Open order</OpenLink>
+                  : null;
+
   return (
     <>
-      <Heading
-        title={quoteTitle(q)}
-        description={d.customers.find((c) => c.id === q.customerId)?.name ?? "Customer"}
-      >
-        <BackLink href={approval ? "/approvals" : "/quotes"}>Back to list</BackLink>
+      <Heading title={quoteTitle(q)} description={`${customerName}${customer ? ` · ${customer.tier} tier` : ""} · ${version} saved ${new Date(q.at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`}>
+        <BackLink href="/quotes">Back to quotations</BackLink>
       </Heading>
-      <div className="deal-summary">
-        <div className="deal-chip">
-          <span>Stage</span>
-          <StatusBadge status={q.stage} />
-        </div>
-        <div className="deal-chip">
-          <span>Approval</span>
-          <StatusBadge status={q.evaluation.status} />
-        </div>
-        <div className="deal-chip">
-          <span>Customer copy</span>
-          <strong>{q.sent ? "Shared" : "Internal draft"}</strong>
-        </div>
-        <div className="deal-chip">
-          <span>Delivery</span>
-          <strong>
-            {q.promisedDate ? q.promisedDate : "Not promised"}
-          </strong>
-        </div>
-        {q.orderId && (
-          <OpenLink href={"/fulfillment/" + q.orderId} variant="secondary">Open order</OpenLink>
+      <div className="deal-flow">
+        <FlowSteps steps={steps} />
+        {decider ? (
+          <DecisionCard q={q} ctx={ctx} customerName={customerName} />
+        ) : (
+          <NextStepCard step={next} eyebrow={!editable && next.owner === "rep" ? "Waiting on the sales rep" : "Next step"}>
+            {nextActions}
+          </NextStepCard>
         )}
       </div>
+      <dl className="deal-meta">
+        <div><dt>Customer copy</dt><dd>{q.sent ? "Shared in portal" : "Internal draft"}</dd></div>
+        <div><dt>Delivery promise</dt><dd>{q.promisedDate ?? "Not promised"}</dd></div>
+        <div><dt>Approval</dt><dd><StatusBadge status={q.evaluation.status} /></dd></div>
+        {q.orderId && <div><dt>Order</dt><dd><Link href={"/fulfillment/" + q.orderId}>Open order</Link></dd></div>}
+      </dl>
       {error && (
         <div className="error" role="alert">
           {error}
@@ -408,40 +541,21 @@ function QuoteDetail({
         title="Quotation lines"
         actions={
           editable ? (
-            <Button
-              disabled={busy}
-              onClick={() =>
-                act("saveQuote", {
-                  customerId: draft.customerId,
-                  name: draft.name,
-                  orderDiscountPct: draft.orderDiscountPct,
-                  promisedDate: draft.promisedDate,
-                  lines: draft.lines,
-                })
-              }
-            >
-              Save changes
-            </Button>
+            <div className="actions">
+              {dirty && <span className="unsaved" role="status">Unsaved changes</span>}
+              <Button variant={dirty ? "primary" : "secondary"} disabled={busy || !dirty} onClick={save}>
+                {busy ? "Saving…" : "Save changes"}
+              </Button>
+            </div>
           ) : undefined
         }
       >
         {editable && (
-          <div className="form-grid">
-            <Input
-              label="Deal name"
-              value={draft.name}
-              onChange={(e) => {
-                setDraft({ ...draft, name: e.target.value });
-                setOpKey(newId());
-              }}
-            />
+          <div className="form-grid form-grid--three">
             <Select
               label="Customer"
               value={draft.customerId}
-              onChange={(e) => {
-                setDraft({ ...draft, customerId: e.target.value });
-                setOpKey(newId());
-              }}
+              onChange={(e) => setDraft({ ...draft, customerId: e.target.value })}
             >
               {d.customers.map((c) => (
                 <option value={c.id} key={c.id}>
@@ -456,22 +570,13 @@ function QuoteDetail({
               max={100}
               step="any"
               value={draft.orderDiscountPct}
-              onChange={(e) => {
-                setDraft({
-                  ...draft,
-                  orderDiscountPct: Number(e.target.value),
-                });
-                setOpKey(newId());
-              }}
+              onChange={(e) => setDraft({ ...draft, orderDiscountPct: Number(e.target.value) })}
             />
             <Input
               label="Promised delivery date"
               type="date"
               value={draft.promisedDate ?? ""}
-              onChange={(e) => {
-                setDraft({ ...draft, promisedDate: e.target.value || null });
-                setOpKey(newId());
-              }}
+              onChange={(e) => setDraft({ ...draft, promisedDate: e.target.value || null })}
             />
           </div>
         )}
@@ -486,10 +591,11 @@ function QuoteDetail({
             "Total",
             ...(editable ? [""] : []),
           ]}
+          empty={editable ? "No products yet. Add the first one below; the customer's price list sets the unit price." : "No products on this version."}
           rows={view.lines.map((l) => [
             <>
               {l.description}
-              <small>{l.interval.replaceAll("_", " ").toLowerCase()}</small>
+              <small>{intervalLabel(l.interval)}</small>
             </>,
             editable ? (
               <Input
@@ -500,13 +606,7 @@ function QuoteDetail({
                 value={l.quantity}
                 onChange={(e) => {
                   const qty = Math.max(1, Math.round(Number(e.target.value) || 1));
-                  setDraft({
-                    ...draft,
-                    lines: draft.lines.map((x) =>
-                      x.id === l.id ? { ...x, quantity: qty } : x,
-                    ),
-                  });
-                  setOpKey(newId());
+                  setDraft({ ...draft, lines: draft.lines.map((x) => (x.id === l.id ? { ...x, quantity: qty } : x)) });
                 }}
               />
             ) : (
@@ -522,23 +622,13 @@ function QuoteDetail({
                 step="any"
                 value={l.discountPct}
                 onChange={(e) => {
-                  setDraft({
-                    ...draft,
-                    lines: draft.lines.map((x) =>
-                      x.id === l.id
-                        ? { ...x, discountPct: Number(e.target.value) }
-                        : x,
-                    ),
-                  });
-                  setOpKey(newId());
+                  setDraft({ ...draft, lines: draft.lines.map((x) => (x.id === l.id ? { ...x, discountPct: Number(e.target.value) } : x)) });
                 }}
               />
             ) : (
               <>
                 {l.discountPct}%
-                {draft.orderDiscountPct > 0 ? (
-                  <small>{draft.orderDiscountPct}% order discount in net</small>
-                ) : null}
+                {draft.orderDiscountPct > 0 ? <small>+ {draft.orderDiscountPct}% order discount</small> : null}
               </>
             ),
             <Money amount={l.net} currency={q.currency} />,
@@ -549,7 +639,7 @@ function QuoteDetail({
                   <Button
                     variant="secondary"
                     disabled={busy}
-                    onClick={() => act("removeLine", { lineId: l.id })}
+                    onClick={() => saveThen((expected) => run("removeLine", { id: q.id, expectedRevision: expected, lineId: l.id, requestKey: newId() }, `Removed ${l.description}.`))}
                   >
                     Remove
                   </Button>,
@@ -558,337 +648,200 @@ function QuoteDetail({
           ])}
         />
         {editable && (
-          <>
-            <p className="hint">
-              Net and totals update as you edit quantity, line discount, and order
-              discount. Save to persist the revision. Line discount is the line
-              rate{draft.orderDiscountPct > 0 ? `; net also includes the ${draft.orderDiscountPct}% order discount` : ""}.
-            </p>
-            <div className="add-line">
-              <Select
-                label="Add product"
-                value={product}
-                onChange={(e) => {
-                  setProduct(e.target.value);
-                  setVariant(
-                    d.products.find((p) => p.id === e.target.value)?.variants[0]
-                      ?.id ?? "",
-                  );
-                  setOpKey(newId());
-                }}
-              >
-                <option value="">Choose a product</option>
-                {d.products
-                  .filter((p) => p.active)
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-              </Select>
-              <Select
-                label="Variant"
-                value={variant}
-                onChange={(e) => {
-                  setVariant(e.target.value);
-                  setOpKey(newId());
-                }}
-              >
-                {p?.variants.map((v) => (
-                  <option value={v.id} key={v.id}>
-                    {v.name}
+          <div className="add-line" ref={addLineRef}>
+            <Select
+              label="Add product"
+              value={product}
+              onChange={(e) => {
+                setProduct(e.target.value);
+                setVariant(d.products.find((p) => p.id === e.target.value)?.variants[0]?.id ?? "");
+              }}
+            >
+              <option value="">Choose a product</option>
+              {d.products
+                .filter((p) => p.active)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
                   </option>
                 ))}
-              </Select>
-              <Input
-                label="New line quantity"
-                type="number"
-                min={1}
-                step={1}
-                value={quantity}
-                onChange={(e) => {
-                  setQuantity(Math.max(1, Math.round(Number(e.target.value) || 1)));
-                  setOpKey(newId());
-                }}
-              />
-              <Button
-                disabled={!p || busy}
-                onClick={() =>
-                  act("addLine", {
-                    productId: product,
-                    variantId: variant,
-                    quantity,
-                  })
-                }
-              >
-                Add line
-              </Button>
-              <CatalogPriceHint
-                customerId={draft.customerId}
-                productId={product}
-                variantId={variant}
-                quantity={quantity}
-              />
-            </div>
-          </>
+            </Select>
+            <Select label="Variant" value={variant} disabled={!p} onChange={(e) => setVariant(e.target.value)}>
+              {p?.variants.map((v) => (
+                <option value={v.id} key={v.id}>
+                  {v.name}
+                </option>
+              ))}
+            </Select>
+            <Input
+              label="Quantity"
+              type="number"
+              min={1}
+              step={1}
+              value={quantity}
+              onChange={(e) => setQuantity(Math.max(1, Math.round(Number(e.target.value) || 1)))}
+            />
+            <Button
+              disabled={!p || busy}
+              onClick={() =>
+                saveThen((expected) =>
+                  run(
+                    "addLine",
+                    { id: q.id, expectedRevision: expected, productId: product, variantId: variant, quantity, requestKey: newId() },
+                    `Added ${quantity} × ${p?.name ?? "product"}.`,
+                  ),
+                )
+              }
+            >
+              {dirty ? "Save and add" : "Add to quotation"}
+            </Button>
+            <CatalogPriceHint customerId={draft.customerId} productId={product} variantId={variant} quantity={quantity} />
+          </div>
+        )}
+        {editable && view.lines.length > 0 && (
+          <p className="hint">
+            Net and totals update as you type. Saving creates a new version and re-checks the discount policy.
+            {draft.orderDiscountPct > 0 ? ` Net includes the ${draft.orderDiscountPct}% order discount.` : ""}
+          </p>
         )}
       </Section>
-      <div className="two-columns">
-        <Section title={editable ? "Quote totals" : "Server-priced commitments"}>
-          {(editable ? view.totals : q.totals).map((t) => (
-            <div className="total-block" key={t.interval}>
-              <h3>
-                {t.interval === "ONE_TIME"
-                  ? "One-time purchase"
-                  : t.interval.toLowerCase() + " commitment"}
-              </h3>
-              <dl>
-                <div>
-                  <dt>Net</dt>
-                  <dd>
-                    <Money amount={t.net} currency={q.currency} />
-                  </dd>
-                </div>
-                <div>
-                  <dt>Tax</dt>
-                  <dd>
-                    <Money amount={t.tax} currency={q.currency} />
-                  </dd>
-                </div>
-                <div className="grand">
-                  <dt>Total</dt>
-                  <dd>
-                    <Money amount={t.total} currency={q.currency} />
-                  </dd>
-                </div>
-                <div>
-                  <dt>Profit / margin</dt>
-                  <dd>
-                    <Money amount={t.profit} currency={q.currency} /> /{" "}
-                    {t.marginPct.toFixed(2)}%
-                  </dd>
-                </div>
-              </dl>
-            </div>
-          ))}
-        </Section>
-        <Section title="Policy evaluation">
-          <StatusBadge status={q.evaluation.status} />
-          <p>
-            {q.evaluation.reasons.join(" · ") ||
-              "Current terms are within configured limits."}
-          </p>
-          <ol>
-            {q.evaluation.chain.map((r, i) => (
-              <li key={r}>
-                {r.replaceAll("_", " ")} —{" "}
-                {i < q.evaluation.step
-                  ? "Approved"
-                  : i === q.evaluation.step
-                    ? "Next reviewer"
-                    : "Waiting for previous reviewer"}
-              </li>
+      {view.lines.length > 0 && (
+        <div className="two-columns">
+          <Section title={dirty ? "Totals (unsaved preview)" : "Totals"}>
+            {(editable ? view.totals : q.totals).map((t) => (
+              <div className="total-block" key={t.interval}>
+                <h3>{t.interval === "ONE_TIME" ? "One-time purchase" : `${t.interval.toLowerCase()} commitment`}</h3>
+                <dl>
+                  <div><dt>Net</dt><dd><Money amount={t.net} currency={q.currency} /></dd></div>
+                  <div><dt>Tax</dt><dd><Money amount={t.tax} currency={q.currency} /></dd></div>
+                  <div className="grand"><dt>Total</dt><dd><Money amount={t.total} currency={q.currency} /></dd></div>
+                  <div><dt>Profit / margin</dt><dd><Money amount={t.profit} currency={q.currency} /> / {t.marginPct.toFixed(2)}%</dd></div>
+                </dl>
+              </div>
             ))}
-          </ol>
-          {editable && (
-            <div className="actions">
-              <FormAction
-                title="Submit for approval"
-                description="Evaluate this saved revision under current policy."
-                onSubmit={(v) =>
-                  run("submitQuote", {
-                    ...v,
-                    id: q.id,
-                    expectedRevision: q.revision,
-                  })
-                }
-              />
-              <FormAction
-                title="Send to customer"
-                description="Share the saved terms and assign the customer's commercial tier."
-                fields={[
-                  {
-                    key: "customerTier",
-                    label: "Customer tier",
-                    type: "select",
-                    options: ["Bronze", "Silver", "Gold"],
-                    required: true,
-                  },
-                ]}
-                onSubmit={(v) =>
-                  run("sendQuote", {
-                    ...v,
-                    id: q.id,
-                    expectedRevision: q.revision,
-                    customerTier: v.customerTier,
-                  })
-                }
-              />
+          </Section>
+          <Section title="Discount policy">
+            <div className="policy-status">
+              <StatusBadge status={q.evaluation.status} />
+              <span>
+                {q.evaluation.status === "NOT_REQUIRED"
+                  ? "Within limits. No approval needed."
+                  : q.evaluation.status === "APPROVED"
+                    ? "Approved for these terms."
+                    : q.evaluation.status === "REJECTED"
+                      ? "Rejected. Change the terms and save to re-evaluate."
+                      : q.stage === "PENDING_APPROVAL"
+                        ? "In review."
+                        : "Approval needed before the customer can accept."}
+              </span>
             </div>
-          )}
-          {q.evaluation.status === "PENDING" &&
-            (actor.role === q.evaluation.chain[q.evaluation.step] || actor.role === "ADMIN") &&
-            actor.id !== q.repId && (
-              <FormAction
-                title="Record approval decision"
-                fields={[
-                  {
-                    key: "decision",
-                    label: "Decision",
-                    type: "select",
-                    options: ["approve", "reject", "return"],
-                    required: true,
-                  },
-                  {
-                    key: "text",
-                    label: "Reason",
-                    type: "textarea",
-                    required: true,
-                  },
-                ]}
-                onSubmit={(v) =>
-                  run("decision", {
-                    ...v,
-                    id: q.id,
-                    expectedRevision: q.revision,
-                  })
-                }
-              />
-            )}
-        </Section>
-      </div>
-      {!approval && (
-        <Section title="Recommended additions">
-          <p className="hint">
-            Qualified using customer pricing and saved discounts. Profit is
-            shown for its stated billing period.
-          </p>
-          {items.filter((i) => !dismissed.includes(i.productId)).length ? (
-            <div className="recommendations">
-              {items
-                .filter((i) => !dismissed.includes(i.productId))
-                .map((i) => (
-                  <article key={i.productId}>
-                    <StatusBadge
-                      status={i.promotionLabel ? "APPROVED" : "DRAFT"}
-                      label={i.promotionLabel ?? "Suggested pairing"}
-                    />
-                    <h3>{i.name}</h3>
-                    <p>{i.reason}</p>
-                    <div className="rec-metrics">
-                      <span className="rec-pill rec-pill--profit">
-                        <Money amount={i.impact.incrementalProfit} currency={i.impact.currency} />
-                        <em>incremental profit</em>
-                      </span>
-                      <span className="rec-pill rec-pill--margin">
-                        {i.impact.candidateMarginPct.toFixed(1)}%
-                        <em>candidate margin</em>
-                      </span>
-                      <span className={`rec-pill ${i.impact.marginChangePoints != null && i.impact.marginChangePoints >= 0 ? "rec-pill--up" : "rec-pill--down"}`}>
-                        {i.impact.marginChangePoints === null
-                          ? "n/a"
-                          : `${i.impact.marginChangePoints >= 0 ? "+" : ""}${i.impact.marginChangePoints.toFixed(2)} pts`}
-                        <em>quote margin</em>
-                      </span>
-                    </div>
-                    <small>{i.impact.interval.replaceAll("_", " ").toLowerCase()} billing</small>
-                    <div className="actions">
-                      {editable && (
-                        <FormAction
-                          title={"Add " + i.name}
-                          button="Add suggestion"
-                          onSubmit={async (v) => {
-                            await api("recommendations/" + q.id + "/add", {
-                              ...v,
-                              expectedRevision: revision,
-                              productId: i.productId,
-                              variantId: i.variantId,
-                            });
-                            await reload();
-                          }}
-                        />
-                      )}
-                      <Button
-                        variant="secondary"
-                        onClick={() =>
-                          setDismissed([...dismissed, i.productId])
-                        }
-                      >
-                        Dismiss
-                      </Button>
-                    </div>
-                  </article>
+            {q.evaluation.reasons.length > 0 && (
+              <ul className="reasons">
+                {q.evaluation.reasons.map((r) => (
+                  <li key={r}>{r}</li>
                 ))}
-            </div>
+              </ul>
+            )}
+            {q.evaluation.chain.length > 0 && (
+              <ol className="approval-chain">
+                {q.evaluation.chain.map((r, i) => {
+                  const state =
+                    q.evaluation.status === "APPROVED" || i < q.evaluation.step
+                      ? "done"
+                      : q.evaluation.status === "REJECTED" && i === q.evaluation.step
+                        ? "blocked"
+                        : i === q.evaluation.step
+                          ? "current"
+                          : "upcoming";
+                  return (
+                    <li key={r} className={`is-${state}`}>
+                      <span>{ROLE_NAME[r]}</span>
+                      <small>{state === "done" ? "Approved" : state === "blocked" ? "Rejected" : state === "current" ? (q.stage === "PENDING_APPROVAL" ? "Reviewing now" : "Reviews first") : "Reviews after"}</small>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+            {dirty && <p className="hint">Policy is re-checked when you save.</p>}
+          </Section>
+        </div>
+      )}
+      {["ADMIN", "SALES_REP", "SALES_MANAGER"].includes(actor.role) && q.stage !== "CONFIRMED" && (
+        <Section title="Suggested additions">
+          {items.filter((i) => !dismissed.includes(i.productId)).length ? (
+            <>
+              <p className="lede">Priced with {customerName}'s price list and the saved discounts. Profit is for the stated billing period.</p>
+              <div className="recommendations">
+                {items
+                  .filter((i) => !dismissed.includes(i.productId))
+                  .map((i) => (
+                    <article key={i.productId}>
+                      <StatusBadge status={i.promotionLabel ? "APPROVED" : "DRAFT"} label={i.promotionLabel ?? "Often bought together"} />
+                      <h3>{i.name}</h3>
+                      <p>{i.reason}</p>
+                      <div className="rec-metrics">
+                        <span className="rec-pill rec-pill--profit">
+                          <Money amount={i.impact.incrementalProfit} currency={i.impact.currency} />
+                          <em>incremental profit</em>
+                        </span>
+                        <span className="rec-pill rec-pill--margin">
+                          {i.impact.candidateMarginPct.toFixed(1)}%
+                          <em>candidate margin</em>
+                        </span>
+                        <span className={`rec-pill ${i.impact.marginChangePoints != null && i.impact.marginChangePoints >= 0 ? "rec-pill--up" : "rec-pill--down"}`}>
+                          {i.impact.marginChangePoints === null ? "n/a" : `${i.impact.marginChangePoints >= 0 ? "+" : ""}${i.impact.marginChangePoints.toFixed(2)} pts`}
+                          <em>quote margin</em>
+                        </span>
+                      </div>
+                      <small>{intervalLabel(i.impact.interval)} billing</small>
+                      <div className="actions">
+                        {editable && (
+                          <Button
+                            disabled={busy}
+                            onClick={() =>
+                              saveThen(async (expected) => {
+                                await api("recommendations/" + q.id + "/add", {
+                                  requestKey: newId(),
+                                  expectedRevision: expected,
+                                  productId: i.productId,
+                                  variantId: i.variantId,
+                                });
+                                await reload();
+                                ctx.notice(`Added ${i.name} to the quotation.`);
+                              })
+                            }
+                          >
+                            {dirty ? "Save and add" : "Add to quotation"}
+                          </Button>
+                        )}
+                        <Button variant="secondary" onClick={() => setDismissed([...dismissed, i.productId])}>
+                          Not now
+                        </Button>
+                      </div>
+                    </article>
+                  ))}
+              </div>
+            </>
           ) : (
-            <p className="empty">No qualifying suggestions.</p>
+            <p className="empty">{items.length ? "All suggestions dismissed for this version." : "No suggestions clear the margin floor for this quotation."}</p>
           )}
           {dismissed.length > 0 && (
             <Button variant="secondary" onClick={() => setDismissed([])}>
-              Restore dismissed suggestions
+              Show dismissed suggestions
             </Button>
           )}
         </Section>
       )}
-      {q.dateReviewPending && (
-        <Section title="Delivery-date request">
-          <p>
-            Requested {q.requestedDate}. This has not changed the delivery
-            promise.
-          </p>
-          {editable && (
-            <>
-              <FormAction
-                title="Accept requested date"
-                description="Create a new revision with this delivery promise. The customer must accept updated terms."
-                onSubmit={(v) =>
-                  run("reviewDate", {
-                    ...v,
-                    id: q.id,
-                    expectedRevision: q.revision,
-                    accept: true,
-                  })
-                }
-              />
-              <FormAction
-                title="Decline requested date"
-                onSubmit={(v) =>
-                  run("reviewDate", {
-                    ...v,
-                    id: q.id,
-                    expectedRevision: q.revision,
-                    accept: false,
-                  })
-                }
-              />
-            </>
-          )}
-        </Section>
-      )}
-      <Section title="Customer conversation">
+      <Section title="Conversation with the customer" actions={q.stage !== "CONFIRMED" && q.sent ? replyAction : undefined}>
         <Events events={d.messages.filter((m) => m.quoteId === q.id)} />
-        <FormAction
-          title="Reply to customer"
-          fields={[
-            { key: "text", label: "Message", type: "textarea", required: true },
-          ]}
-          onSubmit={(v) =>
-            run("reply", { ...v, id: q.id, expectedRevision: q.revision })
-          }
-        />
+        {!q.sent && <p className="hint">Messages start once the quotation is shared with {customerName}.</p>}
       </Section>
-      <Section title="Revision and activity history">
+      <Section title="Versions and activity">
         <Table
-          head={[
-            "Revision",
-            "Saved",
-            "Approval",
-            "Order discount",
-            "Delivery promise",
-          ]}
-          rows={[...q.history, q].map((r) => [
-            revisionTitle(r.revision),
-            new Date(r.at).toLocaleString(),
+          head={["Version", "Saved", "Approval", "Order discount", "Delivery promise"]}
+          rows={[...q.history, q].reverse().map((r) => [
+            <>{revisionTitle(r.revision)}{r.revision === q.revision && <small>Current</small>}</>,
+            new Date(r.at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }),
             <StatusBadge status={r.evaluation.status} />,
             r.orderDiscountPct + "%",
             r.promisedDate ?? "Not promised",
@@ -896,42 +849,78 @@ function QuoteDetail({
         />
         <Events events={q.events} />
       </Section>
-      {!q.orderId && (
-        <Section title="Before commitment · Preview">
-          <p>
-            No inventory is reserved, invoices created, or subscriptions
-            activated by this preview.
-          </p>
+      {!q.orderId && q.lines.some((l) => l.stockTracked) && (
+        <Section title="Stock check · Preview">
+          <p className="lede">Read-only. Nothing is reserved, invoiced, or activated until {customerName} accepts and Finance allocates.</p>
           <Table
-            head={[
-              "Physical line",
-              "Requested",
-              "Available now",
-              "Backorder estimate",
-            ]}
+            head={["Physical line", "Requested", "Available now", "Would be backordered"]}
             rows={q.lines
               .filter((l) => l.stockTracked)
               .map((l) => {
-                const available = d.stock
-                  .filter((s) => s.variantId === l.variantId)
-                  .reduce((n, s) => n + s.onHand - s.reserved, 0);
-                return [
-                  l.description,
-                  l.quantity,
-                  available,
-                  Math.max(0, l.quantity - available),
-                ];
+                const available = d.stock.filter((s) => s.variantId === l.variantId).reduce((n, s) => n + s.onHand - s.reserved, 0);
+                const short = Math.max(0, l.quantity - available);
+                return [l.description, l.quantity, available, short ? <StatusBadge status="PENDING_APPROVAL" label={`${short} short`} /> : "None"];
               })}
           />
-          <p>
-            Billing preview:{" "}
-            {q.lines.filter((l) => l.interval === "ONE_TIME").length} one-time
-            lines and {q.lines.filter((l) => l.interval !== "ONE_TIME").length}{" "}
-            recurring commitments. See the separate totals above.
-          </p>
         </Section>
       )}
     </>
+  );
+}
+
+function DecisionCard({ q, ctx, customerName }: { q: Quote; ctx: Context; customerName: string }) {
+  const { run, actor } = ctx;
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  const version = revisionTitle(q.revision);
+  const decide = async (decision: "approve" | "return" | "reject") => {
+    if (!reason.trim()) {
+      setError("Add a short reason. It is recorded in the approval history.");
+      reasonRef.current?.focus();
+      return;
+    }
+    setBusy(true);
+    setError("");
+    const notice =
+      decision === "approve"
+        ? `Approved ${version}. The next step for ${customerName}'s quotation is shown above.`
+        : decision === "return"
+          ? `Returned ${version} to the sales rep for revision.`
+          : `Rejected ${version}.`;
+    try {
+      await run("decision", { id: q.id, expectedRevision: q.revision, decision, text: reason.trim(), requestKey: newId() }, notice);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="next-step is-action decision-card" aria-live="polite">
+      <div className="next-step-copy">
+        <span className="next-step-eyebrow">{ROLE_NAME[actor.role]} decision</span>
+        <h2>Your decision on {version}</h2>
+        <ul className="reasons">
+          {q.evaluation.reasons.length ? q.evaluation.reasons.map((r) => <li key={r}>{r}</li>) : <li>This version exceeds the discount policy.</li>}
+        </ul>
+        <label className="decision-reason">
+          Reason
+          <textarea ref={reasonRef} value={reason} rows={2} required onChange={(e) => { setReason(e.target.value); if (error) setError(""); }} placeholder="Recorded in the approval history" />
+        </label>
+        {error && (
+          <p role="alert" className="error">
+            {error}
+          </p>
+        )}
+      </div>
+      <div className="next-step-actions">
+        <Button disabled={busy} onClick={() => decide("approve")}>Approve</Button>
+        <Button variant="secondary" disabled={busy} onClick={() => decide("return")}>Return for revision</Button>
+        <Button variant="danger" disabled={busy} onClick={() => decide("reject")}>Reject</Button>
+      </div>
+    </section>
   );
 }
 
@@ -973,12 +962,11 @@ function CatalogPriceHint({
     };
   }, [customerId, productId, variantId, quantity]);
   if (!productId) return null;
-  if (err) return <p className="hint">{err}</p>;
-  if (!hint) return <p className="hint">Resolving catalog unit price…</p>;
+  if (err) return <p className="hint add-line-hint">{err}</p>;
+  if (!hint) return <p className="hint add-line-hint">Resolving this customer's unit price…</p>;
   return (
-    <p className="hint">
-      Catalog unit price for this customer: <Money amount={hint.unitPrice} currency="INR" /> ({hint.basis}
-      ). Gold Acme + ProBook Standard is 50,000.00. Line discount is applied after add.
+    <p className="hint add-line-hint">
+      Unit price for this customer: <Money amount={hint.unitPrice} currency="INR" /> ({hint.basis}). Line discounts are set after adding.
     </p>
   );
 }
