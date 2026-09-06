@@ -12,6 +12,7 @@ import Setup from './Setup';
 import CustomerPortal from './CustomerPortal';
 import {clearPortalCache,rememberPortal} from './portal-cache';
 import PublicHeader from './PublicHeader';
+import LandingPage from './LandingPage';
 import {FulfillmentList} from '@/features/inventory/ui/FulfillmentList';
 import {FulfillmentDetailView} from '@/features/inventory/ui/FulfillmentDetailView';
 import {ReportsDashboard} from '@/features/reports/ui/ReportsDashboard';
@@ -298,16 +299,7 @@ function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;on
     <div className="auth-photo" aria-hidden="true"/>
     <PublicHeader key={path} landing={landing} onOpenChange={setPublicMenuOpen}/>
     {landing?<main className="auth-body landing-body" id="product" inert={publicMenuOpen}>
-      <div className="auth-copy">
-        <h1>Every deal.<br/>Every detail.<br/><em>In sync.</em></h1>
-        <p>Unify people, process, and data across your revenue engine so deals move forward with clarity and confidence.</p>
-        <Link className="primary-link" href="/login">Open your workspace</Link>
-        <div className="auth-facts" id="process">
-          <article className="auth-step"><b className="auth-step-number">01</b><div className="auth-step-detail"><div className="auth-step-icon"><Settings2 size={22} strokeWidth={1.6}/></div><div className="auth-step-copy"><strong>Configure</strong><small>Tailor your pipeline, stages, and workflows to your go-to-market.</small></div></div></article>
-          <article className="auth-step"><b className="auth-step-number">02</b><div className="auth-step-detail"><div className="auth-step-icon"><UsersRound size={22} strokeWidth={1.6}/></div><div className="auth-step-copy"><strong>Agree</strong><small>Align teams and stakeholders with shared visibility.</small></div></div></article>
-          <article className="auth-step"><b className="auth-step-number">03</b><div className="auth-step-detail"><div className="auth-step-icon"><CircleCheck size={22} strokeWidth={1.6}/></div><div className="auth-step-copy"><strong>Deliver</strong><small>Execute with confidence and keep deals moving forward.</small></div></div></article>
-        </div>
-      </div>
+      <LandingPage onOpenWorkspace={()=>{}}/>
     </main>:<main className="auth-body login-body" id="access" inert={publicMenuOpen}>
       <div className="auth-form">
         <span className="eyebrow">DEALFLOW360 WORKSPACE</span>
