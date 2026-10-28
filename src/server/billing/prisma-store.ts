@@ -16,7 +16,7 @@ import { harshFixtures } from "@/fixtures/harsh";
 import { Prisma, type RequestResultKind, type RequestScope } from "@/generated/prisma/client";
 import { ApiFailure } from "@/lib/api/respond";
 import { prismaUserIdForActor } from "@/server/lib/auth/resolve-user";
-import { prisma, type Db, type Tx } from "@/server/lib/db";
+import { prisma, rawTable, type Db, type Tx } from "@/server/lib/db";
 import { parseDate } from "./engine/calendar";
 import { lineAmounts } from "./engine/line-total";
 import { fromCents, toCents } from "./engine/money";
@@ -273,11 +273,11 @@ export class PrismaBillingStore implements BillingStore {
   }
 
   async lockInvoice(id: string): Promise<void> {
-    await this.db.$queryRaw`SELECT id FROM "Invoice" WHERE id = ${id} FOR UPDATE`;
+    await this.db.$queryRaw`SELECT id FROM ${rawTable("Invoice")} WHERE id = ${id} FOR UPDATE`;
   }
 
   async lockSubscription(id: string): Promise<void> {
-    await this.db.$queryRaw`SELECT id FROM "Subscription" WHERE id = ${id} FOR UPDATE`;
+    await this.db.$queryRaw`SELECT id FROM ${rawTable("Subscription")} WHERE id = ${id} FOR UPDATE`;
   }
 
   async customerIdsForActor(actor: Actor): Promise<string[]> {
@@ -328,7 +328,7 @@ export class PrismaBillingStore implements BillingStore {
       create: { id: plan.id, code: plan.code, ...data },
       update: data,
     });
-    await this.db.$executeRaw`UPDATE "SubscriptionPlan" SET "listPrice" = CAST(${plan.listPrice} AS DECIMAL(14, 2)) WHERE "id" = ${plan.id}`;
+    await this.db.$executeRaw`UPDATE ${rawTable("SubscriptionPlan")} SET "listPrice" = CAST(${plan.listPrice} AS DECIMAL(14, 2)) WHERE "id" = ${plan.id}`;
     return { ...toPlan(row), listPrice: plan.listPrice };
   }
 

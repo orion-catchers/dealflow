@@ -23,7 +23,7 @@ import type {
 } from "@/contracts/application";
 import type { BillingInterval, RecommendationRule } from "@/contracts/krishna";
 import { invoiceStatus } from "@/server/billing/engine/status";
-import { prisma } from "@/server/lib/db";
+import { prisma, rawTable } from "@/server/lib/db";
 import {
   categoryFromCode,
   currencyOf,
@@ -370,7 +370,7 @@ export async function loadDataState(): Promise<DataState> {
   let listPriceById = new Map<string, unknown>();
   try {
     const listPriceRows = await prisma.$queryRaw<Array<{ id: string; listPrice: unknown }>>`
-      SELECT id, "listPrice" FROM "SubscriptionPlan"
+      SELECT id, "listPrice" FROM ${rawTable("SubscriptionPlan")}
     `;
     listPriceById = new Map(listPriceRows.map((row) => [row.id, row.listPrice]));
   } catch {
