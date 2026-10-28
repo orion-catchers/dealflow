@@ -147,4 +147,18 @@ describe("evaluatePolicy", () => {
     expect(split.weightedExcessPct).toBe(whole.weightedExcessPct);
     expect(split.worstLineExcessPct).toBe(whole.worstLineExcessPct);
   });
+
+  it("treats an effective discount exactly at the ceiling as compliant", () => {
+    const result = evaluatePolicy({
+      lines: [line({ discountPct: "15" })],
+      orderDiscountPct: "0",
+      policySnapshot: policy,
+    });
+    expect(result).toMatchObject({
+      status: "NOT_REQUIRED",
+      requiredApprovalChain: [],
+      worstLineExcessPct: "0.00",
+    });
+    expect(result.breaches).toEqual([]);
+  });
 });
