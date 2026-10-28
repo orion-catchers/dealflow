@@ -8,6 +8,10 @@ describe("lineAmounts", () => {
     expect(lineAmounts({ quantity: 3, unitPrice: "333.33", discountPct: 0, taxPct: 18 })).toEqual({ subtotal: "999.99", tax: "180.00", total: "1179.99" });
   });
 
+  it("rounds a half-cent discounted amount up instead of losing it to float error", () => {
+    expect(lineAmounts({ quantity: 1, unitPrice: "0.05", discountPct: 90, taxPct: 0 })).toEqual({ subtotal: "0.01", tax: "0.00", total: "0.01" });
+  });
+
   it("sums per-line rounded amounts", () => {
     const half = lineAmounts({ quantity: 1, unitPrice: "0.50", discountPct: 0, taxPct: 18 });
     expect(sumAmounts([half, half])).toEqual({ subtotal: "1.00", tax: "0.18", total: "1.18" });
