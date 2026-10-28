@@ -46,7 +46,7 @@ export function liveCanonical(state: DataState, dirty?: Dirty, actorHint?: Actor
       quote.lines.push(makeLine(state, quote, productId, variantId, Math.round(quantity)));
       applyAtharvaEvaluation(state, quote);
       quote.stage = quote.sent ? "UNDER_NEGOTIATION" : "DRAFT";
-      dirty && markQuote(dirty, quote);
+      if (dirty) markQuote(dirty, quote);
       return quote;
     },
     revise(quote, changes, actor) {
@@ -59,7 +59,7 @@ export function liveCanonical(state: DataState, dirty?: Dirty, actorHint?: Actor
       }
       applyAtharvaEvaluation(state, quote);
       quote.stage = "UNDER_NEGOTIATION";
-      dirty && markQuote(dirty, quote);
+      if (dirty) markQuote(dirty, quote);
       return quote;
     },
     confirm(quote, actor) {
@@ -361,7 +361,7 @@ export async function persistQuote(state: DataState, quote: Quote) {
           revisionId: revision.id,
           stepIndex: i,
           role: chain[i] === "FINANCE_OPS" ? "FINANCE" : "SALES_MANAGER",
-          status: i < quote.evaluation.step ? "APPROVED" : i === quote.evaluation.step ? "PENDING" : "BLOCKED",
+          status: i < quote.evaluation.step ? "APPROVED" : "PENDING",
         },
       });
     }

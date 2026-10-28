@@ -9,6 +9,7 @@ import type {
 import type {
   Currency,
   PricedDealLine,
+  PricingTotals,
   Quote,
   DealLineInput,
   DealRevision,
@@ -16,7 +17,7 @@ import type {
 import type { Actor } from "@/contracts/harsh";
 import { priceQuote } from "@/features/quotes/engine/pricing";
 import { evaluatePolicy } from "@/server/governance/policy-evaluation";
-import { getLivePolicyService, snapshotForTier } from "@/server/governance/live-policy-service";
+import { snapshotForTier } from "@/server/governance/live-policy-service";
 import { ApiFailure } from "@/lib/api/respond";
 import { prisma, rawTable, type Db, type Tx } from "@/server/lib/db";
 import { requireRole } from "@/server/lib/auth/dev-actor";
@@ -287,6 +288,16 @@ function toPricedLine(line: RevisionRow["lines"][number]): PricedDealLine {
       ? "0.00"
       : line.lineSubtotal.minus(new Prisma.Decimal(line.unitCost).times(line.quantity))
           .div(line.lineSubtotal).times(100).toFixed(2),
+  };
+}
+
+/** Customer-facing totals only. Cost and margin figures are internal and never sent to the portal. */
+export function portalPricingTotals(totals: PricingTotals) {
+  return {
+    currency: totals.currency,
+    oneTimeTotal: totals.oneTimeTotal,
+    recurringTotals: totals.recurringTotals,
+    taxTotal: totals.taxTotal,
   };
 }
 
@@ -733,7 +744,18 @@ export class LiveQuoteService {
           where: { revisionId_stepIndex: { revisionId: revision.id, stepIndex: pending.stepIndex } },
           data: { status: "APPROVED", decisionId: decision.id },
         });
-        const remaining = revision.approvalSteps.some((step) => step.stepIndex !== pending.stepIndex && step.status === "PENDING");
+        const others = revision.approvalSteps.filter((step) => step.stepIndex !== pending.stepIndex);
+        const remaining = others.some((step) => step.status !== "APPROVED");
+        if (remaining && !others.some((step) => step.status === "PENDING")) {
+          // Legacy rows saved later steps as BLOCKED; promote the next one so the chain continues.
+          const next = others.filter((step) => step.status === "BLOCKED").sort((a, b) => a.stepIndex - b.stepIndex)[0];
+          if (next) {
+            await tx.dealApprovalStep.update({
+              where: { revisionId_stepIndex: { revisionId: revision.id, stepIndex: next.stepIndex } },
+              data: { status: "PENDING" },
+            });
+          }
+        }
         if (!remaining) {
           await tx.dealRevision.update({ where: { id: revision.id }, data: { approvalStatus: "APPROVED" } });
           const lastActivityAt = new Date();
@@ -777,9 +799,23 @@ export class LiveQuoteService {
         where: { scope_key: { scope: "CONFIRM_ORDER", key: input.requestKey } },
       });
       if (request?.completedAt && request.resultPayload) {
+        // A stored result is replayed only to a caller who can see this quote, and only
+        // for the same quote and the revision the request was made against.
         const payload = request.resultPayload as unknown as ConfirmOrderResult;
+        const visible = await this.loadVisibleQuote(actor, quoteId, tx);
+        await this.assertCustomerMembership(actor, visible.customerId, tx);
         if (payload.sourceQuoteId !== quoteId) {
           throw new ApiFailure("CONFLICT", "Request key belongs to another confirmation.");
+        }
+        const source = await tx.dealRevision.findUnique({
+          where: { id: payload.sourceRevisionId },
+          select: { id: true, revisionNumber: true },
+        });
+        if (!source || !revisionEquals(source, input.expectedRevision)) {
+          throw new ApiFailure("CONFLICT", "Quote revision is stale. Reload and review the current revision.", {
+            currentRevision: visible.currentRevision?.revisionNumber,
+            currentRevisionId: visible.currentRevision?.id,
+          });
         }
         return { ...payload, replayed: true };
       }
@@ -1012,7 +1048,7 @@ export class LiveQuoteService {
           totalAmount: line.totalAmount,
           billingInterval: line.billingInterval,
         })),
-        totals: current.pricing.totals,
+        totals: portalPricingTotals(current.pricing.totals),
       },
       history: quote.revisions.map((revision) => ({
         revision: revision.id,

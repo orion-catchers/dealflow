@@ -144,7 +144,7 @@ export class LivePolicyService {
       });
       const categoryCeilings = previous.policyCeilings.filter((item) => item.categoryId !== null && item.category).map((item) => {
         const patch = findInput<Record<string, unknown>>(body.categoryCeilings, (x) =>
-          x.categoryId === item.categoryId || x.categoryCode === item.category!.code || x.categoryName === item.category!.name,
+          x.tier === item.tier && (x.categoryId === item.categoryId || x.categoryCode === item.category!.code || x.categoryName === item.category!.name),
         );
         return {
           tier: item.tier,

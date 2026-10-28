@@ -74,10 +74,13 @@ export function applyApprovalDecision(input: ApplyDecisionInput): ApplyDecisionR
   if (input.decision === "APPROVE") {
     step.status = "APPROVED";
     step.decisionId = input.decisionId;
-    const nextPending = findPendingStepIndex(steps);
-    if (nextPending === null) {
+    if (steps.every((s) => s.status === "APPROVED")) {
       revision.approvalStatus = "APPROVED";
       if (quote.stage === "PENDING_APPROVAL") quote.stage = "APPROVED";
+    } else if (findPendingStepIndex(steps) === null) {
+      // Legacy rows saved later steps as BLOCKED; promote the next one so the chain continues.
+      const next = steps.filter((s) => s.status === "BLOCKED").sort((a, b) => a.stepIndex - b.stepIndex)[0];
+      if (next) next.status = "PENDING";
     }
   } else if (input.decision === "REJECT") {
     step.status = "APPROVED";

@@ -214,3 +214,20 @@ describe("runLiveCommand task RBAC", () => {
     }
   });
 });
+
+describe("runLiveCommand sendQuote", () => {
+  const repActor: Actor = { id: "rep-1", name: "Alice Rep", email: "rep@example.test", role: "SALES_REP", active: true };
+
+  it("keeps an approved evaluation when the requested customer tier is unchanged", async () => {
+    const { state, quote } = createMockState();
+    quote.totals = [{ interval: "ONE_TIME", net: "275.00", tax: "49.50", total: "324.50", profit: "125.00", marginPct: 45.45 }];
+    quote.evaluation = { status: "APPROVED", chain: [], step: 0, reasons: [], worstExcess: 0 };
+    const dirty = { quotes: new Map(), rules: false, messages: false };
+
+    await runLiveCommand(state, repActor, "sendQuote", { id: quote.id, expectedRevision: "r1", customerTier: "Gold" }, dirty);
+
+    expect(quote.evaluation.status).toBe("APPROVED");
+    expect(quote.revision).toBe("r1");
+    expect(quote.sent).toBe(true);
+  });
+});
