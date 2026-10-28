@@ -2,6 +2,7 @@
 import type {ReactNode} from 'react';
 import type {Actor,DataState,Quote,Role} from '../../contracts/application';
 import {revisionTitle} from './shared';
+import {canAccessRoute} from './route-access';
 
 /**
  * One vocabulary for "where is this deal and what happens next".
@@ -79,7 +80,7 @@ export function nextStepLabel(q:Quote,actor:Actor):string{
 
 export function nextStepHref(q:Quote,actor:Actor):string{
   const step=dealNextStep(q,{actor});
-  return step.href??'/quotes/'+q.id;
+  return step.href&&canAccessRoute(actor.role,step.href)?step.href:'/quotes/'+q.id;
 }
 
 type FlowState='done'|'current'|'upcoming'|'skipped';
