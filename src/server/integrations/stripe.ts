@@ -54,11 +54,19 @@ export async function createCheckoutSession(input: {
   return { checkoutUrl: json.url, sessionId: json.id };
 }
 
+/** UTC calendar day (YYYY-MM-DD) of a Stripe object's `created` (seconds). Stable across retries, unlike processing time. */
+export function stripeCreatedDate(created: number | undefined): string | null {
+  if (typeof created !== "number" || !Number.isFinite(created)) return null;
+  return new Date(created * 1000).toISOString().slice(0, 10);
+}
+
 export async function retrieveCheckoutSession(sessionId: string): Promise<{
   paid: boolean;
   invoiceId?: string;
   amount: string;
   paymentRef: string;
+  currency?: string;
+  paidOn: string | null;
 }> {
   const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, {
     headers: formHeaders(),
@@ -70,6 +78,8 @@ export async function retrieveCheckoutSession(sessionId: string): Promise<{
     payment_intent?: string;
     metadata?: { invoiceId?: string };
     client_reference_id?: string;
+    currency?: string;
+    created?: number;
     error?: { message?: string };
   };
   if (!response.ok) throw new ApiFailure("INVALID_INPUT", json.error?.message ?? "Stripe session was not found");
@@ -79,6 +89,8 @@ export async function retrieveCheckoutSession(sessionId: string): Promise<{
     invoiceId: json.metadata?.invoiceId ?? json.client_reference_id,
     amount,
     paymentRef: typeof json.payment_intent === "string" && json.payment_intent ? json.payment_intent : json.id ?? sessionId,
+    currency: json.currency,
+    paidOn: stripeCreatedDate(json.created),
   };
 }
 
@@ -121,11 +133,16 @@ export function paidInvoiceFromStripeEvent(event: {
       payment_intent?: string;
       metadata?: { invoiceId?: string };
       client_reference_id?: string;
+      currency?: string;
+      created?: number;
     };
   };
-}): { invoiceId: string; amount: string; reference: string } | null {
+}): { invoiceId: string; amount: string; reference: string; currency: string; paidOn: string } | null {
   const obj = event.data?.object;
   if (!obj) return null;
+  // Without a currency and a created time the settlement cannot be verified or replayed, so it is ignored.
+  const paidOn = stripeCreatedDate(obj.created);
+  if (!obj.currency || !paidOn) return null;
   if (event.type === "checkout.session.completed") {
     if (obj.payment_status && obj.payment_status !== "paid") return null;
     const invoiceId = obj.metadata?.invoiceId ?? obj.client_reference_id;
@@ -134,6 +151,8 @@ export function paidInvoiceFromStripeEvent(event: {
       invoiceId,
       amount: ((obj.amount_total ?? 0) / 100).toFixed(2),
       reference: (typeof obj.payment_intent === "string" && obj.payment_intent) || obj.id || invoiceId,
+      currency: obj.currency,
+      paidOn,
     };
   }
   if (event.type === "payment_intent.succeeded") {
@@ -143,6 +162,8 @@ export function paidInvoiceFromStripeEvent(event: {
       invoiceId,
       amount: ((obj.amount_received ?? 0) / 100).toFixed(2),
       reference: obj.id ?? invoiceId,
+      currency: obj.currency,
+      paidOn,
     };
   }
   return null;

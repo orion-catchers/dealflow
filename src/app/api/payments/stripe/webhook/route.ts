@@ -40,12 +40,17 @@ export async function POST(request: Request) {
   const paid = paidInvoiceFromStripeEvent(event);
   if (!paid) return NextResponse.json({ data: { ignored: true } });
   const actor = await financeActor();
+  const invoice = await getBillingService().getInvoice(actor, paid.invoiceId);
+  // A settlement in another currency is not booked against this invoice; treat it like any other ignored event.
+  if (paid.currency.toLowerCase() !== invoice.currency.toLowerCase()) {
+    return NextResponse.json({ data: { ignored: true } });
+  }
   const payment = await getBillingService().recordPayment(actor, {
     invoiceId: paid.invoiceId,
     amount: paid.amount,
     method: "CARD",
     reference: paid.reference,
-    paidOn: new Date().toISOString().slice(0, 10),
+    paidOn: paid.paidOn,
     requestKey: `stripe:${paid.reference}`,
   });
   return NextResponse.json({ data: { payment } });
