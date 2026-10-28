@@ -62,12 +62,7 @@ export function findHealthCandidates(
   const candidates: HealthCandidate[] = [];
 
   for (const quote of input.quotes) {
-    if (
-      ["PENDING_APPROVAL", "APPROVED", "CONFIRMED", "REJECTED"].includes(
-        quote.stage,
-      )
-    )
-      continue;
+    if (["CONFIRMED", "REJECTED"].includes(quote.stage)) continue;
     if (
       daysBetween(quote.lastBusinessActivityAt, input.now) >
       input.settings.stalledAfterDays

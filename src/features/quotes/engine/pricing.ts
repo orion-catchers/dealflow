@@ -1,3 +1,4 @@
+import { Decimal } from "decimal.js";
 import type {
   BillingInterval,
   Currency,
@@ -52,12 +53,25 @@ function percentage(value: number): string {
   return value.toFixed(2);
 }
 
-function roundedProduct(cents: bigint, percentageValue: number): bigint {
-  return BigInt(Math.round(Number(cents) * percentageValue));
+// Exact percentage math, rounded half-up to whole cents.
+function roundedProduct(cents: bigint, percentageValue: Decimal.Value): bigint {
+  return BigInt(
+    new Decimal(cents.toString())
+      .times(percentageValue)
+      .div(100)
+      .toDecimalPlaces(0, Decimal.ROUND_HALF_UP)
+      .toFixed(0),
+  );
 }
 
-function effectiveDiscount(linePct: number, orderPct: number): number {
-  return 100 * (1 - (1 - linePct / 100) * (1 - orderPct / 100));
+function effectiveDiscount(linePct: number, orderPct: number): Decimal {
+  return new Decimal(100).times(
+    new Decimal(1).minus(
+      new Decimal(1)
+        .minus(new Decimal(linePct).div(100))
+        .times(new Decimal(1).minus(new Decimal(orderPct).div(100))),
+    ),
+  );
 }
 
 function intervalTotal(
@@ -124,10 +138,10 @@ export function priceQuote({
     const effectiveDiscountPct = effectiveDiscount(line.discountPct, orderPct);
     const discountCents = roundedProduct(
       line.undiscountedCents,
-      effectiveDiscountPct / 100,
+      effectiveDiscountPct,
     );
     const subtotalCents = line.undiscountedCents - discountCents;
-    const taxCents = roundedProduct(subtotalCents, line.taxPct / 100);
+    const taxCents = roundedProduct(subtotalCents, line.taxPct);
     const totalCents = subtotalCents + taxCents;
     const costCents = line.unitCostCents * BigInt(line.input.quantity);
     const marginCents = subtotalCents - costCents;
@@ -203,7 +217,7 @@ export function priceQuote({
                 sum +
                 roundedProduct(
                   line.undiscountedCents,
-                  effectiveDiscount(line.discountPct, orderPct) / 100,
+                  effectiveDiscount(line.discountPct, orderPct),
                 ),
               0n,
             ),
