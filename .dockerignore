@@ -1,0 +1,14 @@
+.git
+node_modules
+.next
+src/generated
+.env
+.env.*
+!.env.example
+.dealflow-development
+coverage
+test-results
+playwright-report
+*.log
+DealFlow360.pdf
+preview.webp

@@ -6,9 +6,14 @@ import { suggestions,addSuggested,saveRecommendationRules } from '../../../featu
 import { exportFile } from '../../../server/export';
 import { scopeWorkspace } from '../../../server/scope';
 import { sameOrigin } from '../../../server/origin';
+import { TenantScopeError, withTenantScope } from '../../../server/lib/tenant/context';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
-async function handle(req:NextRequest, ctx?:{params?:Promise<{path?:string[]}>}) {
+// Each request runs in a tenant scope; adapter.authenticate binds the caller's company.
+function handle(req:NextRequest, ctx?:{params?:Promise<{path?:string[]}>}) {
+  return withTenantScope(()=>serve(req,ctx));
+}
+async function serve(req:NextRequest, ctx?:{params?:Promise<{path?:string[]}>}) {
   try {
     const adapter=await getAdapter();
     const paramPath=ctx?.params?(await ctx.params).path??[]:[];
@@ -18,9 +23,8 @@ async function handle(req:NextRequest, ctx?:{params?:Promise<{path?:string[]}>})
     const body=req.method==='POST'?await req.json().catch(()=>{throw new AppError(400,'INVALID_JSON','Invalid request body');}):{};
     const ok=(data:unknown)=>NextResponse.json({data,mode:adapter.mode},{headers:{'Cache-Control':'no-store'}});
     if(path.join('/')==='integrations/public'&&req.method==='GET'){
-      const {integrationFlags}=await import('../../../server/integrations/status');
-      const flags=integrationFlags();
-      return ok({googleSso:flags.googleSso,email:flags.email,stripe:flags.stripe});
+      const {publicConfig}=await import('../../../server/integrations/status');
+      return ok(await publicConfig());
     }
     if(path.join('/')==='auth/login'&&req.method==='POST') {
       const email=String(body.email??'').trim();
@@ -60,6 +64,10 @@ async function handle(req:NextRequest, ctx?:{params?:Promise<{path?:string[]}>})
     if (error && typeof error === "object" && "status" in error && "code" in error && typeof (error as { status: unknown }).status === "number") {
       const e = error as AppError;
       return NextResponse.json({ error: { code: e.code, message: e.message, details: e.details } }, { status: e.status });
+    }
+    if (error instanceof TenantScopeError) {
+      console.error(error);
+      return NextResponse.json({ error: { code: "FORBIDDEN", message: "This request is outside your workspace" } }, { status: 403 });
     }
     console.error(error);
     const e = new AppError(500, "INTERNAL", "The request could not be completed");

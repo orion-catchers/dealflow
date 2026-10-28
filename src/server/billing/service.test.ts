@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Actor } from "@/contracts/harsh";
 import type { ConfirmedOrderForBilling } from "@/contracts/ruchir";
 import { ApiFailure } from "@/lib/api/respond";
@@ -267,6 +267,28 @@ describe("payments", () => {
       }),
       "NOT_FOUND",
     );
+  });
+});
+
+describe("customer payments outside demo mode", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("refuses a customer-recorded card payment in production unless the host is a demo", async () => {
+    const init = await svc.initializeOnStore(order(), "init-1");
+    vi.stubEnv("NODE_ENV", "production");
+    const pay = (requestKey: string) =>
+      svc.recordPayment(neha, {
+        invoiceId: init.oneTimeInvoice!.id,
+        amount: "10.00",
+        method: "CARD",
+        reference: "CARD-PREVIEW-4242",
+        paidOn: "2026-09-02",
+        requestKey,
+      });
+    await expectFailure(pay("pay-prod"), "FORBIDDEN");
+    expect((await svc.getInvoice(finance, init.oneTimeInvoice!.id)).payments).toHaveLength(0);
+    vi.stubEnv("DEALFLOW_DEMO_MODE", "1");
+    expect((await pay("pay-demo")).amount).toBe("10.00");
   });
 });
 

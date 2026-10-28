@@ -20,7 +20,8 @@ export async function sendMail(message: MailMessage): Promise<{ delivered: boole
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: process.env.MAIL_FROM ?? "DealFlow360 <noreply@nexa.example>",
+        // Production requires MAIL_FROM with Resend (src/server/config/env.ts); the sender domain must be verified there.
+        from: process.env.MAIL_FROM ?? "DealFlow360 <noreply@dealflow.invalid>",
         to: [message.to],
         subject: message.subject,
         text: message.text,

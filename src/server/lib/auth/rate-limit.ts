@@ -34,6 +34,7 @@ export class LoginRateLimiter {
     private readonly clock: RateClock = { now: () => Date.now() },
     private readonly maxFailures: number = MAX_FAILURES,
     private readonly windowMs: number = WINDOW_MS,
+    private readonly message: string = "Too many failed sign-in attempts; try again later",
   ) {}
 
   assertAllowed(key: string): void {
@@ -47,11 +48,7 @@ export class LoginRateLimiter {
       const retryAfterSeconds = Math.ceil(
         (attempt.windowStart + this.windowMs - this.clock.now()) / 1000,
       );
-      throw new ApiFailure(
-        "UNAUTHENTICATED",
-        "Too many failed sign-in attempts; try again later",
-        { retryAfterSeconds },
-      );
+      throw new ApiFailure("UNAUTHENTICATED", this.message, { retryAfterSeconds });
     }
   }
 
@@ -71,3 +68,19 @@ export class LoginRateLimiter {
 }
 
 export const loginRateLimiter = new LoginRateLimiter();
+
+/**
+ * Workspace sign-ups per client address: 5 per hour. Every attempt counts, successful or not, because each success
+ * creates a company. Same per-instance limitation as the login limiter.
+ */
+export const signupRateLimiter = new LoginRateLimiter(
+  { now: () => Date.now() },
+  5,
+  60 * 60 * 1000,
+  "Too many workspace sign-ups from this address; try again later",
+);
+
+/** Client address for rate limiting: the first X-Forwarded-For hop set by the reverse proxy, else "unknown". */
+export function clientAddress(request: Request): string {
+  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
+}

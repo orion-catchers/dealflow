@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma, type Db, type Tx } from "@/server/lib/db";
+import { requireCompanyId } from "@/server/lib/tenant/context";
 import type { AuditEvent, AuditEventInput, AuditEventRepository } from "./audit-writer";
 
 type Client = Db | Tx;
@@ -35,10 +36,12 @@ function toEvent(row: {
 export class PrismaAuditEventRepository implements AuditEventRepository {
   constructor(private readonly db: Client = prisma) {}
 
+  /** Audit rows belong to the company bound to the current request or job. */
   async append(event: AuditEvent): Promise<void> {
     await this.db.auditEvent.create({
       data: {
         id: event.id,
+        companyId: requireCompanyId(),
         entityType: event.entityType,
         entityId: event.entityId,
         revisionId: event.revisionId ?? null,

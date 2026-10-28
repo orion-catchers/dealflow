@@ -2,11 +2,15 @@ import type { Actor } from "@/contracts/harsh";
 import type { UserAdminRow } from "@/contracts/ruchir";
 import { parseInput } from "@/features/catalog/api";
 import { ApiFailure } from "@/lib/api/respond";
+import { randomBytes } from "node:crypto";
 import { prisma } from "@/server/lib/db";
 import { requireRole } from "@/server/lib/auth/actor";
+import { hashPassword } from "@/server/lib/auth/password";
+import { issueInviteLink } from "@/server/lib/auth/password-reset";
 import { prismaUserIdForActor } from "@/server/lib/auth/resolve-user";
 import { recordPrismaAudit } from "@/server/audit/prisma-repository";
-import { userPatchSchema } from "@/server/lib/auth/schemas";
+import { userInviteSchema, userPatchSchema } from "@/server/lib/auth/schemas";
+import { requireCompanyId, runAsSystem } from "@/server/lib/tenant/context";
 
 function toAdminRow(user: {
   id: string;
@@ -114,3 +118,62 @@ export async function patchUser(actor: Actor, id: string, raw: unknown): Promise
 
   return toAdminRow(user);
 }
+
+/**
+ * Add a person to the admin's own workspace. The account is ACTIVE with an unusable password until the invitee sets
+ * one from the returned link (also emailed when a mail provider is configured). Customer-role invitees must be bound
+ * to at least one of the workspace's customers.
+ */
+export async function inviteUser(actor: Actor, raw: unknown): Promise<{ user: UserAdminRow; inviteUrl: string }> {
+  requireRole(actor, "ADMIN");
+  const input = parseInput(userInviteSchema, raw);
+  const email = input.email.toLowerCase();
+  const companyId = requireCompanyId();
+
+  // Login emails are unique across every workspace, so the check deliberately looks beyond this company.
+  if (await runAsSystem(() => prisma.user.findUnique({ where: { email }, select: { id: true } }))) {
+    throw new ApiFailure("CONFLICT", "Email already registered");
+  }
+  const customerIds = input.customerIds ?? [];
+  if (input.role === "CUSTOMER" && customerIds.length === 0) {
+    throw new ApiFailure("INVALID_INPUT", "A customer user needs at least one customer membership");
+  }
+  for (const customerId of customerIds) {
+    if (!(await prisma.customer.findUnique({ where: { id: customerId }, select: { id: true } }))) {
+      throw new ApiFailure("NOT_FOUND", `Customer not found: ${customerId}`);
+    }
+  }
+  if (input.teamId && !(await prisma.salesTeam.findUnique({ where: { id: input.teamId }, select: { id: true } }))) {
+    throw new ApiFailure("NOT_FOUND", "Team not found");
+  }
+
+  const resolvedActorId = await prismaUserIdForActor(actor);
+  const passwordHash = await hashPassword(randomBytes(32).toString("hex"));
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+        email,
+        passwordHash,
+        name: input.name,
+        role: input.role,
+        status: "ACTIVE",
+        teamId: input.teamId ?? null,
+        companyId,
+        memberships: { create: customerIds.map((customerId) => ({ customerId })) },
+      },
+      include: { memberships: true },
+    });
+    await recordPrismaAudit(tx, {
+      entityType: "User",
+      entityId: created.id,
+      actorId: resolvedActorId ?? undefined,
+      action: "user.invite",
+      metadata: { role: input.role, customerIds, actor: actor.id },
+    });
+    return created;
+  });
+  const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId }, select: { name: true } });
+  const inviteUrl = await issueInviteLink(user, company.name);
+  return { user: toAdminRow(user), inviteUrl };
+}
+

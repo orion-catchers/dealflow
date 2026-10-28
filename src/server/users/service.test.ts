@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
+import { inDemoCompany } from "@/server/lib/tenant/testing";
 import { ApiFailure } from "@/lib/api/respond";
 import { prisma } from "@/server/lib/db";
 import { listUsers, patchUser } from "./service";
@@ -34,18 +35,18 @@ async function failure(p: Promise<unknown>): Promise<ApiFailure> {
 describe.skipIf(!dbAvailable)("UserAdminService", () => {
   const admin = { id: "admin-dev", role: "ADMIN" as const, active: true };
 
-  it("non-admin cannot list", async () => {
+  it("non-admin cannot list", inDemoCompany(async () => {
     const err = await failure(listUsers({ id: "finance-farah", role: "FINANCE", active: true }));
     expect(err.code).toBe("FORBIDDEN");
-  });
+  }));
 
-  it("admin lists users with memberships", async () => {
+  it("admin lists users with memberships", inDemoCompany(async () => {
     const rows = await listUsers(admin);
     const neha = rows.find((u) => u.email === "neha@acme.example");
     expect(neha?.customerIds.length).toBeGreaterThan(0);
-  });
+  }));
 
-  it("admin can change a customer membership", async () => {
+  it("admin can change a customer membership", inDemoCompany(async () => {
     const rows = await listUsers(admin);
     const neha = rows.find((u) => u.email === "neha@acme.example");
     const beta = await prisma.customer.findFirst({ where: { contactEmail: "rohan@beta.example" } });
@@ -57,14 +58,14 @@ describe.skipIf(!dbAvailable)("UserAdminService", () => {
     } finally {
       await patchUser(admin, neha!.id, { customerIds: previous });
     }
-  });
+  }));
 
-  it("patch status on unknown user is NOT_FOUND", async () => {
+  it("patch status on unknown user is NOT_FOUND", inDemoCompany(async () => {
     const err = await failure(patchUser(admin, "missing-user-id", { status: "ACTIVE" }));
     expect(err.code).toBe("NOT_FOUND");
-  });
+  }));
 
-  it("audits admin user changes and ends sessions on deactivation", async () => {
+  it("audits admin user changes and ends sessions on deactivation", inDemoCompany(async () => {
     const suffix = randomBytes(4).toString("hex");
     const user = await prisma.user.create({
       data: {
@@ -93,5 +94,5 @@ describe.skipIf(!dbAvailable)("UserAdminService", () => {
       await prisma.auditEvent.deleteMany({ where: { entityType: "User", entityId: user.id } });
       await prisma.user.deleteMany({ where: { id: user.id } });
     }
-  });
+  }));
 });

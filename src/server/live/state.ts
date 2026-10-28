@@ -23,6 +23,7 @@ import type {
 } from "@/contracts/application";
 import type { BillingInterval, RecommendationRule } from "@/contracts/krishna";
 import { invoiceStatus } from "@/server/billing/engine/status";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma, rawTable } from "@/server/lib/db";
 import {
   categoryFromCode,
@@ -234,6 +235,7 @@ function snapshotRevision(
   };
 }
 
+/** Everything the workspace shell shows, read through the tenant-scoped client, so only the bound company's rows. */
 export async function loadDataState(): Promise<DataState> {
   const [
     users,
@@ -294,7 +296,7 @@ export async function loadDataState(): Promise<DataState> {
       orderBy: { createdAt: "desc" },
       take: 1,
     }),
-    prisma.healthSettings.findUnique({ where: { id: "default" } }),
+    prisma.healthSettings.findFirst(),
     prisma.healthFlag.findMany(),
     prisma.task.findMany({ include: { flag: true } }),
     prisma.portalMessage.findMany({ include: { author: true, baseRevision: true } }),
@@ -369,9 +371,13 @@ export async function loadDataState(): Promise<DataState> {
 
   let listPriceById = new Map<string, unknown>();
   try {
-    const listPriceRows = await prisma.$queryRaw<Array<{ id: string; listPrice: unknown }>>`
-      SELECT id, "listPrice" FROM ${rawTable("SubscriptionPlan")}
-    `;
+    // Raw SQL bypasses the tenant extension, so it filters by the plans the scoped query returned.
+    const planIds = plans.map((plan) => plan.id);
+    const listPriceRows = planIds.length
+      ? await prisma.$queryRaw<Array<{ id: string; listPrice: unknown }>>`
+          SELECT id, "listPrice" FROM ${rawTable("SubscriptionPlan")} WHERE id IN (${Prisma.join(planIds)})
+        `
+      : [];
     listPriceById = new Map(listPriceRows.map((row) => [row.id, row.listPrice]));
   } catch {
     /* Client or schema without listPrice still loads the rest of the workspace. */

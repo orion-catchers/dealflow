@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Prisma, PrismaClient } from "@/generated/prisma/client";
+import { tenantExtension } from "./tenant";
 
 /** The `?schema=` from DATABASE_URL; the pg default is `public`. */
 export function databaseSchema(connectionString = process.env.DATABASE_URL): string {
@@ -24,12 +25,14 @@ function createClient(): PrismaClient {
   }
   const schema = new URL(connectionString).searchParams.get("schema") ?? undefined;
   const adapter = new PrismaPg({ connectionString }, { schema });
-  return new PrismaClient({ adapter });
+  // The tenant extension only rewrites query arguments, so the result types are
+  // unchanged and the extended client can keep the PrismaClient type.
+  return new PrismaClient({ adapter }).$extends(tenantExtension) as unknown as PrismaClient;
 }
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-/** One PrismaClient per process. Next.js dev hot-reload reuses the global. */
+/** One tenant-scoped PrismaClient per process. Next.js dev hot-reload reuses the global. */
 export const prisma: PrismaClient = globalForPrisma.prisma ?? createClient();
 
 if (process.env.NODE_ENV !== "production") {

@@ -24,7 +24,8 @@
     "tester:generate": "tsx scripts/generate-tester-dataset.ts",
     "tester:seed": "tsx scripts/seed-synthetic-dataset.ts data/tester-dataset.json",
     "db:studio": "prisma studio",
-    "jobs": "tsx scripts/run-jobs.ts"
+    "jobs": "tsx scripts/run-jobs.ts",
+    "workspace:create": "tsx scripts/create-workspace.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",

@@ -4,6 +4,8 @@
  */
 import { NextResponse } from "next/server";
 import type { ApiErrorCode } from "@/contracts/harsh";
+import { TenantScopeError, withTenantScope } from "@/server/lib/tenant/context";
+import { ApiFailure } from "./failure";
 
 const STATUS: Record<ApiErrorCode, number> = {
   UNAUTHENTICATED: 401,
@@ -13,16 +15,9 @@ const STATUS: Record<ApiErrorCode, number> = {
   INVALID_INPUT: 422,
 };
 
-export class ApiFailure extends Error {
-  constructor(
-    public code: ApiErrorCode,
-    message: string,
-    public details?: unknown,
-  ) {
-    super(message);
-    this.name = "ApiFailure";
-  }
-}
+// ApiFailure lives in ./failure so browser code (shared Zod schemas) can throw it without importing this
+// server-only module.
+export { ApiFailure } from "./failure";
 
 export function ok<T>(data: T, init?: ResponseInit) {
   return NextResponse.json({ data }, init);
@@ -41,15 +36,22 @@ export async function readJsonBody(request: Request): Promise<unknown> {
   }
 }
 
-/** Wrap a route handler so thrown ApiFailure / ZodError become envelope errors. */
+/**
+ * Wrap a route handler so thrown ApiFailure / ZodError become envelope errors. The handler runs in a
+ * tenant scope that authentication binds to the caller's company.
+ */
 export async function handle<T>(fn: () => Promise<T>): Promise<NextResponse> {
   try {
-    const data = await fn();
+    const data = await withTenantScope(fn);
     return ok(data);
   } catch (e) {
     if (e instanceof ApiFailure) return fail(e.code, e.message, e.details);
     if (e && typeof e === "object" && "issues" in e) {
       return fail("INVALID_INPUT", "Invalid input", (e as { issues: unknown }).issues);
+    }
+    if (e instanceof TenantScopeError) {
+      console.error(e);
+      return fail("FORBIDDEN", "This request is outside your workspace");
     }
     console.error(e);
     return NextResponse.json({ error: { code: "INTERNAL", message: "Unexpected server error" } }, { status: 500 });

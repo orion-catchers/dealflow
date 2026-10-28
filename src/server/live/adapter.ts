@@ -1,9 +1,10 @@
 import type { Actor, ApplicationAdapter, DataState, Quote } from "@/contracts/application";
 import { AppError, requireValue } from "@/server/errors";
-import { loginWithPassword, signupUser } from "@/server/lib/auth/credentials";
+import { loginWithPassword } from "@/server/lib/auth/credentials";
 import { destroySessionByToken, findUserBySessionToken } from "@/server/lib/auth/session";
 import { userToSessionUser } from "@/server/lib/auth/actor-helpers";
 import { getFulfillmentService } from "@/server/inventory/live";
+import { bindTenant } from "@/server/lib/tenant/context";
 import { liveTransactionPort, persistWorkspace, type Dirty } from "./canonical";
 import { runLiveCommand } from "./commands";
 import { harshActor, toAppRole, wrapError } from "./ids";
@@ -60,6 +61,7 @@ export const liveAdapter: ApplicationAdapter = {
     if (!token) return null;
     const user = await findUserBySessionToken(token);
     if (!user || user.status !== "ACTIVE") return null;
+    bindTenant(user.companyId);
     return toAppActor(userToSessionUser(user));
   },
   async login(email, password) {
@@ -73,12 +75,9 @@ export const liveAdapter: ApplicationAdapter = {
   async logout(token) {
     await destroySessionByToken(token);
   },
-  async signup(name, email, password) {
-    try {
-      await signupUser({ name, email, password });
-    } catch (error) {
-      wrapError(error);
-    }
+  async signup() {
+    // LIVE sign-up creates a workspace and needs a company name, so it is served by /api/auth/signup only.
+    throw new AppError(404, "NOT_FOUND", "Use POST /api/auth/signup with a company name to create a workspace");
   },
   async read() {
     return loadDataState();

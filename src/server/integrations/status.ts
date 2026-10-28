@@ -1,3 +1,5 @@
+import { demoModeEnabled } from "@/server/config/demo";
+
 export function integrationFlags() {
   return {
     database: Boolean(process.env.DATABASE_URL),
@@ -26,9 +28,44 @@ export const ENV_KEYS = {
     "GOOGLE_CLIENT_ID",
     "GOOGLE_CLIENT_SECRET",
     "CRON_SECRET",
-    "JOBS_ACTOR_EMAIL",
     "DEALFLOW_FX_JSON",
     "CARRIER_QUOTE_URL",
     "CARRIER_API_KEY",
   ] as const,
 };
+
+const ROLE_LABEL: Record<string, string> = {
+  ADMIN: "Admin",
+  SALES_REP: "Rep",
+  SALES_MANAGER: "Manager",
+  FINANCE: "Finance",
+  CUSTOMER: "Customer",
+};
+
+/**
+ * Unauthenticated configuration for the entry pages. Seeded demo credentials are only included in demo mode and are
+ * loaded from the fixtures on demand, so a production build never ships them to the browser.
+ */
+export async function publicConfig() {
+  const flags = integrationFlags();
+  const { publicSignupEnabled } = await import("@/server/tenancy/workspace");
+  const demoAccounts = demoModeEnabled()
+    ? (await import("@/fixtures/ruchir")).ruchirFixtures.users
+        .filter((user) => user.status === "ACTIVE")
+        .map((user) => {
+          const first = user.name.split(" ")[0];
+          const org = user.email.split("@")[1]?.split(".")[0] ?? "";
+          const who = user.role === "CUSTOMER" ? `${org.charAt(0).toUpperCase()}${org.slice(1)} (${first})` : first;
+          return { label: `${ROLE_LABEL[user.role] ?? user.role} · ${who}`, email: user.email, password: user.devPassword };
+        })
+    : [];
+  const { developmentEnabled } = await import("@/server/adapters");
+  return {
+    mode: developmentEnabled() ? "DEV FIXTURE" : flags.database ? "LIVE" : "NOT CONNECTED",
+    googleSso: flags.googleSso,
+    email: flags.email,
+    stripe: flags.stripe,
+    workspaceSignup: publicSignupEnabled(),
+    demoAccounts,
+  };
+}

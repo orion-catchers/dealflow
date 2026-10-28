@@ -4,6 +4,7 @@ import { ApiFailure, fail } from "@/lib/api/respond";
 import { loginWithPassword, parseLoginBody } from "@/server/lib/auth/credentials";
 import { setSessionCookie } from "@/server/lib/auth/session";
 import { developmentEnabled, getAdapter } from "@/server/adapters";
+import { scopedRoute } from "@/server/lib/tenant/context";
 
 function toAppActor(user: {
   id: string;
@@ -24,7 +25,7 @@ function toAppActor(user: {
   };
 }
 
-export async function POST(request: Request) {
+export const POST = scopedRoute(async function POST(request: Request) {
   try {
     if (developmentEnabled()) {
       const input = parseLoginBody(await readJson(request));
@@ -60,4 +61,4 @@ export async function POST(request: Request) {
     console.error(e);
     return NextResponse.json({ error: { code: "INTERNAL", message: "Unexpected server error" } }, { status: 500 });
   }
-}
+});

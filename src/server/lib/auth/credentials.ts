@@ -2,9 +2,10 @@ import type { SessionUser, SignupInput } from "@/contracts/ruchir";
 import { parseInput } from "@/features/catalog/api";
 import { ApiFailure } from "@/lib/api/respond";
 import { prisma } from "@/server/lib/db";
+import { createWorkspace, publicSignupEnabled } from "@/server/tenancy/workspace";
 import { userToSessionUser } from "./actor-helpers";
-import { hashPassword, verifyPassword } from "./password";
-import { loginRateLimiter } from "./rate-limit";
+import { verifyPassword } from "./password";
+import { loginRateLimiter, signupRateLimiter } from "./rate-limit";
 import { createSession } from "./session";
 import { loginSchema, signupSchema } from "./schemas";
 
@@ -14,9 +15,10 @@ export async function loginWithPassword(input: { email: string; password: string
   try {
     const user = await prisma.user.findUnique({
       where: { email },
-      include: { memberships: true },
+      include: { memberships: true, company: { select: { active: true } } },
     });
-    if (!user || user.status !== "ACTIVE" || !(await verifyPassword(input.password, user.passwordHash))) {
+    // A suspended workspace signs nobody in; the response does not say why, like a wrong password.
+    if (!user || user.status !== "ACTIVE" || !user.company.active || !(await verifyPassword(input.password, user.passwordHash))) {
       throw new ApiFailure("UNAUTHENTICATED", "Invalid email or password");
     }
     const { token } = await createSession(user.id);
@@ -28,53 +30,27 @@ export async function loginWithPassword(input: { email: string; password: string
   }
 }
 
-export async function signupUser(raw: SignupInput): Promise<SessionUser> {
+/**
+ * Public sign-up: create a new workspace whose owner is the signing-up person, then sign them in. Off unless
+ * DEALFLOW_PUBLIC_SIGNUP=1; people join an existing workspace by an admin's invitation instead.
+ */
+export async function signupWorkspace(raw: SignupInput, client: string): Promise<{ user: SessionUser; token: string }> {
+  if (!publicSignupEnabled()) {
+    throw new ApiFailure("FORBIDDEN", "Workspace sign-up is by invitation. Ask your administrator to invite you.");
+  }
   const input = parseInput(signupSchema, raw);
-  const email = input.email.toLowerCase();
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) throw new ApiFailure("CONFLICT", "Email already registered");
-
-  const passwordHash = await hashPassword(input.password);
-  const role = input.customerId ? "CUSTOMER" : "SALES_REP";
-
-  const user = await prisma.$transaction(async (tx) => {
-    if (input.customerId) {
-      const customer = await tx.customer.findUnique({ where: { id: input.customerId } });
-      if (!customer) throw new ApiFailure("NOT_FOUND", "Customer not found");
-    }
-    const home =
-      (input.customerId
-        ? (await tx.customer.findUnique({ where: { id: input.customerId } }))?.companyId
-        : undefined) ??
-      (await tx.company.findUnique({ where: { code: "NEXA" } }))?.id ??
-      (await tx.company.findFirst())?.id;
-    if (!home) throw new ApiFailure("INVALID_INPUT", "No company is configured");
-
-    const created = await tx.user.create({
-      data: {
-        email,
-        passwordHash,
-        name: input.name,
-        role,
-        status: "PENDING",
-        companyId: home,
-      },
-      include: { memberships: true },
-    });
-
-    if (input.customerId) {
-      await tx.customerMembership.create({
-        data: { userId: created.id, customerId: input.customerId },
-      });
-    }
-
-    return tx.user.findUniqueOrThrow({
-      where: { id: created.id },
-      include: { memberships: true },
-    });
+  signupRateLimiter.assertAllowed(client);
+  signupRateLimiter.recordFailure(client);
+  const created = await createWorkspace({
+    companyName: input.companyName,
+    name: input.name,
+    email: input.email,
+    password: input.password,
+    currency: input.currency,
   });
-
-  return userToSessionUser(user);
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: created.ownerId }, include: { memberships: true } });
+  const { token } = await createSession(user.id);
+  return { user: userToSessionUser(user), token };
 }
 
 export function parseLoginBody(raw: unknown) {

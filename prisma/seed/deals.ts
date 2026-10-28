@@ -60,6 +60,8 @@ type PolicyMeta = {
 };
 
 export type SeedCatalog = {
+  /** Demo tenant that owns every seeded commercial record. */
+  companyId: string;
   products: Map<string, ProductMeta>;
   variants: Map<string, VariantMeta>;
   plans: Map<string, PlanMeta>;
@@ -76,7 +78,7 @@ export type SeedCatalog = {
   policy: PolicyMeta;
 };
 
-export function buildSeedCatalog(resolver: SymbolResolver, policyId: string): SeedCatalog {
+export function buildSeedCatalog(resolver: SymbolResolver, policyId: string, companyId: string): SeedCatalog {
   const products = new Map<string, ProductMeta>();
   for (const product of harshFixtures.products) {
     products.set(product.sym, {
@@ -129,6 +131,7 @@ export function buildSeedCatalog(resolver: SymbolResolver, policyId: string): Se
 
   const policyFixture = atharvaFixtures.policyVersions[0]!;
   return {
+    companyId,
     products,
     variants,
     plans,
@@ -269,6 +272,7 @@ async function writeAudit(
   db: Db,
   resolver: SymbolResolver,
   input: {
+    companyId: string;
     entityType: string;
     entityId: string;
     revisionId?: string;
@@ -281,6 +285,7 @@ async function writeAudit(
 ): Promise<void> {
   await db.auditEvent.create({
     data: {
+      companyId: input.companyId,
       entityType: input.entityType,
       entityId: input.entityId,
       revisionId: input.revisionId,
@@ -313,6 +318,7 @@ export async function expandDeal(
   const teamId = resolver.tryResolve("team-west") ?? null;
   const dealRow = await db.deal.create({
     data: {
+      companyId: catalog.companyId,
       customerId: resolver.resolve(deal.customer),
       repId: resolver.resolve(deal.rep),
       teamId,
@@ -324,6 +330,7 @@ export async function expandDeal(
   });
   const quote = await db.quote.create({
     data: {
+      companyId: catalog.companyId,
       dealId: dealRow.id,
       customerId: resolver.resolve(deal.customer),
       repId: resolver.resolve(deal.rep),
@@ -336,6 +343,7 @@ export async function expandDeal(
   });
 
   await writeAudit(db, resolver, {
+    companyId: catalog.companyId,
     entityType: "Quote",
     entityId: quote.id,
     actorSym: deal.rep,
@@ -384,6 +392,7 @@ export async function expandDeal(
   });
 
   await writeAudit(db, resolver, {
+    companyId: catalog.companyId,
     entityType: "DealRevision",
     entityId: revision.id,
     revisionId: revision.id,
@@ -466,6 +475,7 @@ export async function expandDeal(
         },
       });
       await writeAudit(db, resolver, {
+    companyId: catalog.companyId,
         entityType: "DealRevision",
         entityId: revision.id,
         revisionId: revision.id,
@@ -525,6 +535,7 @@ async function confirmDeal(
   });
 
   await writeAudit(db, resolver, {
+    companyId: catalog.companyId,
     entityType: "CustomerAcceptance",
     entityId: acceptance.id,
     revisionId,
@@ -539,6 +550,7 @@ async function confirmDeal(
 
   const order = await db.order.create({
     data: {
+      companyId: catalog.companyId,
       dealId: (await db.quote.findUniqueOrThrow({ where: { id: _quoteId }, select: { dealId: true } })).dealId!,
       sourceRevisionId: revisionId,
       acceptanceId: acceptance.id,
@@ -558,6 +570,7 @@ async function confirmDeal(
 
   const confirmKey = await db.requestKey.create({
     data: {
+      companyId: catalog.companyId,
       scope: "CONFIRM_ORDER",
       key: `seed:${deal.sym}`,
       actorId: resolver.resolve(deal.rep),
@@ -570,6 +583,7 @@ async function confirmDeal(
   });
 
   await writeAudit(db, resolver, {
+    companyId: catalog.companyId,
     entityType: "Order",
     entityId: order.id,
     revisionId,
@@ -615,6 +629,7 @@ async function confirmDeal(
   if (oneTimeLines.length > 0) {
     const oneTimeInvoice = await db.invoice.create({
       data: {
+        companyId: catalog.companyId,
         customerId: resolver.resolve(deal.customer),
         orderId: order.id,
         kind: "ONE_TIME",
@@ -650,6 +665,7 @@ async function confirmDeal(
     }
 
     await writeAudit(db, resolver, {
+    companyId: catalog.companyId,
       entityType: "Invoice",
       entityId: oneTimeInvoice.id,
       revisionId,
@@ -662,6 +678,7 @@ async function confirmDeal(
     if (deal.outcome !== "CONFIRMED_UNPAID") {
       const paymentKey = await db.requestKey.create({
         data: {
+          companyId: catalog.companyId,
           scope: "PAYMENT",
           key: `seed:${deal.sym}:payment`,
           actorId: resolver.resolve("finance-farah"),
@@ -694,6 +711,7 @@ async function confirmDeal(
       });
 
       await writeAudit(db, resolver, {
+    companyId: catalog.companyId,
         entityType: "Payment",
         entityId: payment.id,
         revisionId,
@@ -711,6 +729,7 @@ async function confirmDeal(
     const periodEnd = addMonthsClamped(confirmDate, 1);
     const subscription = await db.subscription.create({
       data: {
+        companyId: catalog.companyId,
         sourceOrderLineId: line.id,
         customerId: resolver.resolve(deal.customer),
         planId: line.planId!,
@@ -741,6 +760,7 @@ async function confirmDeal(
 
     const recurringInvoice = await db.invoice.create({
       data: {
+        companyId: catalog.companyId,
         customerId: resolver.resolve(deal.customer),
         orderId: order.id,
         subscriptionId: subscription.id,
@@ -778,6 +798,7 @@ async function confirmDeal(
     if (deal.outcome !== "CONFIRMED_UNPAID") {
       const paymentKey = await db.requestKey.create({
         data: {
+          companyId: catalog.companyId,
           scope: "PAYMENT",
           key: `seed:${deal.sym}:recurring:${line.id}`,
           actorId: resolver.resolve("finance-farah"),

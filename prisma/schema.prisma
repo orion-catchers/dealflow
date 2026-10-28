@@ -191,7 +191,8 @@ enum RequestResultKind {
   STOCK_RECEIPT
 }
 
-/// Selling organization. Staff, customers, catalog, and warehouses belong to one company.
+/// Tenant: one selling organization. Every business record carries its companyId, directly or through its parent, and
+/// the tenant-scoped Prisma client (src/server/lib/db/tenant.ts) filters every query by the signed-in company.
 model Company {
   id        String   @id @default(cuid())
   code      String   @unique
@@ -201,10 +202,28 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users      User[]
-  customers  Customer[]
-  products   Product[]
-  warehouses Warehouse[]
+  users               User[]
+  customers           Customer[]
+  products            Product[]
+  variants            Variant[]
+  warehouses          Warehouse[]
+  salesTeams          SalesTeam[]
+  categories          Category[]
+  priceLists          PriceList[]
+  policyVersions      PolicyVersion[]
+  deals               Deal[]
+  quotes              Quote[]
+  orders              Order[]
+  subscriptionPlans   SubscriptionPlan[]
+  subscriptions       Subscription[]
+  invoices            Invoice[]
+  creditNotes         CreditNote[]
+  recommendationRules RecommendationRule[]
+  healthSettings      HealthSettings?
+  healthFlags         HealthFlag[]
+  tasks               Task[]
+  auditEvents         AuditEvent[]
+  requestKeys         RequestKey[]
 }
 
 /// Internal actor or customer-portal login. Account status is the sole activation state, and customer access is granted only through memberships.
@@ -229,7 +248,7 @@ model User {
   quotesAsRep           Quote[]              @relation("QuoteRep")
   dealsAsRep            Deal[]               @relation("DealRep")
   ordersAsRep           Order[]              @relation("OrderRep")
-  revisionsAuthored     DealRevision[]      @relation("RevisionAuthor")
+  revisionsAuthored     DealRevision[]       @relation("RevisionAuthor")
   approvalDecisions     ApprovalDecision[]
   acceptances           CustomerAcceptance[]
   portalMessages        PortalMessage[]
@@ -275,15 +294,19 @@ model PasswordResetToken {
 /// Sales team used for quote ownership and report filters. A user belongs to at most one team.
 model SalesTeam {
   id        String   @id @default(cuid())
-  name      String   @unique
+  name      String
+  companyId String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  company   Company    @relation(fields: [companyId], references: [id])
   members   User[]
   customers Customer[]
   quotes    Quote[]
   orders    Order[]
   deals     Deal[]
+
+  @@unique([companyId, name])
 }
 
 /// Binds a CUSTOMER-role user to exactly the customers they may see. Portal queries start here.
@@ -336,20 +359,24 @@ model Customer {
 /// Admin-managed catalog classification. Stable rows keep product and policy history addressable after a category is deactivated.
 model Category {
   id        String   @id @default(cuid())
-  code      String   @unique
+  code      String
   name      String
+  companyId String
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  company        Company         @relation(fields: [companyId], references: [id])
   products       Product[]
   policyCeilings PolicyCeiling[]
-  dealLines     DealLine[]
+  dealLines      DealLine[]
 
+  @@unique([companyId, code])
   @@index([active, name])
 }
 
-/// Named GST (or other) rate selected on products. Quote lines still snapshot taxPct.
+/// Named GST (or other) rate selected on products. Platform reference data shared by every tenant: a tenant may add a
+/// rate but never rename or deactivate an existing one. Quote lines still snapshot taxPct.
 model TaxRate {
   id        String   @id @default(cuid())
   code      String   @unique
@@ -365,7 +392,7 @@ model TaxRate {
 /// Catalog parent with a natural SKU and admin-managed category. Archiving preserves every historical financial and commercial reference.
 model Product {
   id            String    @id @default(cuid())
-  sku           String    @unique
+  sku           String
   name          String
   categoryId    String
   unit          String
@@ -387,11 +414,12 @@ model Product {
   defaultPlan         SubscriptionPlan?    @relation("ProductDefaultPlan", fields: [defaultPlanId], references: [id])
   variants            Variant[]
   priceRules          PriceRule[]
-  dealLines          DealLine[]
+  dealLines           DealLine[]
   orderLines          OrderLine[]
   recRulesAsBase      RecommendationRule[] @relation("RecBase")
   recRulesAsCandidate RecommendationRule[] @relation("RecCandidate")
 
+  @@unique([companyId, sku])
   @@index([categoryId, archivedAt])
   @@index([name])
   @@index([companyId])
@@ -401,7 +429,8 @@ model Product {
 model Variant {
   id             String    @id @default(cuid())
   productId      String
-  sku            String    @unique
+  companyId      String
+  sku            String
   name           String
   extraPrice     Decimal   @default(0) @db.Decimal(14, 2)
   cost           Decimal   @db.Decimal(14, 2)
@@ -412,28 +441,34 @@ model Variant {
   updatedAt      DateTime  @updatedAt
 
   product      Product        @relation(fields: [productId], references: [id])
+  company      Company        @relation(fields: [companyId], references: [id])
   priceRules   PriceRule[]
-  dealLines   DealLine[]
+  dealLines    DealLine[]
   orderLines   OrderLine[]
   stock        Stock[]
   reservations Reservation[]
   backorders   Backorder[]
   receipts     StockReceipt[]
 
+  @@unique([companyId, sku])
   @@index([productId])
 }
 
 /// Named price book selected by customer configuration. Its natural code gives seed and admin flows a stable resolver.
 model PriceList {
   id        String   @id @default(cuid())
-  code      String   @unique
+  code      String
   name      String
+  companyId String
   currency  String   @default("INR")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  company   Company     @relation(fields: [companyId], references: [id])
   customers Customer[]
   rules     PriceRule[]
+
+  @@unique([companyId, code])
 }
 
 /// Active product-level or variant-level price override. Partial unique indexes ensure resolution finds at most one active rule at either specificity.
@@ -460,6 +495,7 @@ model PriceRule {
 model PolicyVersion {
   id                       String   @id @default(cuid())
   name                     String
+  companyId                String
   createdById              String
   anyExcessRequiresManager Boolean
   managerWorstExcessPct    Decimal  @db.Decimal(5, 2)
@@ -469,10 +505,13 @@ model PolicyVersion {
   totalDiscountBudgetPct   Decimal? @db.Decimal(5, 2)
   createdAt                DateTime @default(now())
 
-  createdBy        User                    @relation(fields: [createdById], references: [id])
-  policyCeilings   PolicyCeiling[]
-  chainSteps       PolicyChainStep[]
-  revisions        DealRevision[]
+  company        Company           @relation(fields: [companyId], references: [id])
+  createdBy      User              @relation(fields: [createdById], references: [id])
+  policyCeilings PolicyCeiling[]
+  chainSteps     PolicyChainStep[]
+  revisions      DealRevision[]
+
+  @@index([companyId, createdAt])
 }
 
 model PolicyCeiling {
@@ -505,6 +544,7 @@ model PolicyChainStep {
 /// Shared commercial identity. Quote remains the compatibility-facing sales projection; Order remains the confirmed operational record.
 model Deal {
   id             String     @id @default(cuid())
+  companyId      String
   customerId     String
   repId          String
   teamId         String?
@@ -513,13 +553,15 @@ model Deal {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
-  customer Customer @relation(fields: [customerId], references: [id])
-  rep      User     @relation("DealRep", fields: [repId], references: [id])
-  team     SalesTeam? @relation(fields: [teamId], references: [id])
-  quote    Quote?
-  order    Order?
+  company   Company        @relation(fields: [companyId], references: [id])
+  customer  Customer       @relation(fields: [customerId], references: [id])
+  rep       User           @relation("DealRep", fields: [repId], references: [id])
+  team      SalesTeam?     @relation(fields: [teamId], references: [id])
+  quote     Quote?
+  order     Order?
   revisions DealRevision[]
 
+  @@index([companyId, status])
   @@index([customerId, status])
   @@index([repId, status])
   @@index([status, lastActivityAt])
@@ -529,6 +571,7 @@ model Deal {
 model Quote {
   id                String     @id @default(cuid())
   dealId            String?    @unique
+  companyId         String
   customerId        String
   repId             String
   teamId            String?
@@ -538,16 +581,18 @@ model Quote {
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
+  company         Company         @relation(fields: [companyId], references: [id])
   customer        Customer        @relation(fields: [customerId], references: [id])
   deal            Deal?           @relation(fields: [dealId], references: [id])
   rep             User            @relation("QuoteRep", fields: [repId], references: [id])
   team            SalesTeam?      @relation(fields: [teamId], references: [id])
-  currentRevision DealRevision?  @relation("CurrentRevision", fields: [currentRevisionId], references: [id])
-  revisions       DealRevision[] @relation("DealRevisions")
+  currentRevision DealRevision?   @relation("CurrentRevision", fields: [currentRevisionId], references: [id])
+  revisions       DealRevision[]  @relation("DealRevisions")
   portalMessages  PortalMessage[]
   healthFlags     HealthFlag[]
   tasks           Task[]
 
+  @@index([companyId, lastActivityAt])
   @@index([customerId, stage])
   @@index([repId, stage])
   @@index([stage, lastActivityAt])
@@ -580,17 +625,17 @@ model DealRevision {
   supersededAt       DateTime?
   createdAt          DateTime               @default(now())
 
-  quote          Quote                       @relation("DealRevisions", fields: [quoteId], references: [id])
-  deal           Deal?                       @relation(fields: [dealId], references: [id])
-  currentFor     Quote?                      @relation("CurrentRevision")
-  createdBy      User                        @relation("RevisionAuthor", fields: [createdById], references: [id])
-  policyVersion  PolicyVersion               @relation(fields: [policyVersionId], references: [id])
+  quote          Quote                @relation("DealRevisions", fields: [quoteId], references: [id])
+  deal           Deal?                @relation(fields: [dealId], references: [id])
+  currentFor     Quote?               @relation("CurrentRevision")
+  createdBy      User                 @relation("RevisionAuthor", fields: [createdById], references: [id])
+  policyVersion  PolicyVersion        @relation(fields: [policyVersionId], references: [id])
   lines          DealLine[]
   approvalSteps  DealApprovalStep[]
   decisions      ApprovalDecision[]
   acceptances    CustomerAcceptance[]
-  portalMessages PortalMessage[]             @relation("MessageBaseRevision")
-  spawnedFrom    PortalMessage[]             @relation("SpawnedRevision")
+  portalMessages PortalMessage[]      @relation("MessageBaseRevision")
+  spawnedFrom    PortalMessage[]      @relation("SpawnedRevision")
   order          Order?
 
   @@unique([quoteId, revisionNumber])
@@ -626,12 +671,12 @@ model DealLine {
   position             Int
   createdAt            DateTime         @default(now())
 
-  revision DealRevision     @relation(fields: [revisionId], references: [id])
-  product  Product           @relation(fields: [productId], references: [id])
-  variant  Variant?          @relation(fields: [variantId], references: [id])
-  plan     SubscriptionPlan? @relation(fields: [planId], references: [id])
-  category Category          @relation(fields: [categoryId], references: [id])
-  messages PortalMessage[]
+  revision  DealRevision      @relation(fields: [revisionId], references: [id])
+  product   Product           @relation(fields: [productId], references: [id])
+  variant   Variant?          @relation(fields: [variantId], references: [id])
+  plan      SubscriptionPlan? @relation(fields: [planId], references: [id])
+  category  Category          @relation(fields: [categoryId], references: [id])
+  messages  PortalMessage[]
   orderLine OrderLine?
 
   @@unique([revisionId, position])
@@ -652,7 +697,7 @@ model DealApprovalStep {
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
 
-  revision DealRevision     @relation(fields: [revisionId], references: [id])
+  revision DealRevision      @relation(fields: [revisionId], references: [id])
   decision ApprovalDecision? @relation(fields: [decisionId], references: [id])
 
   @@unique([revisionId, stepIndex])
@@ -671,8 +716,8 @@ model ApprovalDecision {
   reason     String
   createdAt  DateTime             @default(now())
 
-  revision DealRevision              @relation(fields: [revisionId], references: [id])
-  actor    User                       @relation(fields: [actorId], references: [id])
+  revision DealRevision      @relation(fields: [revisionId], references: [id])
+  actor    User              @relation(fields: [actorId], references: [id])
   step     DealApprovalStep?
 
   @@index([revisionId, createdAt])
@@ -687,7 +732,7 @@ model CustomerAcceptance {
   createdAt  DateTime @default(now())
 
   revision DealRevision @relation(fields: [revisionId], references: [id])
-  actor    User          @relation(fields: [actorId], references: [id])
+  actor    User         @relation(fields: [actorId], references: [id])
   order    Order?
 
   @@unique([revisionId, actorId])
@@ -709,10 +754,10 @@ model PortalMessage {
   spawnedRevisionId    String?
   createdAt            DateTime            @default(now())
 
-  quote           Quote          @relation(fields: [quoteId], references: [id])
+  quote           Quote         @relation(fields: [quoteId], references: [id])
   baseRevision    DealRevision  @relation("MessageBaseRevision", fields: [baseRevisionId], references: [id])
   line            DealLine?     @relation(fields: [lineId], references: [id])
-  author          User           @relation(fields: [authorId], references: [id])
+  author          User          @relation(fields: [authorId], references: [id])
   spawnedRevision DealRevision? @relation("SpawnedRevision", fields: [spawnedRevisionId], references: [id])
 
   @@index([quoteId, createdAt])
@@ -724,6 +769,7 @@ model Order {
   dealId            String?           @unique
   sourceRevisionId  String            @unique
   acceptanceId      String            @unique
+  companyId         String
   customerId        String
   repId             String
   teamId            String?
@@ -733,9 +779,10 @@ model Order {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
-  sourceRevision DealRevision      @relation(fields: [sourceRevisionId], references: [id])
-  deal           Deal?               @relation(fields: [dealId], references: [id])
+  sourceRevision DealRevision       @relation(fields: [sourceRevisionId], references: [id])
+  deal           Deal?              @relation(fields: [dealId], references: [id])
   acceptance     CustomerAcceptance @relation(fields: [acceptanceId], references: [id])
+  company        Company            @relation(fields: [companyId], references: [id])
   customer       Customer           @relation(fields: [customerId], references: [id])
   rep            User               @relation("OrderRep", fields: [repId], references: [id])
   team           SalesTeam?         @relation(fields: [teamId], references: [id])
@@ -745,6 +792,7 @@ model Order {
   healthFlags    HealthFlag[]
   tasks          Task[]
 
+  @@index([companyId, createdAt])
   @@index([customerId])
   @@index([fulfillmentStatus])
   @@index([promisedDate, fulfillmentStatus])
@@ -752,31 +800,31 @@ model Order {
 
 /// Immutable accepted line copied from the source DealLine. Fulfillment, reservations, and subscriptions hang off this row so warehouse code never joins quotes.
 model OrderLine {
-  id                String           @id @default(cuid())
-  orderId           String
+  id               String           @id @default(cuid())
+  orderId          String
   sourceDealLineId String           @unique @map("sourceQuoteLineId")
-  productId         String
-  variantId         String?
-  quantity          Int
-  unitPrice         Decimal          @db.Decimal(14, 2)
-  unitCost          Decimal          @db.Decimal(14, 2)
-  lineDiscountPct   Decimal          @db.Decimal(5, 2)
-  taxPct            Decimal          @db.Decimal(5, 2)
-  lineTotal         Decimal          @db.Decimal(14, 2)
-  billingKind       LineBillingKind
-  interval          BillingInterval?
-  planId            String?
-  stockTracked      Boolean
-  createdAt         DateTime         @default(now())
+  productId        String
+  variantId        String?
+  quantity         Int
+  unitPrice        Decimal          @db.Decimal(14, 2)
+  unitCost         Decimal          @db.Decimal(14, 2)
+  lineDiscountPct  Decimal          @db.Decimal(5, 2)
+  taxPct           Decimal          @db.Decimal(5, 2)
+  lineTotal        Decimal          @db.Decimal(14, 2)
+  billingKind      LineBillingKind
+  interval         BillingInterval?
+  planId           String?
+  stockTracked     Boolean
+  createdAt        DateTime         @default(now())
 
-  order         Order             @relation(fields: [orderId], references: [id])
-  product       Product           @relation(fields: [productId], references: [id])
-  variant       Variant?          @relation(fields: [variantId], references: [id])
-  plan          SubscriptionPlan? @relation(fields: [planId], references: [id])
-  reservations  Reservation[]
-  backorders    Backorder[]
-  shipmentLines ShipmentLine[]
-  subscription  Subscription?
+  order          Order             @relation(fields: [orderId], references: [id])
+  product        Product           @relation(fields: [productId], references: [id])
+  variant        Variant?          @relation(fields: [variantId], references: [id])
+  plan           SubscriptionPlan? @relation(fields: [planId], references: [id])
+  reservations   Reservation[]
+  backorders     Backorder[]
+  shipmentLines  ShipmentLine[]
+  subscription   Subscription?
   sourceDealLine DealLine          @relation(fields: [sourceDealLineId], references: [id])
 
   @@index([orderId])
@@ -786,7 +834,7 @@ model OrderLine {
 /// Physical stock location and shipping-cost input. A natural code gives seed and fulfillment flows a stable resolver.
 model Warehouse {
   id           String   @id @default(cuid())
-  code         String   @unique
+  code         String
   name         String
   shippingCost Decimal  @db.Decimal(14, 2)
   companyId    String
@@ -794,12 +842,13 @@ model Warehouse {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  company      Company  @relation(fields: [companyId], references: [id])
+  company      Company        @relation(fields: [companyId], references: [id])
   stock        Stock[]
   reservations Reservation[]
   receipts     StockReceipt[]
   shipments    Shipment[]
 
+  @@unique([companyId, code])
   @@index([active, name])
 }
 
@@ -912,8 +961,9 @@ model ShipmentLine {
 /// Configurable recurring offer. Code is its natural resolver, while interval and cancellation policy define future billing behavior.
 model SubscriptionPlan {
   id           String          @id @default(cuid())
-  code         String          @unique
+  code         String
   name         String
+  companyId    String
   interval     BillingInterval
   cancelPolicy CancelPolicy
   listPrice    Decimal         @default(0) @db.Decimal(14, 2)
@@ -921,19 +971,23 @@ model SubscriptionPlan {
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
+  company       Company              @relation(fields: [companyId], references: [id])
   products      Product[]            @relation("ProductDefaultPlan")
-  dealLines    DealLine[]
+  dealLines     DealLine[]
   orderLines    OrderLine[]
   subscriptions Subscription[]       @relation("CurrentPlan")
   pendingFor    Subscription[]       @relation("PendingPlan")
   changesBefore SubscriptionChange[] @relation("BeforePlan")
   changesAfter  SubscriptionChange[] @relation("AfterPlan")
+
+  @@unique([companyId, code])
 }
 
 /// Mutable recurring billing schedule created once from an order line. Calendar boundaries, cancellation intent, and pending plan state are explicit and independently searchable.
 model Subscription {
   id                       String             @id @default(cuid())
   sourceOrderLineId        String             @unique
+  companyId                String
   customerId               String
   planId                   String
   status                   SubscriptionStatus @default(ACTIVE)
@@ -953,12 +1007,14 @@ model Subscription {
   updatedAt                DateTime           @updatedAt
 
   sourceOrderLine OrderLine            @relation(fields: [sourceOrderLineId], references: [id])
+  company         Company              @relation(fields: [companyId], references: [id])
   customer        Customer             @relation(fields: [customerId], references: [id])
   plan            SubscriptionPlan     @relation("CurrentPlan", fields: [planId], references: [id])
   pendingPlan     SubscriptionPlan?    @relation("PendingPlan", fields: [pendingPlanId], references: [id])
   changes         SubscriptionChange[]
   invoices        Invoice[]
 
+  @@index([companyId, status, nextBillingDate])
   @@index([status, nextBillingDate])
   @@index([customerId])
 }
@@ -990,6 +1046,7 @@ model SubscriptionChange {
 /// Receivable header with immutable snapshot lines. Partial unique indexes enforce one-time and subscription-period identities without nullable-column loopholes.
 model Invoice {
   id             String        @id @default(cuid())
+  companyId      String
   customerId     String
   orderId        String?
   subscriptionId String?
@@ -1006,6 +1063,7 @@ model Invoice {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
+  company       Company             @relation(fields: [companyId], references: [id])
   customer      Customer            @relation(fields: [customerId], references: [id])
   order         Order?              @relation(fields: [orderId], references: [id])
   subscription  Subscription?       @relation(fields: [subscriptionId], references: [id])
@@ -1015,6 +1073,7 @@ model Invoice {
   creditApps    CreditApplication[]
   sourcedChange SubscriptionChange? @relation("AdjustmentSource")
 
+  @@index([companyId, status])
   @@index([customerId, status])
   @@index([orderId])
   @@index([subscriptionId, periodStart])
@@ -1041,6 +1100,7 @@ model InvoiceLine {
 /// Immutable credit document for one source invoice. Separate applications let a credit split across invoices without rewriting this row.
 model CreditNote {
   id              String       @id @default(cuid())
+  companyId       String
   customerId      String
   sourceInvoiceId String
   reason          CreditReason
@@ -1048,10 +1108,13 @@ model CreditNote {
   issuedById      String
   createdAt       DateTime     @default(now())
 
+  company       Company             @relation(fields: [companyId], references: [id])
   customer      Customer            @relation(fields: [customerId], references: [id])
   sourceInvoice Invoice             @relation(fields: [sourceInvoiceId], references: [id])
   issuedBy      User                @relation(fields: [issuedById], references: [id])
   applications  CreditApplication[]
+
+  @@index([companyId])
 }
 
 /// Immutable finance receipt against one invoice with a unique request key. The service rejects aggregate cash and credit beyond the invoice total.
@@ -1092,6 +1155,7 @@ model CreditApplication {
 /// Seeded co-purchase or promotion pairing. Add-to-quote still creates a revision, while transient dismissal stays in the browser session.
 model RecommendationRule {
   id                 String     @id @default(cuid())
+  companyId          String
   baseProductId      String
   candidateProductId String
   copurchaseScore    Decimal    @db.Decimal(8, 4)
@@ -1102,25 +1166,31 @@ model RecommendationRule {
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
+  company          Company @relation(fields: [companyId], references: [id])
   baseProduct      Product @relation("RecBase", fields: [baseProductId], references: [id])
   candidateProduct Product @relation("RecCandidate", fields: [candidateProductId], references: [id])
 
   @@unique([baseProductId, candidateProductId])
+  @@index([companyId])
 }
 
-/// Single-row Engine 5 configuration. The id is fixed so reads and admin edits target one row; defaults are the blueprint's sample values.
+/// Engine 5 configuration, one row per company. A company without a row uses the blueprint's sample defaults.
 model HealthSettings {
-  id                   String   @id @default("default")
+  id                   String   @id @default(cuid())
+  companyId            String   @unique
   stalledAfterDays     Int      @default(5)
   anomalyMinSamples    Int      @default(3)
   anomalyExcessPoints  Decimal  @default(10) @db.Decimal(5, 2)
   deliveryRiskLeadDays Int      @default(3)
   updatedAt            DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
 }
 
 /// Persistent finding tied to exactly one quote or order. An unresolved fingerprint is unique, and resolvedAt alone determines whether the finding is active.
 model HealthFlag {
   id          String         @id @default(cuid())
+  companyId   String
   type        HealthFlagType
   fingerprint String
   quoteId     String?
@@ -1131,10 +1201,12 @@ model HealthFlag {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  quote Quote? @relation(fields: [quoteId], references: [id])
-  order Order? @relation(fields: [orderId], references: [id])
-  tasks Task[]
+  company Company @relation(fields: [companyId], references: [id])
+  quote   Quote?  @relation(fields: [quoteId], references: [id])
+  order   Order?  @relation(fields: [orderId], references: [id])
+  tasks   Task[]
 
+  @@index([companyId, resolvedAt])
   @@index([resolvedAt, type])
   @@index([quoteId, resolvedAt])
   @@index([orderId, resolvedAt])
@@ -1144,6 +1216,7 @@ model HealthFlag {
 model Task {
   id          String     @id @default(cuid())
   actionKey   String     @unique
+  companyId   String
   flagId      String
   quoteId     String?
   orderId     String?
@@ -1156,18 +1229,21 @@ model Task {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
+  company   Company    @relation(fields: [companyId], references: [id])
   flag      HealthFlag @relation(fields: [flagId], references: [id])
   quote     Quote?     @relation(fields: [quoteId], references: [id])
   order     Order?     @relation(fields: [orderId], references: [id])
   assignee  User       @relation("TaskAssignee", fields: [assigneeId], references: [id])
   createdBy User       @relation("TaskCreator", fields: [createdById], references: [id])
 
+  @@index([companyId, status])
   @@index([assigneeId, status])
 }
 
 /// Append-only business event with optional revision context. Required metadata preserves structured facts without mutating prior events.
 model AuditEvent {
   id         String   @id @default(cuid())
+  companyId  String
   entityType String
   entityId   String
   revisionId String?
@@ -1177,8 +1253,10 @@ model AuditEvent {
   metadata   Json
   createdAt  DateTime @default(now())
 
-  actor User? @relation(fields: [actorId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+  actor   User?   @relation(fields: [actorId], references: [id])
 
+  @@index([companyId, createdAt])
   @@index([entityType, entityId])
   @@index([actorId, createdAt])
 }
@@ -1186,6 +1264,7 @@ model AuditEvent {
 /// Durable idempotency claim and result envelope. A scope-key pair converges retried commands, including operations that return compound payloads.
 model RequestKey {
   id            String             @id @default(cuid())
+  companyId     String
   scope         RequestScope
   key           String
   actorId       String?
@@ -1196,6 +1275,7 @@ model RequestKey {
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
+  company            Company             @relation(fields: [companyId], references: [id])
   actor              User?               @relation(fields: [actorId], references: [id])
   payments           Payment[]
   creditApplications CreditApplication[]

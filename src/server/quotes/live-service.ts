@@ -201,6 +201,7 @@ type RevisionRow = RevisionInclude & {
 
 type QuoteRow = {
   id: string;
+  companyId: string;
   dealId: string | null;
   customerId: string;
   repId: string;
@@ -423,6 +424,7 @@ export class LiveQuoteService {
     return this.db.$transaction(async (tx) => {
       const deal = await tx.deal.create({
         data: {
+          companyId: customer.companyId,
           customerId: customer.id,
           repId: actor.role === "SALES_REP" ? actorId : customer.assignedRepId,
           teamId: customer.teamId,
@@ -430,6 +432,7 @@ export class LiveQuoteService {
       });
       const quote = await tx.quote.create({
         data: {
+          companyId: customer.companyId,
           dealId: deal.id,
           customerId: customer.id,
           repId: actor.role === "SALES_REP" ? actorId : customer.assignedRepId,
@@ -848,6 +851,7 @@ export class LiveQuoteService {
         };
         await tx.requestKey.create({
           data: {
+            companyId: quote.companyId,
             scope: "CONFIRM_ORDER",
             key: input.requestKey,
             actorId,
@@ -874,10 +878,11 @@ export class LiveQuoteService {
       }
       if (quote.stage === "CONFIRMED") throw new ApiFailure("CONFLICT", "Quote is already confirmed.");
       const claim = await tx.requestKey.create({
-        data: { scope: "CONFIRM_ORDER", key: input.requestKey, actorId },
+        data: { companyId: quote.companyId, scope: "CONFIRM_ORDER", key: input.requestKey, actorId },
       });
       const order = await tx.order.create({
         data: {
+          companyId: quote.companyId,
           dealId: quote.dealId,
           sourceRevisionId: revision.id,
           acceptanceId: acceptance.id,
@@ -1346,7 +1351,7 @@ export class LiveQuoteService {
     if (await db.product.findUnique({ where: { id }, select: { id: true } })) return id;
     const fixture = (await import("@/fixtures/harsh")).harshFixtures.products.find((product) => product.sym === id);
     if (!fixture) return id;
-    const mapped = await db.product.findUnique({ where: { sku: fixture.sku }, select: { id: true } });
+    const mapped = await db.product.findFirst({ where: { sku: fixture.sku }, select: { id: true } });
     return mapped?.id ?? id;
   }
 
@@ -1354,7 +1359,7 @@ export class LiveQuoteService {
     if (await db.variant.findUnique({ where: { id }, select: { id: true } })) return id;
     const fixture = (await import("@/fixtures/harsh")).harshFixtures.variants.find((variant) => variant.sym === id);
     if (!fixture) return id;
-    const mapped = await db.variant.findUnique({ where: { sku: fixture.sku }, select: { id: true } });
+    const mapped = await db.variant.findFirst({ where: { sku: fixture.sku }, select: { id: true } });
     return mapped?.id ?? id;
   }
 }

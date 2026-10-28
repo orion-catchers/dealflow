@@ -33,6 +33,8 @@ const RULES: readonly Rule[] = [
   { prefix: "/api/auth", access: "ANY" },
   { prefix: "/api/jobs", access: "PUBLIC" },
   { prefix: "/api/payments/stripe", access: "PUBLIC" },
+  { prefix: "/api/livez", access: "PUBLIC" },
+  { prefix: "/api/readyz", access: "PUBLIC" },
 
   { prefix: "/api/admin", access: ["ADMIN"] },
   { prefix: "/api/portal", access: ["CUSTOMER"] },

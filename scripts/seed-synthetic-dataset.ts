@@ -2,6 +2,7 @@ import "dotenv/config";
 import fs from "node:fs";
 import { hashPassword } from "../src/server/lib/auth/password";
 import { prisma } from "../src/server/lib/db";
+import { runForCompany } from "../src/server/lib/tenant/context";
 
 type Row = Record<string, unknown>;
 type Fixture = Record<string, unknown> & { users: Row[] };
@@ -571,7 +572,12 @@ async function main() {
   );
 }
 
-main()
+// A dataset describes exactly one company. Importing inside that company's tenant scope stamps its companyId on
+// every company-owned row, and the database triggers reject any row that points outside it.
+const companies = rows("companies");
+if (companies.length !== 1) throw new Error(`Expected one company in ${file}, found ${companies.length}`);
+
+runForCompany(String(companies[0].id), main)
   .catch((error) => {
     console.error(error);
     process.exitCode = 1;

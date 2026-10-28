@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
+import { inDemoCompany } from "@/server/lib/tenant/testing";
 import { ApiFailure } from "@/lib/api/respond";
 import { prisma } from "@/server/lib/db";
 import { hashPassword, verifyPassword } from "./password";
@@ -39,21 +40,25 @@ const createdUserIds: string[] = [];
 
 afterAll(async () => {
   if (!dbAvailable) return;
+  await inDemoCompany(cleanUp)();
+  await prisma.$disconnect();
+});
+
+async function cleanUp() {
   for (const userId of createdUserIds) {
     await prisma.passwordResetToken.deleteMany({ where: { userId } });
     await prisma.session.deleteMany({ where: { userId } });
     await prisma.user.deleteMany({ where: { id: userId } });
   }
-  await prisma.$disconnect();
-});
+}
 
 describe.skipIf(!dbAvailable)("password reset flow", () => {
-  it("records the same accepted response for unknown emails", async () => {
+  it("records the same accepted response for unknown emails", inDemoCompany(async () => {
     const result = await requestPasswordReset({ email: `nobody-${suffix}@example.test` });
     expect(result).toEqual({ accepted: true });
-  });
+  }));
 
-  it("creates a single-use token for active users and resets the password", async () => {
+  it("creates a single-use token for active users and resets the password", inDemoCompany(async () => {
     const user = await prisma.user.create({
       data: {
         email: activeEmail,
@@ -91,9 +96,9 @@ describe.skipIf(!dbAvailable)("password reset flow", () => {
 
     const replay = await failure(confirmPasswordReset({ token, newPassword: "again-password-1" }));
     expect(replay.code).toBe("INVALID_INPUT");
-  });
+  }));
 
-  it("rejects expired tokens", async () => {
+  it("rejects expired tokens", inDemoCompany(async () => {
     const user = await prisma.user.findUniqueOrThrow({ where: { email: activeEmail } });
     const token = randomBytes(32).toString("hex");
     await prisma.passwordResetToken.create({
@@ -105,9 +110,9 @@ describe.skipIf(!dbAvailable)("password reset flow", () => {
     });
     const err = await failure(confirmPasswordReset({ token, newPassword: "expired-pass-1" }));
     expect(err.code).toBe("INVALID_INPUT");
-  });
+  }));
 
-  it("consumes a token atomically under concurrent confirmation", async () => {
+  it("consumes a token atomically under concurrent confirmation", inDemoCompany(async () => {
     const user = await prisma.user.findUniqueOrThrow({ where: { email: activeEmail } });
     const token = randomBytes(32).toString("hex");
     await prisma.passwordResetToken.create({
@@ -128,9 +133,9 @@ describe.skipIf(!dbAvailable)("password reset flow", () => {
     );
     expect(ok).toHaveLength(1);
     expect(rejected).toHaveLength(1);
-  });
+  }));
 
-  it("does not create tokens for non-active accounts", async () => {
+  it("does not create tokens for non-active accounts", inDemoCompany(async () => {
     const user = await prisma.user.create({
       data: {
         email: disabledEmail,
@@ -147,5 +152,5 @@ describe.skipIf(!dbAvailable)("password reset flow", () => {
     expect(request).toEqual({ accepted: true });
     const tokens = await prisma.passwordResetToken.findMany({ where: { userId: user.id } });
     expect(tokens).toHaveLength(0);
-  });
+  }));
 });

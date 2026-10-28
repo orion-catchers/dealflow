@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { ApiFailure, fail, ok } from "@/lib/api/respond";
 import { clearSessionCookie, destroySessionByToken, parseSessionCookie } from "@/server/lib/auth/session";
 import { developmentEnabled, getAdapter } from "@/server/adapters";
+import { scopedRoute } from "@/server/lib/tenant/context";
 
-export async function POST(request: Request) {
+export const POST = scopedRoute(async function POST(request: Request) {
   try {
     if (developmentEnabled()) {
       const token = request.headers.get("cookie")?.split(";")
@@ -25,4 +26,4 @@ export async function POST(request: Request) {
     console.error(e);
     return NextResponse.json({ error: { code: "INTERNAL", message: "Unexpected server error" } }, { status: 500 });
   }
-}
+});

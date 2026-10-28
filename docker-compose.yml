@@ -17,5 +17,21 @@ services:
       timeout: 3s
       retries: 10
 
+  # Production-style app container. Not started by `pnpm db:up`; run with `docker compose --profile app up --build`.
+  app:
+    profiles: ["app"]
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://dealflow:dealflow@db:5432/dealflow?schema=public
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      DEALFLOW_DEMO_MODE: ${DEALFLOW_DEMO_MODE:-0}
+      DEALFLOW_PUBLIC_SIGNUP: ${DEALFLOW_PUBLIC_SIGNUP:-0}
+    command: ["sh", "-c", "pnpm db:deploy && pnpm start"]
+    ports:
+      - "${DEALFLOW_APP_PORT:-3000}:3000"
+
 volumes:
   dealflow-pgdata:

@@ -63,6 +63,32 @@ export async function requestPasswordReset(
   return { accepted: true };
 }
 
+/** Invitations stay valid for a week; a password reset for 30 minutes. */
+export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Issue a single-use set-password token for a newly invited user and return the link that redeems it.
+ * The link is returned so an admin can share it when email delivery is not configured.
+ */
+export async function issueInviteLink(user: { id: string; email: string }, companyName: string, now = new Date()): Promise<string> {
+  const token = randomBytes(32).toString("hex");
+  await prisma.passwordResetToken.create({
+    data: { tokenHash: hashResetToken(token), userId: user.id, expiresAt: new Date(now.getTime() + INVITE_TTL_MS) },
+  });
+  const origin = process.env.APP_URL ?? "http://localhost:3000";
+  const link = `${origin}/login?invite=${token}`;
+  try {
+    await sendMail({
+      to: user.email,
+      subject: `You're invited to ${companyName} on DealFlow360`,
+      text: `Set your password within 7 days to activate your account:\n${link}`,
+    });
+  } catch (reason) {
+    console.error("[auth] invitation email was not delivered; share the invite link instead", reason);
+  }
+  return link;
+}
+
 export async function confirmPasswordReset(
   raw: unknown,
   options: ResetRequestOptions = {},

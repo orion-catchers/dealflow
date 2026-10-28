@@ -16,6 +16,7 @@ import type {
 } from "@/contracts/ruchir";
 import { parseInput } from "@/features/catalog/api";
 import { ApiFailure } from "@/lib/api/respond";
+import { demoModeEnabled } from "@/server/config/demo";
 import { getCatalogService } from "@/server/catalog/service";
 import { requireRole } from "@/server/lib/auth/dev-actor";
 import {
@@ -210,6 +211,11 @@ export class BillingService {
   async recordPayment(actor: Actor, raw: unknown): Promise<PaymentRecord> {
     if (actor.role === "CUSTOMER") {
       if (!actor.active) throw new ApiFailure("FORBIDDEN", "Inactive account");
+      // A customer-recorded payment is the demo's card "Preview". In production the books only take payments that
+      // finance records or that the payment provider confirms server-side.
+      if (!demoModeEnabled()) {
+        throw new ApiFailure("FORBIDDEN", "Card payments are taken through the payment provider; contact the seller to pay another way");
+      }
     } else {
       this.assertMutate(actor);
     }
