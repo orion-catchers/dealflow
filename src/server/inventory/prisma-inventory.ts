@@ -65,6 +65,7 @@ export class PrismaInventoryStore implements InventoryStore {
   }
 
   async nextId(_prefix: string): Promise<string> {
+    void _prefix; // Part of the InventoryStore contract; Prisma ids are random UUIDs.
     return randomUUID();
   }
 

@@ -21,6 +21,17 @@ export function inPeriod(record: ReportQuoteRecord, range: ResolvedRange, timeZo
   return false;
 }
 
+/**
+ * Confirmed revenue/order match: the record is CONFIRMED and its `confirmedAt` (IST calendar date)
+ * falls in `[from, to)`. Confirmed metrics use this, so a quote created in an earlier period and
+ * confirmed later counts its revenue only in the period it closed (it still matches inPeriod).
+ */
+export function confirmedInPeriod(record: ReportQuoteRecord, range: ResolvedRange, timeZone: string = DEFAULT_REPORT_TIME_ZONE): boolean {
+  if (record.stage !== "CONFIRMED" || !record.confirmedAt) return false;
+  const confirmed = localDateOf(record.confirmedAt, timeZone);
+  return confirmed >= range.from && confirmed < range.to;
+}
+
 /** Team match: record carries the teamId, or its rep is a member of the team. */
 export function inTeam(record: ReportQuoteRecord, teamId: string, teams: SalesTeam[]): boolean {
   if (record.teamId === teamId) return true;

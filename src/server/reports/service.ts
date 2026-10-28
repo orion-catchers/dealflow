@@ -71,7 +71,7 @@ export class ReportService {
     const range = resolvePeriod(scoped, now, this.timeZone);
     const [records, teams] = await Promise.all([this.repo.listQuoteRecords(), this.repo.listTeams()]);
     const rows = filterRecords(records, scoped, range, teams, this.timeZone);
-    return aggregateReport(rows, scoped, range);
+    return aggregateReport(rows, scoped, range, this.timeZone);
   }
 
   async export(filters: ReportFilters, format: ExportFormat, actor: Actor, now: Date = new Date()): Promise<ReportExportResult> {

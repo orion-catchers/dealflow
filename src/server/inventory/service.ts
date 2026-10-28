@@ -727,9 +727,18 @@ export class FulfillmentService {
   ): Promise<CommitOutput> {
     const warehouseById = new Map(warehouses.map((w) => [w.id, w]));
     const lineById = new Map(order.lines.map((l) => [l.orderLineId, l]));
-    const byWarehouse = new Map<string, AllocationPlanEntry[]>();
+    // Duplicate entries for the same (line, warehouse, variant) become one reservation. The shipment
+    // line merges them into one quantity and links only one reservation, so the rest would never ship.
+    const merged = new Map<string, AllocationPlanEntry>();
     for (const a of allocations) {
       if (a.quantity <= 0) continue;
+      const key = `${a.warehouseId}::${a.orderLineId}::${a.variantId}`;
+      const m = merged.get(key);
+      if (m) m.quantity += a.quantity;
+      else merged.set(key, { ...a });
+    }
+    const byWarehouse = new Map<string, AllocationPlanEntry[]>();
+    for (const a of merged.values()) {
       const list = byWarehouse.get(a.warehouseId) ?? [];
       list.push(a);
       byWarehouse.set(a.warehouseId, list);
