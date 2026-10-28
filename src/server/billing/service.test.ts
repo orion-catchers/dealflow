@@ -96,6 +96,34 @@ describe("due billing", () => {
     expect(listed.filter((i) => i.kind === "RECURRING")).toHaveLength(1);
   });
 
+  it("bills recurring lines at the accepted effective discount (line + order)", async () => {
+    // 100.00 list, 0% line discount, 10% order discount: the accepted line total is 90.00.
+    // The confirmation payload carries the effective percentage, and billing applies it once.
+    await svc.initializeOnStore(
+      order({
+        lines: [
+          {
+            orderLineId: "ol-monthly",
+            description: "Monthly seat",
+            quantity: 1,
+            unitPrice: "100.00",
+            discountPct: 10,
+            taxPct: 0,
+            lineTotal: "90.00",
+            billingKind: "RECURRING",
+            interval: "MONTHLY",
+            planId: "plan-support-monthly",
+          },
+        ],
+      }),
+      "init-effective",
+    );
+    const due = await svc.runDueBilling(finance, { requestKey: "due-effective", asOf: "2026-09-01" });
+    expect(due.invoices).toHaveLength(1);
+    expect(due.invoices[0]?.total).toBe("90.00");
+    expect(due.invoices[0]?.lines[0]?.lineTotal).toBe("90.00");
+  });
+
   it("rejects impossible asOf dates", async () => {
     await expectFailure(svc.runDueBilling(finance, { requestKey: "due-bad", asOf: "2026-13-01" }), "INVALID_INPUT");
   });
@@ -195,6 +223,22 @@ describe("payments", () => {
       }),
       "CONFLICT",
     );
+  });
+
+  it("replays an identical retry that omits the reference", async () => {
+    const init = await svc.initializeOnStore(order(), "init-1");
+    const payload = {
+      invoiceId: init.oneTimeInvoice!.id,
+      amount: "100.00",
+      method: "CASH",
+      paidOn: "2026-09-02",
+      requestKey: "pay-no-ref",
+    };
+    const first = await svc.recordPayment(finance, payload);
+    const retry = await svc.recordPayment(finance, payload);
+    expect(retry.replayed).toBe(true);
+    expect(retry.id).toBe(first.id);
+    expect(retry.reference).toBe("PAY-pay-no-ref");
   });
 
   it("lets a customer pay their own invoice and hides another customer's invoice", async () => {
