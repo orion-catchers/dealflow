@@ -207,12 +207,20 @@ export function ReportsDashboard() {
       setFxSource("DEFAULT");
       return;
     }
+    // Ignore a response for a currency the user has already switched away from.
+    let cancelled = false;
     void api<{ converted: string; source: string }>(`/api/fx?amount=1&from=INR&to=${displayCurrency}`)
       .then((fx) => {
+        if (cancelled) return;
         setFxFactor(Number(fx.converted) || 1);
         setFxSource(fx.source);
       })
-      .catch(() => setFxFactor(1));
+      .catch(() => {
+        if (!cancelled) setFxFactor(1);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [displayCurrency]);
   const showMoney = (amount: string) => (Math.round(Number(amount) * fxFactor * 100) / 100).toFixed(2);
 
