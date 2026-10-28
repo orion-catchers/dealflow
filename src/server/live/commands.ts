@@ -564,12 +564,15 @@ export async function runLiveCommand(
           requireValue(customer, "Customer required");
           const tier = displayCustomerTier(String(b.customerTier));
           requireValue(["Bronze", "Silver", "Gold"].includes(String(b.customerTier)), "Customer tier must be Bronze, Silver, or Gold");
-          customer.tier = tier;
-          await prisma.customer.update({
-            where: { id: await prismaCustomerId(customer.id) },
-            data: { discountTier: tier === "Silver" ? "SILVER" : tier === "Gold" ? "GOLD" : "STANDARD" },
-          });
-          applyAtharvaEvaluation(state, q);
+          // Re-running evaluation resets an approved quote, so only touch the tier when it actually changes.
+          if (tier !== customer.tier) {
+            customer.tier = tier;
+            await prisma.customer.update({
+              where: { id: await prismaCustomerId(customer.id) },
+              data: { discountTier: tier === "Silver" ? "SILVER" : tier === "Gold" ? "GOLD" : "STANDARD" },
+            });
+            applyAtharvaEvaluation(state, q);
+          }
         }
         q.sent = true;
         if (q.stage === "DRAFT") q.stage = "SENT";

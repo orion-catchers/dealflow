@@ -131,6 +131,39 @@ describe("applyApprovalDecision", () => {
     expect(result.revision.approvalStatus).toBe("APPROVED");
     expect(result.quote.stage).toBe("UNDER_NEGOTIATION");
   });
+
+  it("does not approve while a later BLOCKED step remains, and promotes it", () => {
+    const chain: StepState[] = [
+      { stepIndex: 0, role: "SALES_MANAGER", status: "PENDING", decisionId: null },
+      { stepIndex: 1, role: "FINANCE", status: "BLOCKED", decisionId: null },
+    ];
+    const afterManager = applyApprovalDecision({
+      revision: { approvalStatus: "PENDING", createdById: "other" },
+      quote: { stage: "PENDING_APPROVAL" },
+      steps: chain,
+      actor: manager,
+      decision: "APPROVE",
+      reason: "Within manager limit",
+      decisionId: "dec-m",
+      stepIndex: 0,
+    });
+    expect(afterManager.revision.approvalStatus).toBe("PENDING");
+    expect(afterManager.quote.stage).toBe("PENDING_APPROVAL");
+    expect(afterManager.steps[1]?.status).toBe("PENDING");
+
+    const afterFinance = applyApprovalDecision({
+      revision: afterManager.revision,
+      quote: afterManager.quote,
+      steps: afterManager.steps,
+      actor: finance,
+      decision: "APPROVE",
+      reason: "Within policy",
+      decisionId: "dec-f",
+      stepIndex: 1,
+    });
+    expect(afterFinance.revision.approvalStatus).toBe("APPROVED");
+    expect(afterFinance.quote.stage).toBe("APPROVED");
+  });
 });
 
 describe("service authorization expectations", () => {
