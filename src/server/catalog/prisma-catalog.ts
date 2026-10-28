@@ -21,6 +21,7 @@ import {
   tierToDb,
 } from "@/server/lib/db/map";
 import type { CatalogRepository } from "./repository";
+import { selectPriceList } from "./engine/resolve-price";
 
 type Client = Db | Tx;
 
@@ -59,6 +60,15 @@ export class PrismaCatalogRepository implements CatalogRepository {
       return this.db.customer.findFirst({ where: { contactEmail: email }, include: { assignedRep: true } });
     }
     return this.db.customer.findFirst({ where: { name: id }, include: { assignedRep: true } });
+  }
+
+  /**
+   * Tier/currency default list for a customer without an override. Uses the pricing engine's
+   * own rule (selectPriceList); lists are ordered by code so ties resolve the same way each time.
+   */
+  private async defaultPriceListId(customer: Customer): Promise<string> {
+    const rows = await this.db.priceList.findMany({ orderBy: { code: "asc" } });
+    return selectPriceList({ ...customer, priceListId: undefined }, rows.map(toPriceList)).id;
   }
 
   private async ensureCategory(code: string): Promise<string> {
@@ -103,9 +113,7 @@ export class PrismaCatalogRepository implements CatalogRepository {
   }
 
   async insertCustomer(c: Customer): Promise<Customer> {
-    const lists = await this.db.priceList.findMany({ take: 1 });
-    const priceListId = c.priceListId ?? lists[0]?.id;
-    if (!priceListId) throw new Error("Cannot create customer without a price list in the database");
+    const priceListId = c.priceListId ?? (await this.defaultPriceListId(c));
     const assignedRepId = await this.resolveUserId(c.assignedRepId);
     const row = await this.db.customer.create({
       data: {
@@ -136,7 +144,7 @@ export class PrismaCatalogRepository implements CatalogRepository {
         contactEmail: c.contactEmail ?? existing.contactEmail,
         discountTier: tierToDb(c.tier),
         currency: c.currency,
-        priceListId: c.priceListId ?? existing.priceListId,
+        priceListId: c.priceListId ?? (await this.defaultPriceListId(c)),
         assignedRepId,
       },
       include: { assignedRep: true },
@@ -160,8 +168,8 @@ export class PrismaCatalogRepository implements CatalogRepository {
   }
 
   async insertTaxRate(t: TaxRate): Promise<TaxRate> {
-    const pct = Math.round(t.ratePct);
-    const code = /^tax-\d+$/.test(t.id) ? t.id : `tax-${pct}`;
+    // Whole rates keep "tax-5"; fractional rates keep their decimals ("tax-5.1") so they do not collide.
+    const code = /^tax-\d+$/.test(t.id) ? t.id : `tax-${Number(t.ratePct)}`;
     const row = await this.db.taxRate.upsert({
       where: { code },
       create: { id: code, code, name: t.name, ratePct: t.ratePct, active: t.active },
@@ -229,7 +237,7 @@ export class PrismaCatalogRepository implements CatalogRepository {
         baseCost: p.baseCost,
         stockTracked: p.stockTracked,
         defaultPlanId: p.isSubscription ? (p.planId ?? null) : null,
-        archivedAt: p.archivedAt ? new Date(p.archivedAt) : p.active ? null : existing.archivedAt,
+        archivedAt: p.active ? null : p.archivedAt ? new Date(p.archivedAt) : (existing.archivedAt ?? new Date()),
       },
       include: productInclude,
     });
@@ -333,12 +341,8 @@ export class PrismaCatalogRepository implements CatalogRepository {
     const product = await this.db.product.findUnique({ where: { id: r.productId } });
     let calculatedPrice = r.fixedPrice;
     if (calculatedPrice === undefined && r.discountPct !== undefined && product) {
-      let base = Number(product.basePrice);
-      if (r.variantId) {
-        const variant = await this.db.variant.findUnique({ where: { id: r.variantId } });
-        if (variant) base += Number(variant.extraPrice);
-      }
-      const discounted = Math.max(0, base * (1 - r.discountPct / 100));
+      // Stored basis is the product base only; the resolver adds variant.extraPrice on top.
+      const discounted = Math.max(0, Number(product.basePrice) * (1 - r.discountPct / 100));
       calculatedPrice = moneyOf(discounted);
     }
     const tier = list?.code === "SILVER" ? "SILVER" : list?.code === "GOLD" ? "GOLD" : "STANDARD";
@@ -362,13 +366,8 @@ export class PrismaCatalogRepository implements CatalogRepository {
     if (calculatedPrice === undefined && r.discountPct !== undefined) {
       const product = await this.db.product.findUnique({ where: { id: r.productId } });
       if (product) {
-        let base = Number(product.basePrice);
-        const variantId = r.variantId ?? existing?.variantId;
-        if (variantId) {
-          const variant = await this.db.variant.findUnique({ where: { id: variantId } });
-          if (variant) base += Number(variant.extraPrice);
-        }
-        const discounted = Math.max(0, base * (1 - r.discountPct / 100));
+        // Stored basis is the product base only; the resolver adds variant.extraPrice on top.
+        const discounted = Math.max(0, Number(product.basePrice) * (1 - r.discountPct / 100));
         calculatedPrice = moneyOf(discounted);
       }
     }
@@ -376,7 +375,7 @@ export class PrismaCatalogRepository implements CatalogRepository {
       where: { id: r.id },
       data: {
         productId: r.productId,
-        variantId: r.variantId !== undefined ? (r.variantId ?? null) : undefined,
+        variantId: r.variantId ?? null,
         unitPrice: calculatedPrice !== undefined ? calculatedPrice : existing?.unitPrice ?? "0.00",
         active: true,
       },
