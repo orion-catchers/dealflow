@@ -4,6 +4,14 @@ _Source of truth: `prisma/schema.prisma`. This file is a reviewer map. Column li
 
 Generated client: `src/generated/prisma` (gitignored). After clone: `pnpm install` or `pnpm db:generate`.
 
+## Tenancy
+
+`Company` is the tenant. Tables a company owns carry `companyId` directly: User, SalesTeam, Customer, Category, Product, Variant, PriceList, PolicyVersion, Deal, Quote, Order, Warehouse, SubscriptionPlan, Subscription, Invoice, CreditNote, RecommendationRule, HealthSettings (one row per company), HealthFlag, Task, AuditEvent, RequestKey. Every other table belongs to a company through its parent (a revision through its quote, a payment through its invoice, stock through its warehouse). `TaxRate` is shared platform reference data.
+
+Natural keys are unique per company: `(companyId, sku)` on Product and Variant, `(companyId, code)` on Category, PriceList, Warehouse and SubscriptionPlan, `(companyId, name)` on SalesTeam. `User.email` and `Company.code` stay unique across the platform.
+
+Migration `20261028120000_company_tenancy` backfilled `companyId` from each row's relations and aborts if it finds a cross-company reference. Migration `20261028120100_tenant_reference_guard` adds triggers that reject such references on insert and update.
+
 ## Enums
 
 | Enum | Values (as of schema) |

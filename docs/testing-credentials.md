@@ -33,7 +33,7 @@ Local Docker Postgres (from `docker-compose.yml`): user `dealflow`, password `de
 | CUSTOMER (Beta, Standard) | Rohan Das | `rohan@beta.example` | `rohan-beta-2026!` | `/portal` |
 | CUSTOMER (Gamma, Silver) | Meera Joshi | `meera@gamma.example` | `meera-gamma-2026!` | `/portal` |
 | SALES_REP (pending) | Vikram Singh | `vikram@nexa.example` | `vikram-nexa-2026!` | Cannot sign in until an admin activates |
-| ADMIN (Contoso tenant) | Contoso Admin | `admin@contoso.example` | `contoso-admin-2026!` | `/home` (only after a seed that includes Contoso) |
+| ADMIN (Contoso workspace) | Contoso Admin | `admin@contoso.example` | `contoso-admin-2026!` | `/home`. A second, empty workspace with only the starter configuration; none of Nexa's records are visible here. |
 
 Login page demo-fill buttons provide one-click login for Admin (`dev@nexa.example`), staff roles (Arjun, Sana, Farah), and 3 distinct customers: Acme (`neha@acme.example`), Beta (`rohan@beta.example`), and Gamma (`meera@gamma.example`).
 

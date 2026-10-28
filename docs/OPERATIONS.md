@@ -16,7 +16,9 @@ One Node 24 process serving Next.js (`pnpm start` after `pnpm build`). One Postg
 
 Do not configure a load balancer to hit `/api/health` without a cookie expecting 200.
 
-Suggested liveness: TCP or HTTP GET `/login` → 200 HTML. Suggested readiness: Postgres `SELECT 1` from a sidecar or a dedicated probe you add later.
+Probes: `GET /api/livez` (liveness, no database) and `GET /api/readyz` (readiness: 200 when Postgres answers `SELECT 1`, 503 otherwise). Both are unauthenticated and return no tenant data.
+
+Scheduled work: `pnpm jobs` or `POST /api/jobs/run` (Bearer `CRON_SECRET`) runs due billing, health refresh and recommendation learning **once per active company**. A failure in one company is logged and reported in the response; the other companies still run.
 
 ## Environment matrix
 
