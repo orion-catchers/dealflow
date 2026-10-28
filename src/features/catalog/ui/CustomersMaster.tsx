@@ -4,7 +4,7 @@
  * GET /api/customers, POST to create, PATCH /api/customers/[id] to edit (`null` clears
  * optional fields). The customer schema has no team field, so no sales-team select.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Currency, Customer, CustomerTier, PriceList } from "@/contracts/harsh";
 import type { UserAdminRow } from "@/contracts/ruchir";
 import { Button, DataTable, Dialog, EmptyState, ErrorState, Input, PageHeader, Select, StatusBadge, type Column } from "@/dev-adapter/ui";
@@ -33,7 +33,7 @@ export function CustomersMaster() {
     }
     return map;
   }, [staff.data]);
-  const userName = (id: string | undefined) => (id ? staffById.get(id)?.name : undefined);
+  const userName = useCallback((id: string | undefined) => (id ? staffById.get(id)?.name : undefined), [staffById]);
   const repOptions = (staff.data ?? []).filter((u) => isSalesAssigner(u.role) && u.status === "ACTIVE");
 
   const filtered = useMemo(() => {
@@ -41,7 +41,7 @@ export function CustomersMaster() {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((c) => [c.name, c.contactName, c.contactEmail, c.tier, userName(c.assignedRepId)].some((v) => v?.toLowerCase().includes(q)));
-  }, [customers.data, search, staffById]);
+  }, [customers.data, search, userName]);
 
   const columns: Column<Customer>[] = [
     {
