@@ -140,3 +140,38 @@ describe("aggregateReport — edge cases", () => {
     expect(agg.sales.conversionRatePct).toBe(0);
   });
 });
+
+describe("aggregateReport — created in one period, confirmed in the next", () => {
+  // Created 10 Sep 2026, confirmed 3 Oct 2026 (IST), one-time 1000.00.
+  const crossPeriod: ReportQuoteRecord = {
+    ...reportQuoteRecords[0],
+    quoteId: "q-cross",
+    quoteNumber: "Q-CROSS",
+    stage: "CONFIRMED",
+    approvalStatus: "NOT_REQUIRED",
+    createdAt: "2026-09-10T04:00:00.000Z",
+    confirmedAt: "2026-10-03T04:00:00.000Z",
+    oneTimeTotal: "1000.00",
+    monthlyRecurringTotal: "0.00",
+    lines: [],
+  };
+  const SEP: ReportFilters = { period: "CUSTOM", from: "2026-09-01", to: "2026-10-01" };
+  const OCT: ReportFilters = { period: "CUSTOM", from: "2026-10-01", to: "2026-11-01" };
+
+  it("September report: the quote is counted by creation, but its confirmed revenue is not", () => {
+    const agg = report(SEP, [crossPeriod]);
+    expect(agg.sales.quoteCount).toBe(1);
+    expect(agg.sales.confirmedOrderCount).toBe(0);
+    expect(agg.sales.confirmedOneTimeRevenue).toBe("0.00");
+    expect(agg.byRep[0]).toMatchObject({ confirmedCount: 0, confirmedOneTimeRevenue: "0.00" });
+    expect(agg.byStage.find((s) => s.stage === "CONFIRMED")).toMatchObject({ count: 0, value: "0.00" });
+  });
+
+  it("October report: confirmed revenue lands here, once", () => {
+    const agg = report(OCT, [crossPeriod]);
+    expect(agg.sales.confirmedOrderCount).toBe(1);
+    expect(agg.sales.confirmedOneTimeRevenue).toBe("1000.00");
+    expect(agg.byRep[0]).toMatchObject({ confirmedCount: 1, confirmedOneTimeRevenue: "1000.00" });
+    expect(agg.byStage.find((s) => s.stage === "CONFIRMED")).toMatchObject({ count: 1, value: "1000.00" });
+  });
+});

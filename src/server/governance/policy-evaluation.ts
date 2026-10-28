@@ -1,3 +1,4 @@
+import { Decimal } from "decimal.js";
 import type {
   ApprovalLevel,
   BillingInterval,
@@ -53,6 +54,20 @@ function decimal(value: number): string {
   return value.toFixed(2);
 }
 
+// Exact arithmetic: binary floats make an effective discount equal to the
+// ceiling (e.g. 15% line, 0% order) come out as 15.000000000000002.
+function effectiveDiscount(linePct: number, orderPct: number): number {
+  return new Decimal(100)
+    .times(
+      new Decimal(1).minus(
+        new Decimal(1)
+          .minus(new Decimal(linePct).div(100))
+          .times(new Decimal(1).minus(new Decimal(orderPct).div(100))),
+      ),
+    )
+    .toNumber();
+}
+
 function ceilingForLine(
   line: PricedDealLine,
   snapshot: PolicySnapshot,
@@ -96,8 +111,10 @@ function evaluateInterval(
       `undiscounted amount for line ${line.lineId}`,
     );
     const ceilingPct = ceilingForLine(line, policySnapshot);
-    const effectiveDiscountPct =
-      100 * (1 - (1 - lineDiscountPct / 100) * (1 - orderDiscountPct / 100));
+    const effectiveDiscountPct = effectiveDiscount(
+      lineDiscountPct,
+      orderDiscountPct,
+    );
     const excessPointsPct = Math.max(0, effectiveDiscountPct - ceilingPct);
     const excessAmount = (undiscountedAmount * excessPointsPct) / 100;
 

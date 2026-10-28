@@ -6,8 +6,8 @@
  * Percent: 0–100 with one decimal.
  */
 import type { Money, Pct, QuoteStageForReport, ReportAggregates, ReportFilters, ReportQuoteRecord } from "@/contracts/harsh";
-import { selectLines } from "./filter";
-import type { ResolvedRange } from "./period";
+import { confirmedInPeriod, selectLines } from "./filter";
+import { DEFAULT_REPORT_TIME_ZONE, type ResolvedRange } from "./period";
 
 /** Canonical stage order used for `byStage` (all stages emitted, zero-filled). */
 export const STAGE_ORDER: readonly QuoteStageForReport[] = [
@@ -38,9 +38,18 @@ function quoteValue(r: ReportQuoteRecord): number {
   return Number(r.oneTimeTotal) + Number(r.monthlyRecurringTotal);
 }
 
-export function aggregateReport(records: ReportQuoteRecord[], filters: ReportFilters, range: ResolvedRange): ReportAggregates {
+export function aggregateReport(
+  records: ReportQuoteRecord[],
+  filters: ReportFilters,
+  range: ResolvedRange,
+  timeZone: string = DEFAULT_REPORT_TIME_ZONE,
+): ReportAggregates {
+  // Confirmed revenue/order metrics count only when confirmedAt is inside the range; quote counts
+  // and pipeline stay on the filtered record set (see filter.ts inPeriod).
+  const isConfirmedInRange = (r: ReportQuoteRecord) => confirmedInPeriod(r, range, timeZone);
+
   // --- Sales -------------------------------------------------------------------------
-  const confirmed = records.filter((r) => r.stage === "CONFIRMED");
+  const confirmed = records.filter(isConfirmedInRange);
   const draftCount = records.filter((r) => r.stage === "DRAFT").length;
   const confirmedOneTime = confirmed.reduce((s, r) => s + Number(r.oneTimeTotal), 0);
   const confirmedMonthly = confirmed.reduce((s, r) => s + Number(r.monthlyRecurringTotal), 0);
@@ -74,7 +83,7 @@ export function aggregateReport(records: ReportQuoteRecord[], filters: ReportFil
     const entry = repMap.get(r.repId) ?? { repName: r.repName, quoteCount: 0, confirmedCount: 0, revenue: 0, discounts: [] };
     entry.quoteCount += 1;
     entry.discounts.push(r.weightedDiscountPct);
-    if (r.stage === "CONFIRMED") {
+    if (isConfirmedInRange(r)) {
       entry.confirmedCount += 1;
       entry.revenue += Number(r.oneTimeTotal);
     }
@@ -97,7 +106,7 @@ export function aggregateReport(records: ReportQuoteRecord[], filters: ReportFil
     { productName: string; category: ReportAggregates["byProduct"][number]["category"]; unitsQuoted: number; unitsConfirmed: number; netRevenue: number; discounts: number[] }
   >();
   for (const r of records) {
-    const isConfirmed = r.stage === "CONFIRMED";
+    const isConfirmed = isConfirmedInRange(r);
     for (const l of selectLines(r, filters)) {
       const entry = productMap.get(l.productId) ?? {
         productName: l.productName,
@@ -130,7 +139,8 @@ export function aggregateReport(records: ReportQuoteRecord[], filters: ReportFil
 
   // --- By stage ----------------------------------------------------------------------
   const byStage: ReportAggregates["byStage"] = STAGE_ORDER.map((stage) => {
-    const inStage = records.filter((r) => r.stage === stage);
+    // CONFIRMED is confirmed revenue, so it uses the same confirmedAt rule as the sales totals.
+    const inStage = stage === "CONFIRMED" ? confirmed : records.filter((r) => r.stage === stage);
     return { stage, count: inStage.length, value: money(inStage.reduce((s, r) => s + quoteValue(r), 0)) };
   });
 

@@ -223,8 +223,10 @@ export function applyAtharvaEvaluation(state: DataState, quote: Quote) {
 }
 
 export function candidatePreview(s: DataState, q: Quote, p: Product, ruleId: string): PricedCandidate {
+  const variantId = p.variants[0]?.id;
+  requireValue(variantId, "Choose a valid variant");
   const copy = structuredClone(q);
-  const line = makeLine(s, copy, p.id, p.variants[0].id, 1);
+  const line = makeLine(s, copy, p.id, variantId, 1);
   copy.lines.push(line);
   applyAtharvaEvaluation(s, copy);
   const priced = copy.lines.at(-1)!;
@@ -233,7 +235,7 @@ export function candidatePreview(s: DataState, q: Quote, p: Product, ruleId: str
   return {
     ruleId,
     productId: p.id,
-    variantId: p.variants[0].id,
+    variantId,
     name: p.name,
     active: p.active,
     compatible: true,

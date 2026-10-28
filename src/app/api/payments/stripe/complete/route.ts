@@ -23,16 +23,21 @@ export async function GET(request: Request) {
   if (!sessionId) return NextResponse.redirect(`${origin}/invoices?stripe=missing_session`);
   try {
     const session = await retrieveCheckoutSession(sessionId);
-    if (!session.paid || !session.invoiceId) {
+    if (!session.paid || !session.invoiceId || !session.paidOn) {
       return NextResponse.redirect(`${origin}/invoices?stripe=unpaid`);
     }
     const actor = await financeActor();
+    const invoice = await getBillingService().getInvoice(actor, session.invoiceId);
+    // A settlement in another currency is not booked; respond like the other unusable sessions.
+    if (session.currency?.toLowerCase() !== invoice.currency.toLowerCase()) {
+      return NextResponse.redirect(`${origin}/invoices?stripe=unpaid`);
+    }
     await getBillingService().recordPayment(actor, {
       invoiceId: session.invoiceId,
       amount: session.amount,
       method: "CARD",
       reference: session.paymentRef,
-      paidOn: new Date().toISOString().slice(0, 10),
+      paidOn: session.paidOn,
       requestKey: `stripe:${session.paymentRef}`,
     });
     return NextResponse.redirect(`${origin}/invoices/${session.invoiceId}?stripe=paid`);

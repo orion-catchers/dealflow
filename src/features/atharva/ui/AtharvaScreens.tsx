@@ -170,6 +170,7 @@ export function HealthDashboardScreen() {
     return date.toISOString().slice(0, 10);
   });
   const load = (recompute = false) => {
+    setError(null);
     setBusy(true);
     const request = recompute
       ? fetchJson<HealthData>("/api/health", { method: "POST" })

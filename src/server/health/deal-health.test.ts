@@ -118,4 +118,30 @@ describe("deal health", () => {
     );
     expect(reactivated[0].status).toBe("ACTIVE");
   });
+
+  it("flags idle submitted quotes and skips only terminal stages", () => {
+    const idle = (quoteId: string, stage: "PENDING_APPROVAL" | "APPROVED" | "CONFIRMED" | "REJECTED") => ({
+      quoteId,
+      stage,
+      lastBusinessActivityAt: "2026-09-01T00:00:00.000Z",
+      currentEffectiveDiscountPct: "0",
+      salesRepId: "rep-arjun",
+      comparableConfirmedDiscounts: [],
+    });
+    const candidates = findHealthCandidates({
+      now: "2026-09-28T00:00:00.000Z",
+      settings,
+      quotes: [
+        idle("quote-pending", "PENDING_APPROVAL"),
+        idle("quote-approved", "APPROVED"),
+        idle("quote-confirmed", "CONFIRMED"),
+        idle("quote-rejected", "REJECTED"),
+      ],
+      orders: [],
+    });
+    expect(candidates.map((candidate) => candidate.quoteId)).toEqual([
+      "quote-pending",
+      "quote-approved",
+    ]);
+  });
 });

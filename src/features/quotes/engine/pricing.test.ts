@@ -116,6 +116,50 @@ describe("priceQuote", () => {
     expect(result.lines[0].totalAmount).toBe("792.00");
   });
 
+  it("rounds a half-cent tax up to the next cent (0.50 at 29% is 0.15)", () => {
+    const result = priceQuote({
+      currency: "INR",
+      orderDiscountPct: "0",
+      lines: [
+        {
+          ...line,
+          quantity: 1,
+          unitPrice: "0.50",
+          unitCost: "0.00",
+          taxPct: "29",
+          discountPct: "0",
+        },
+      ],
+    });
+    expect(result.lines[0]).toMatchObject({
+      discountAmount: "0.00",
+      taxAmount: "0.15",
+      totalAmount: "0.65",
+    });
+    expect(result.totals.taxTotal).toBe("0.15");
+  });
+
+  it("rounds a half-cent discount up to the next cent (0.50 at 19% effective is 0.10)", () => {
+    const result = priceQuote({
+      currency: "INR",
+      orderDiscountPct: "10",
+      lines: [
+        {
+          ...line,
+          quantity: 1,
+          unitPrice: "0.50",
+          unitCost: "0.00",
+          taxPct: "0",
+          discountPct: "10",
+        },
+      ],
+    });
+    expect(result.lines[0]).toMatchObject({
+      discountAmount: "0.10",
+      totalAmount: "0.40",
+    });
+  });
+
   it("rejects invalid quantities, discounts, and empty quotes", () => {
     expect(() =>
       priceQuote({ currency: "INR", lines: [], orderDiscountPct: "0" }),

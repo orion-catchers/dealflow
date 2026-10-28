@@ -32,6 +32,15 @@ export function fail(code: ApiErrorCode, message: string, details?: unknown) {
   return NextResponse.json({ error: { code, message, details } }, { status: STATUS[code] });
 }
 
+/** Read a JSON body; malformed JSON is a client error (INVALID_INPUT), not a 500. Call inside `handle`. */
+export async function readJsonBody(request: Request): Promise<unknown> {
+  try {
+    return await request.json();
+  } catch {
+    throw new ApiFailure("INVALID_INPUT", "Request body must be valid JSON");
+  }
+}
+
 /** Wrap a route handler so thrown ApiFailure / ZodError become envelope errors. */
 export async function handle<T>(fn: () => Promise<T>): Promise<NextResponse> {
   try {

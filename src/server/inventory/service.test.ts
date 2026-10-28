@@ -119,6 +119,29 @@ describe("accept", () => {
     await assertLineInvariant(BETA);
   });
 
+  it("duplicate plan entries for one line/warehouse/variant merge into one reservation; ship consumes all", async () => {
+    const r = await svc.accept({
+      orderId: BETA,
+      requestKey: "beta-dup",
+      actor: finance,
+      plan: {
+        allocations: [
+          { orderLineId: "ol-1002-1", variantId: LAPTOP, warehouseId: "warehouse-main", quantity: 3 },
+          { orderLineId: "ol-1002-1", variantId: LAPTOP, warehouseId: "warehouse-main", quantity: 1 },
+        ],
+        backorders: [],
+      },
+    });
+    expect(r.reservations).toHaveLength(1);
+    expect(r.reservations[0]).toMatchObject({ quantity: 4, status: "RESERVED" });
+    expect(r.shipments[0].lines).toEqual([{ orderLineId: "ol-1002-1", variantId: LAPTOP, quantity: 4 }]);
+    expect((await stock("warehouse-main", LAPTOP)).reserved).toBe(4);
+
+    await svc.ship({ orderId: BETA, shipmentId: r.shipments[0].id, requestKey: "ship-beta-dup", actor: finance });
+    expect(await stock("warehouse-main", LAPTOP)).toMatchObject({ onHand: 2, reserved: 0 });
+    await assertNoOversell();
+  });
+
   it("two warehouses: Acme → Main 6 + East 3 + 1 backorder, docks from Main, PARTIAL", async () => {
     const r = await svc.accept({ orderId: ACME, requestKey: "acme-1", actor: finance });
     expect(r.status).toBe("PARTIAL");

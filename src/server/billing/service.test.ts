@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Actor } from "@/contracts/harsh";
 import type { ConfirmedOrderForBilling } from "@/contracts/ruchir";
 import { ApiFailure } from "@/lib/api/respond";
@@ -94,6 +94,34 @@ describe("due billing", () => {
     expect(secondKey.invoices).toHaveLength(0);
     const listed = await svc.listInvoices(finance);
     expect(listed.filter((i) => i.kind === "RECURRING")).toHaveLength(1);
+  });
+
+  it("bills recurring lines at the accepted effective discount (line + order)", async () => {
+    // 100.00 list, 0% line discount, 10% order discount: the accepted line total is 90.00.
+    // The confirmation payload carries the effective percentage, and billing applies it once.
+    await svc.initializeOnStore(
+      order({
+        lines: [
+          {
+            orderLineId: "ol-monthly",
+            description: "Monthly seat",
+            quantity: 1,
+            unitPrice: "100.00",
+            discountPct: 10,
+            taxPct: 0,
+            lineTotal: "90.00",
+            billingKind: "RECURRING",
+            interval: "MONTHLY",
+            planId: "plan-support-monthly",
+          },
+        ],
+      }),
+      "init-effective",
+    );
+    const due = await svc.runDueBilling(finance, { requestKey: "due-effective", asOf: "2026-09-01" });
+    expect(due.invoices).toHaveLength(1);
+    expect(due.invoices[0]?.total).toBe("90.00");
+    expect(due.invoices[0]?.lines[0]?.lineTotal).toBe("90.00");
   });
 
   it("rejects impossible asOf dates", async () => {
@@ -197,6 +225,22 @@ describe("payments", () => {
     );
   });
 
+  it("replays an identical retry that omits the reference", async () => {
+    const init = await svc.initializeOnStore(order(), "init-1");
+    const payload = {
+      invoiceId: init.oneTimeInvoice!.id,
+      amount: "100.00",
+      method: "CASH",
+      paidOn: "2026-09-02",
+      requestKey: "pay-no-ref",
+    };
+    const first = await svc.recordPayment(finance, payload);
+    const retry = await svc.recordPayment(finance, payload);
+    expect(retry.replayed).toBe(true);
+    expect(retry.id).toBe(first.id);
+    expect(retry.reference).toBe("PAY-pay-no-ref");
+  });
+
   it("lets a customer pay their own invoice and hides another customer's invoice", async () => {
     const init = await svc.initializeOnStore(order(), "init-1");
     const paid = await svc.recordPayment(neha, {
@@ -284,6 +328,164 @@ describe("proration and cancel", () => {
     expect(resumed.status).toBe("ACTIVE");
     expect(resumed.currentPeriodStart).toBe("2026-09-20");
     expect(resumed.nextBillingDate).toBe(resumed.currentPeriodEnd);
+  });
+});
+
+/** Simulates a payment that commits after the credit was read but before the invoice lock is granted. */
+function injectPaymentOnLock(invoiceId: string, amount: string) {
+  return vi.spyOn(repo, "lockInvoice").mockImplementation(async () => {
+    await repo.savePayment({
+      id: `pay-race-${invoiceId}`,
+      invoiceId,
+      amount,
+      method: "BANK_TRANSFER",
+      reference: "RACE",
+      paidOn: "2026-09-16",
+      recordedById: "finance-farah",
+      createdAt: "2026-09-16T00:00:00.000Z",
+      requestKey: "pay-race",
+      requestKeyId: "req-race",
+    });
+  });
+}
+
+describe("subscription lifecycle regressions", () => {
+  it("choosing the current interval clears an earlier scheduled plan change", async () => {
+    const init = await svc.initializeOnStore(order(), "init-1");
+    const subId = init.subscriptions[0]!.id;
+    await svc.patchSubscription(finance, subId, { requestKey: "plan-yearly", planId: "plan-support-yearly" });
+    expect((await svc.getSubscription(finance, subId)).pendingPlanId).toBe("plan-support-yearly");
+    await svc.patchSubscription(finance, subId, { requestKey: "plan-same", planId: "plan-backup-monthly" });
+    const changed = await svc.getSubscription(finance, subId);
+    expect(changed.planId).toBe("plan-backup-monthly");
+    expect(changed.pendingPlanId).toBeNull();
+    expect(changed.pendingPlanName).toBeNull();
+    expect(changed.pendingPlanEffectiveDate).toBeNull();
+    await svc.runDueBilling(finance, { requestKey: "due-renew", asOf: "2026-10-01" });
+    const renewed = await svc.getSubscription(finance, subId);
+    expect(renewed.planId).toBe("plan-backup-monthly");
+    expect(renewed.interval).toBe("MONTHLY");
+  });
+
+  it("the first period after an interval change runs a full new interval", async () => {
+    const init = await svc.initializeOnStore(order({ confirmedAt: "2026-01-01" }), "init-jan");
+    const subId = init.subscriptions[0]!.id;
+    await svc.patchSubscription(finance, subId, { requestKey: "plan-year", planId: "plan-support-yearly" });
+    await svc.runDueBilling(finance, { requestKey: "due-feb", asOf: "2026-02-01" });
+    const sub = await svc.getSubscription(finance, subId);
+    expect(sub.interval).toBe("YEARLY");
+    expect(sub.currentPeriodStart).toBe("2026-02-01");
+    expect(sub.currentPeriodEnd).toBe("2027-02-01");
+    expect(sub.nextBillingDate).toBe("2027-02-01");
+    const firstYearly = (await svc.listInvoices(finance, { subscriptionId: subId })).find(
+      (i) => i.periodStart === "2026-02-01",
+    );
+    expect(firstYearly?.periodEnd).toBe("2027-02-01");
+  });
+
+  it("a paused subscription with a scheduled period-end cancellation finishes cancelling without being invoiced", async () => {
+    const init = await svc.initializeOnStore(order(), "init-1");
+    const subId = init.subscriptions[0]!.id;
+    await svc.patchSubscription(finance, subId, { requestKey: "pause-c", pause: true, effectiveDate: "2026-09-01" });
+    await svc.patchSubscription(finance, subId, { requestKey: "cancel-c", cancel: true, effectiveDate: "2026-09-01" });
+    await svc.runDueBilling(finance, { requestKey: "due-early", asOf: "2026-09-15" });
+    expect((await svc.getSubscription(finance, subId)).status).toBe("PAUSED");
+    const due = await svc.runDueBilling(finance, { requestKey: "due-end", asOf: "2026-10-01" });
+    expect(due.invoices).toHaveLength(0);
+    const cancelled = await svc.getSubscription(finance, subId);
+    expect(cancelled.status).toBe("CANCELLED");
+    expect(cancelled.nextBillingDate).toBeNull();
+    const recurring = (await svc.listInvoices(finance, { subscriptionId: subId })).filter((i) => i.kind === "RECURRING");
+    expect(recurring).toHaveLength(0);
+  });
+
+  it("rejects a quantity change dated outside the current billing period without mutating anything", async () => {
+    const init = await svc.initializeOnStore(order(), "init-1");
+    const subId = init.subscriptions[0]!.id;
+    await expectFailure(
+      svc.patchSubscription(finance, subId, { requestKey: "qty-future", quantity: 3, effectiveDate: "2026-10-02" }),
+      "INVALID_INPUT",
+    );
+    await expectFailure(
+      svc.patchSubscription(finance, subId, { requestKey: "qty-past", quantity: 3, effectiveDate: "2026-08-31" }),
+      "INVALID_INPUT",
+    );
+    const sub = await svc.getSubscription(finance, subId);
+    expect(sub.quantity).toBe(1);
+    expect(sub.changes).toHaveLength(0);
+    expect(await svc.listInvoices(finance, { subscriptionId: subId })).toHaveLength(0);
+    const retried = await svc.patchSubscription(finance, subId, {
+      requestKey: "qty-future",
+      quantity: 3,
+      effectiveDate: "2026-09-16",
+    });
+    expect(retried.quantity).toBe(3);
+  });
+
+  it("caps a quantity-decrease credit at the balance re-read after locking the invoice", async () => {
+    const init = await svc.initializeOnStore(
+      order({
+        lines: [
+          {
+            orderLineId: "ol-seats",
+            description: "Support Seat",
+            quantity: 3,
+            unitPrice: "920.00",
+            discountPct: 0,
+            taxPct: 0,
+            lineTotal: "2760.00",
+            billingKind: "RECURRING",
+            interval: "MONTHLY",
+            planId: "plan-support-monthly",
+          },
+        ],
+      }),
+      "init-seats",
+    );
+    const subId = init.subscriptions[0]!.id;
+    await svc.runDueBilling(finance, { requestKey: "due-seats", asOf: "2026-09-01" });
+    const recurring = (await svc.listInvoices(finance, { subscriptionId: subId })).find((i) => i.kind === "RECURRING")!;
+    const lock = injectPaymentOnLock(recurring.id, "2660.00");
+    // Proration credit is 920.00, but only 100.00 is still outstanding after the racing payment.
+    await svc.patchSubscription(finance, subId, { requestKey: "qty-down", quantity: 1, effectiveDate: "2026-09-16" });
+    expect(lock).toHaveBeenCalledWith(recurring.id);
+    const invoice = await svc.getInvoice(finance, recurring.id);
+    expect(invoice.paidAmount).toBe("2660.00");
+    expect(invoice.creditedAmount).toBe("100.00");
+    expect(invoice.outstanding).toBe("0.00");
+  });
+
+  it("caps an immediate-cancel credit at the balance re-read after locking the invoice", async () => {
+    const init = await svc.initializeOnStore(
+      order({
+        lines: [
+          {
+            orderLineId: "ol-backup",
+            description: "Backup",
+            quantity: 1,
+            unitPrice: "100.00",
+            discountPct: 0,
+            taxPct: 0,
+            lineTotal: "100.00",
+            billingKind: "RECURRING",
+            interval: "MONTHLY",
+            planId: "plan-backup-monthly",
+          },
+        ],
+      }),
+      "init-backup-race",
+    );
+    const subId = init.subscriptions[0]!.id;
+    await svc.runDueBilling(finance, { requestKey: "due-backup", asOf: "2026-09-01" });
+    const recurring = (await svc.listInvoices(finance, { subscriptionId: subId })).find((i) => i.kind === "RECURRING")!;
+    const lock = injectPaymentOnLock(recurring.id, "90.00");
+    // Unused time is 50.00, but only 10.00 is still outstanding after the racing payment.
+    await svc.patchSubscription(finance, subId, { requestKey: "cancel-race", cancel: true, effectiveDate: "2026-09-16" });
+    expect(lock).toHaveBeenCalledWith(recurring.id);
+    const invoice = await svc.getInvoice(finance, recurring.id);
+    expect(invoice.paidAmount).toBe("90.00");
+    expect(invoice.creditedAmount).toBe("10.00");
+    expect(invoice.outstanding).toBe("0.00");
   });
 });
 

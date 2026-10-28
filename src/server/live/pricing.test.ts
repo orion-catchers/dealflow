@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DataState, Product, Quote } from "@/contracts/application";
-import { applyAtharvaEvaluation, displayCustomerTier, makeLine, policySnapshot, resolvedPrice } from "./pricing";
+import { applyAtharvaEvaluation, candidatePreview, displayCustomerTier, makeLine, policySnapshot, resolvedPrice } from "./pricing";
 
 const actorQuote = (tier: string, discountPct: number): { state: DataState; quote: Quote } => {
   const quote: Quote = {
@@ -206,5 +206,13 @@ describe("resolvedPrice & price rule resolution", () => {
     expect(quote.lines[1]?.unitPrice).toBe("54000.00");
     expect(quote.lines[1]?.net).toBe("54000.00");
     expect(Number(quote.lines[1]?.profit)).toBeGreaterThan(0);
+  });
+});
+
+describe("candidatePreview", () => {
+  it("reports a controlled error instead of crashing when the candidate has no variants", () => {
+    const { state, quote } = actorQuote("Gold", 0);
+    const bare: Product = { ...state.products[0]!, id: "product-bare", variants: [] };
+    expect(() => candidatePreview(state, quote, bare, "rule-1")).toThrow("Choose a valid variant");
   });
 });

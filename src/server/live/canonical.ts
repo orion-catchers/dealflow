@@ -4,6 +4,7 @@ import type { PricedCandidate } from "@/contracts/krishna";
 import { AppError, requireValue } from "@/server/errors";
 import { prisma } from "@/server/lib/db";
 import { initializeBilling } from "@/server/billing/initialize";
+import { combinedDiscountPct } from "@/server/billing/engine/line-total";
 import { initializeFulfillment } from "@/server/inventory/initialize";
 import { latestPolicyVersionId } from "./state";
 import { prismaCustomerId, prismaUserId } from "./ids";
@@ -46,7 +47,7 @@ export function liveCanonical(state: DataState, dirty?: Dirty, actorHint?: Actor
       quote.lines.push(makeLine(state, quote, productId, variantId, Math.round(quantity)));
       applyAtharvaEvaluation(state, quote);
       quote.stage = quote.sent ? "UNDER_NEGOTIATION" : "DRAFT";
-      dirty && markQuote(dirty, quote);
+      if (dirty) markQuote(dirty, quote);
       return quote;
     },
     revise(quote, changes, actor) {
@@ -59,7 +60,7 @@ export function liveCanonical(state: DataState, dirty?: Dirty, actorHint?: Actor
       }
       applyAtharvaEvaluation(state, quote);
       quote.stage = "UNDER_NEGOTIATION";
-      dirty && markQuote(dirty, quote);
+      if (dirty) markQuote(dirty, quote);
       return quote;
     },
     confirm(quote, actor) {
@@ -361,7 +362,7 @@ export async function persistQuote(state: DataState, quote: Quote) {
           revisionId: revision.id,
           stepIndex: i,
           role: chain[i] === "FINANCE_OPS" ? "FINANCE" : "SALES_MANAGER",
-          status: i < quote.evaluation.step ? "APPROVED" : i === quote.evaluation.step ? "PENDING" : "BLOCKED",
+          status: i < quote.evaluation.step ? "APPROVED" : "PENDING",
         },
       });
     }
@@ -439,7 +440,7 @@ async function persistConfirmation(state: DataState, order: Order, actor: Actor)
         description: source?.product.name ?? "Order line",
         quantity: source?.quantity ?? line.quantity,
         unitPrice: String(source?.unitPrice ?? line.unitPrice),
-        discountPct: Number(source?.lineDiscountPct ?? line.lineDiscountPct),
+        discountPct: combinedDiscountPct(String(source?.lineDiscountPct ?? line.lineDiscountPct), String(revision.orderDiscountPct)),
         taxPct: Number(source?.taxPct ?? line.taxPct),
         lineTotal: String(source?.lineTotal ?? line.lineTotal),
         billingKind: (source?.billingKind ?? line.billingKind) === "RECURRING" ? ("RECURRING" as const) : ("ONE_TIME" as const),

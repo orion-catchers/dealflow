@@ -1,7 +1,20 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiFailure } from "@/lib/api/respond";
+import { customerIdForUser } from "./actor-helpers";
 import { getActor, getSessionUser } from "./actor";
 import { getAuthorizedActor } from "./permissions";
+
+describe("customerIdForUser", () => {
+  const customer = { id: "user-neha", email: "neha@acme.example", name: "Neha", role: "CUSTOMER" as const, status: "ACTIVE" as const };
+
+  it("gives no portal customer once the membership is revoked, even though the email is mapped", () => {
+    expect(customerIdForUser({ ...customer, memberships: [] })).toBeUndefined();
+  });
+
+  it("keeps the mapped customer for a user who still has a membership", () => {
+    expect(customerIdForUser({ ...customer, memberships: [{ customerId: "cust-db-acme" }] })).toBe("customer-acme");
+  });
+});
 
 async function failure(p: Promise<unknown>): Promise<ApiFailure> {
   try {

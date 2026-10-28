@@ -5,7 +5,8 @@ import { harshFixtures } from "@/fixtures/harsh";
 import { krishnaFixtures } from "@/fixtures/krishna";
 import { ruchirFixtures } from "@/fixtures/ruchir";
 import { hashPassword } from "@/server/lib/auth/password";
-import { prisma, type Db as PrismaClient } from "@/server/lib/db";
+import { databaseSchema, prisma, rawTable, type Db as PrismaClient } from "@/server/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 import {
   buildSeedCatalog,
   expandAllDeals,
@@ -18,17 +19,15 @@ async function truncateAll(prisma: PrismaClient): Promise<void> {
   if (tables.length === 0) {
     return;
   }
-  const tableList = tables.map((t) => `"${t}"`).join(", ");
-  await prisma.$executeRawUnsafe(
-    `TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE`,
-  );
+  const tableList = Prisma.join(tables.map(rawTable), ", ");
+  await prisma.$executeRaw`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE`;
 }
 
 async function userTables(prisma: PrismaClient): Promise<string[]> {
   const rows = await prisma.$queryRaw<{ table_name: string }[]>`
     SELECT table_name
     FROM information_schema.tables
-    WHERE table_schema = current_schema()
+    WHERE table_schema = ${databaseSchema()}
       AND table_type = 'BASE TABLE'
       AND table_name <> '_prisma_migrations'
     ORDER BY table_name
@@ -38,9 +37,9 @@ async function userTables(prisma: PrismaClient): Promise<string[]> {
 
 async function printCounts(prisma: PrismaClient): Promise<void> {
   for (const table of await userTables(prisma)) {
-    const [{ count }] = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
-      `SELECT count(*)::bigint AS count FROM "${table}"`,
-    );
+    const [{ count }] = await prisma.$queryRaw<{ count: bigint }[]>`
+      SELECT count(*)::bigint AS count FROM ${rawTable(table)}
+    `;
     console.log(`${table}\t${count}`);
   }
   console.log("Seed complete");

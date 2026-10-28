@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Actor, Quote } from "@/contracts/application";
-import { dealNextStep } from "./DealFlow";
+import { dealNextStep, nextStepHref } from "./DealFlow";
 
 function createMockQuote(overrides: Partial<Quote> = {}): Quote {
   return {
@@ -72,5 +72,23 @@ describe("dealNextStep copy attribution", () => {
 
     const step = dealNextStep(q, { actor: repActor, customerName: "Acme Corp" });
     expect(step.detail).toContain("Acme Corp proposed Version 2");
+  });
+});
+
+describe("nextStepHref fulfillment link", () => {
+  const confirmed = createMockQuote({ stage: "CONFIRMED", orderId: "o-1" });
+  const rep: Actor = { id: "rep-1", name: "Sarah Rep", email: "sarah@dealflow.test", role: "SALES_REP", active: true };
+  const manager: Actor = { id: "mgr-1", name: "Sana Manager", email: "sana@dealflow.test", role: "SALES_MANAGER", active: true };
+  const finance: Actor = { id: "fin-1", name: "Farah Finance", email: "farah@dealflow.test", role: "FINANCE_OPS", active: true };
+  const admin: Actor = { id: "adm-1", name: "Admin", email: "admin@dealflow.test", role: "ADMIN", active: true };
+
+  it("links roles that can open fulfillment to the order", () => {
+    expect(nextStepHref(confirmed, finance)).toBe("/fulfillment/o-1");
+    expect(nextStepHref(confirmed, admin)).toBe("/fulfillment/o-1");
+  });
+
+  it("keeps sales roles on the quotation they cannot leave", () => {
+    expect(nextStepHref(confirmed, rep)).toBe("/quotes/q-1");
+    expect(nextStepHref(confirmed, manager)).toBe("/quotes/q-1");
   });
 });

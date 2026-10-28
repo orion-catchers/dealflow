@@ -23,7 +23,7 @@ import type {
 } from "@/contracts/application";
 import type { BillingInterval, RecommendationRule } from "@/contracts/krishna";
 import { invoiceStatus } from "@/server/billing/engine/status";
-import { prisma } from "@/server/lib/db";
+import { prisma, rawTable } from "@/server/lib/db";
 import {
   categoryFromCode,
   currencyOf,
@@ -370,7 +370,7 @@ export async function loadDataState(): Promise<DataState> {
   let listPriceById = new Map<string, unknown>();
   try {
     const listPriceRows = await prisma.$queryRaw<Array<{ id: string; listPrice: unknown }>>`
-      SELECT id, "listPrice" FROM "SubscriptionPlan"
+      SELECT id, "listPrice" FROM ${rawTable("SubscriptionPlan")}
     `;
     listPriceById = new Map(listPriceRows.map((row) => [row.id, row.listPrice]));
   } catch {
@@ -525,7 +525,8 @@ export async function loadDataState(): Promise<DataState> {
   const appInvoices: Invoice[] = invoices.map((i) => {
     const credited = i.creditApps.reduce((n, a) => n + Number(a.amount), 0);
     const paid = i.payments.reduce((n, p) => n + Number(p.amount), 0);
-    const outstanding = Math.max(0, Number(i.total) - paid - credited);
+    const isVoid = i.status === "VOID";
+    const outstanding = isVoid ? 0 : Math.max(0, Number(i.total) - paid - credited);
     return {
       id: i.id,
       orderId: i.orderId ?? "",
@@ -554,7 +555,7 @@ export async function loadDataState(): Promise<DataState> {
       paid: money(paid),
       credited: money(credited),
       outstanding: money(outstanding),
-      status: invoiceStatus(money(i.total), money(paid), money(credited)),
+      status: isVoid ? "VOID" : invoiceStatus(money(i.total), money(paid), money(credited)),
       events: [],
     };
   });

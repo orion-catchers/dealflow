@@ -1,5 +1,21 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "@/generated/prisma/client";
+import { Prisma, PrismaClient } from "@/generated/prisma/client";
+
+/** The `?schema=` from DATABASE_URL; the pg default is `public`. */
+export function databaseSchema(connectionString = process.env.DATABASE_URL): string {
+  if (!connectionString) return "public";
+  return new URL(connectionString).searchParams.get("schema") || "public";
+}
+
+/**
+ * Schema-qualified table name for raw SQL. The pg adapter applies `?schema=` only to
+ * Prisma-generated queries; raw SQL resolves unqualified names through the connection
+ * search_path (normally `public`), which would hit another developer's schema.
+ */
+export function rawTable(table: string): Prisma.Sql {
+  const quote = (identifier: string) => `"${identifier.replaceAll('"', '""')}"`;
+  return Prisma.raw(`${quote(databaseSchema())}.${quote(table)}`);
+}
 
 function createClient(): PrismaClient {
   const connectionString = process.env.DATABASE_URL;

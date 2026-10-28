@@ -3,7 +3,7 @@
  * `ReportQuoteRecord`. Reports never recompute pricing or policy; they flatten persisted
  * totals and line snapshots.
  */
-import type { ProductCategory, ReportLineRecord, ReportQuoteRecord, SalesTeam } from "@/contracts/harsh";
+import type { ReportLineRecord, ReportQuoteRecord, SalesTeam } from "@/contracts/harsh";
 import { prisma } from "@/server/lib/db";
 import {
   categoryFromCode,
@@ -41,14 +41,18 @@ function quoteNumber(quoteId: string, revisionNumber: number): string {
   return `Q-${tail}-R${revisionNumber}`;
 }
 
-function weightedDiscount(lines: { lineSubtotal: unknown; effectiveDiscountPct: unknown }[], orderDiscountPct: unknown): number {
+function weightedDiscount(
+  lines: { unitPrice: unknown; quantity: number; effectiveDiscountPct: unknown }[],
+  orderDiscountPct: unknown,
+): number {
   let num = 0;
   let den = 0;
   for (const l of lines) {
-    const sub = Number(l.lineSubtotal);
-    if (!Number.isFinite(sub) || sub <= 0) continue;
-    den += sub;
-    num += sub * pctOf(l.effectiveDiscountPct);
+    // Weight by gross (unitPrice × quantity), as the canonical quote summary does.
+    const gross = Number(l.unitPrice) * l.quantity;
+    if (!Number.isFinite(gross) || gross <= 0) continue;
+    den += gross;
+    num += gross * pctOf(l.effectiveDiscountPct);
   }
   if (den > 0) return Math.round((num / den) * 10) / 10;
   return Math.round(pctOf(orderDiscountPct) * 10) / 10;

@@ -731,3 +731,28 @@ Limitations: None.
 
 
 
+
+## 2026-10-28T18:30:00+05:30 (Asia/Kolkata) - Owner: Ruchir
+
+Bug sweep: four GPT-6.1 Sol audits (quotes/approvals, auth/billing/portal, catalog/inventory/reports, UI shell) found 69 issues; about 45 bounded ones were fixed by Claude Haiku agents, then re-reviewed by Sol. Highlights:
+- Raw SQL is now schema-qualified (`rawTable()`/`databaseSchema()` in `src/server/lib/db/index.ts`). Before this, `pnpm db:seed` with `?schema=dev_<name>` TRUNCATED the `public` schema, and FOR UPDATE locks / SubscriptionPlan listPrice hit `public`.
+- Approval chain could complete with Finance still BLOCKED; a confirm replay skipped ownership checks; the portal leaked cost/margin totals; recurring billing dropped the order discount; checkout trusted the client's currency; decimal rounding in pricing/policy/billing; subscription lifecycle edge cases; catalog write bugs (archive, rule basis, default price list, tax codes, variant clear); report revenue by confirmedAt and gross-weighted discount; app-shell auth/SSO/next/billing route/setup nav; select keyboard handling.
+
+Files: see `git log b0700a9..` on this merge (61+ files under src/server, src/features, src/components, src/app/api, prisma/seed.ts).
+
+Checks (disposable Postgres on port 5440, schema `sweep`): `pnpm db:deploy`; `pnpm db:seed` run twice; seeding a second schema leaves `public` untouched; `pnpm typecheck` 0 errors; `pnpm exec eslint --ignore-pattern '.claude/**'` 0 problems (was 8 warnings); `pnpm test` 334/334; `pnpm test:krishna` 30/30; `pnpm build` passed.
+
+Limitations / open items (not fixed; need schema changes, design, or a team decision):
+- DECISION: customers can record their own payments (`POST /api/payments`) and the card "Preview" fallback in `CardCheckoutButton.tsx` records a real payment when Stripe is not configured, including in production.
+- Company scoping is missing in catalog detail lookups, reports/exports, and fulfillment allocation.
+- Inventory stock updates are not row-locked (concurrent over-reservation).
+- Workspace persistence (`live/canonical.ts`) can lose a concurrent edit (no head-revision compare-and-swap).
+- Customer date proposals become `promisedDate` without staff review; the policy total discount budget is not evaluated.
+- Workspace pricing ignores the customer's price list and uses the product cost, not the variant cost.
+- Schema gaps: price-rule minQty, customer/price-list active flags, price-list tier, warehouse per-kg shipping cost, product weight.
+- Billing: quantity change before the first invoice double-charges; subscription request keys do not bind the payload; multi-currency report totals are summed without conversion.
+- A customer whose membership is moved to another customer still maps to the hardcoded fixture customer (`actor-helpers.ts`). The login badge shows NOT CONNECTED before sign-in in LIVE mode.
+- UI fixes were verified by typecheck/lint/unit tests only; no browser run.
+- Sending a quote with the tier field still re-runs evaluation and resets approvals on the same revision. The narrow fix was reverted because it could keep an obsolete approval; the correct fix creates a new revision when the tier changes.
+- Quantity changes are now rejected when the subscription's billing period has lapsed (due billing not yet run); run due billing first.
+- Revisions wrongly marked APPROVED by the old BLOCKED-step bug are not repaired; `confirm()` now refuses them (CONFLICT), so the rep must send a new revision.

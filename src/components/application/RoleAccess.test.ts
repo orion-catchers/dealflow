@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { canAccessRoute, navigationFor } from './Application';
+import { allowedNextPath } from './route-access';
 import type { Role } from '@/contracts/application';
 
 describe('Role-based navigation visibility (navigationFor)', () => {
-  it('gives ADMIN all 10 navigation workflows including setup', () => {
+  it('gives ADMIN all 11 navigation workflows including setup', () => {
     const nav = navigationFor('ADMIN');
     const hrefs = nav.map((item) => item.href);
     expect(hrefs).toEqual([
@@ -13,6 +14,7 @@ describe('Role-based navigation visibility (navigationFor)', () => {
       '/fulfillment',
       '/subscriptions',
       '/invoices',
+      '/billing',
       '/health',
       '/reports',
       '/products',
@@ -65,6 +67,7 @@ describe('Role-based navigation visibility (navigationFor)', () => {
       '/fulfillment',
       '/subscriptions',
       '/invoices',
+      '/billing',
       '/reports',
       '/products',
       '/settings/warehouses',
@@ -78,6 +81,30 @@ describe('Role-based navigation visibility (navigationFor)', () => {
   it('gives CUSTOMER no internal workspace navigation items', () => {
     const nav = navigationFor('CUSTOMER');
     expect(nav).toHaveLength(0);
+  });
+});
+
+describe('Post-login next path (allowedNextPath)', () => {
+  it('accepts an in-app path the role may open', () => {
+    expect(allowedNextPath('/quotes/Q-1042', 'SALES_REP')).toBe('/quotes/Q-1042');
+    expect(allowedNextPath('/billing', 'FINANCE_OPS')).toBe('/billing');
+    expect(allowedNextPath('/portal/quotes/Q-1042', 'CUSTOMER')).toBe('/portal/quotes/Q-1042');
+  });
+
+  it('rejects paths the role may not open', () => {
+    expect(allowedNextPath('/fulfillment/O-1001', 'SALES_REP')).toBeNull();
+    expect(allowedNextPath('/portal', 'ADMIN')).toBeNull();
+    expect(allowedNextPath('/billing', 'SALES_MANAGER')).toBeNull();
+  });
+
+  it('rejects protocol-relative, absolute, backslash and control-character targets', () => {
+    expect(allowedNextPath('//evil.example/home', 'ADMIN')).toBeNull();
+    expect(allowedNextPath('https://evil.example/home', 'ADMIN')).toBeNull();
+    expect(allowedNextPath('javascript:alert(1)', 'ADMIN')).toBeNull();
+    expect(allowedNextPath('/\\evil.example', 'ADMIN')).toBeNull();
+    expect(allowedNextPath('/\t/evil.example', 'ADMIN')).toBeNull();
+    expect(allowedNextPath('home', 'ADMIN')).toBeNull();
+    expect(allowedNextPath(null, 'ADMIN')).toBeNull();
   });
 });
 
@@ -109,6 +136,7 @@ describe('Role-based route authorization guard (canAccessRoute)', () => {
       expect(canAccessRoute('ADMIN', '/fulfillment')).toBe(true);
       expect(canAccessRoute('ADMIN', '/subscriptions')).toBe(true);
       expect(canAccessRoute('ADMIN', '/invoices')).toBe(true);
+      expect(canAccessRoute('ADMIN', '/billing')).toBe(true);
       expect(canAccessRoute('ADMIN', '/health')).toBe(true);
       expect(canAccessRoute('ADMIN', '/reports')).toBe(true);
       expect(canAccessRoute('ADMIN', '/products')).toBe(true);
@@ -147,6 +175,7 @@ describe('Role-based route authorization guard (canAccessRoute)', () => {
       expect(canAccessRoute('SALES_REP', '/fulfillment/O-1001')).toBe(false);
       expect(canAccessRoute('SALES_REP', '/subscriptions')).toBe(false);
       expect(canAccessRoute('SALES_REP', '/invoices')).toBe(false);
+      expect(canAccessRoute('SALES_REP', '/billing')).toBe(false);
       expect(canAccessRoute('SALES_REP', '/settings/customers')).toBe(false);
       expect(canAccessRoute('SALES_REP', '/settings/users')).toBe(false);
       expect(canAccessRoute('SALES_REP', '/settings/warehouses')).toBe(false);
@@ -178,6 +207,7 @@ describe('Role-based route authorization guard (canAccessRoute)', () => {
       expect(canAccessRoute('SALES_MANAGER', '/fulfillment')).toBe(false);
       expect(canAccessRoute('SALES_MANAGER', '/subscriptions')).toBe(false);
       expect(canAccessRoute('SALES_MANAGER', '/invoices')).toBe(false);
+      expect(canAccessRoute('SALES_MANAGER', '/billing')).toBe(false);
       expect(canAccessRoute('SALES_MANAGER', '/settings/customers')).toBe(false);
       expect(canAccessRoute('SALES_MANAGER', '/settings/users')).toBe(false);
       expect(canAccessRoute('SALES_MANAGER', '/settings/warehouses')).toBe(false);
@@ -198,6 +228,7 @@ describe('Role-based route authorization guard (canAccessRoute)', () => {
       expect(canAccessRoute('FINANCE_OPS', '/subscriptions/SUB-1001')).toBe(true);
       expect(canAccessRoute('FINANCE_OPS', '/invoices')).toBe(true);
       expect(canAccessRoute('FINANCE_OPS', '/invoices/INV-1001')).toBe(true);
+      expect(canAccessRoute('FINANCE_OPS', '/billing')).toBe(true);
       expect(canAccessRoute('FINANCE_OPS', '/reports')).toBe(true);
       expect(canAccessRoute('FINANCE_OPS', '/products')).toBe(true);
       expect(canAccessRoute('FINANCE_OPS', '/products/laptop')).toBe(true);

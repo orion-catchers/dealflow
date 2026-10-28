@@ -654,6 +654,22 @@ export async function executeInitialize(
   return result;
 }
 
+/** Applies a scheduled plan change once its effective date has reached the current period start. */
+async function applyDuePendingPlan(store: BillingStore, sub: StoredSubscription): Promise<void> {
+  if (!sub.pendingPlanId || !sub.pendingPlanEffectiveDate || sub.pendingPlanEffectiveDate > sub.currentPeriodStart) {
+    return;
+  }
+  const nextPlan = await store.getPlan(sub.pendingPlanId);
+  if (!nextPlan) return;
+  sub.planId = nextPlan.id;
+  sub.planName = nextPlan.name;
+  sub.interval = nextPlan.interval;
+  sub.cancelPolicy = nextPlan.cancelPolicy;
+  sub.pendingPlanId = null;
+  sub.pendingPlanName = null;
+  sub.pendingPlanEffectiveDate = null;
+}
+
 export async function executeDueBilling(
   store: BillingStore,
   requestKey: string,
@@ -663,6 +679,18 @@ export async function executeDueBilling(
   if (claim.replayed) {
     const payload = claim.payload as { invoices: InvoiceRecord[] };
     return { invoices: payload.invoices, replayed: true };
+  }
+
+  // Paused subscriptions are never invoiced, but a period-end cancellation scheduled on them must still finish.
+  for (const paused of await store.listSubscriptions({ status: "PAUSED" })) {
+    if (!paused.cancelEffectiveDate || paused.cancelEffectiveDate > asOf) continue;
+    await store.lockSubscription(paused.id);
+    const current = (await store.getSubscription(paused.id))!;
+    if (current.status !== "PAUSED" || !current.cancelEffectiveDate || current.cancelEffectiveDate > asOf) continue;
+    current.status = "CANCELLED";
+    current.nextBillingDate = null;
+    current.pausedAt = null;
+    await store.saveSubscription(current);
   }
 
   const active = (await store.listSubscriptions({ status: "ACTIVE" })).filter((s) => !s.pausedAt);
@@ -685,22 +713,7 @@ export async function executeDueBilling(
         await store.saveSubscription(current);
         break;
       }
-      if (
-        current.pendingPlanId &&
-        current.pendingPlanEffectiveDate &&
-        current.pendingPlanEffectiveDate <= current.currentPeriodStart
-      ) {
-        const nextPlan = await store.getPlan(current.pendingPlanId);
-        if (nextPlan) {
-          current.planId = nextPlan.id;
-          current.planName = nextPlan.name;
-          current.interval = nextPlan.interval;
-          current.cancelPolicy = nextPlan.cancelPolicy;
-          current.pendingPlanId = null;
-          current.pendingPlanName = null;
-          current.pendingPlanEffectiveDate = null;
-        }
-      }
+      await applyDuePendingPlan(store, current);
 
       const existing = await store.findRecurringInvoice(current.id, current.currentPeriodStart);
       if (!existing) {
@@ -744,10 +757,13 @@ export async function executeDueBilling(
       if (current.currentPeriodEnd > asOf) break;
 
       const nextStart = current.currentPeriodEnd;
-      const nextEnd = addInterval({ date: nextStart, interval: current.interval, anchorDay: current.anchorDay });
       current.currentPeriodStart = nextStart;
+      const cancelsAtStart = Boolean(current.cancelEffectiveDate && nextStart >= current.cancelEffectiveDate);
+      // A plan change taking effect at this boundary sets the length of the new period, so apply it first.
+      if (!cancelsAtStart) await applyDuePendingPlan(store, current);
+      const nextEnd = addInterval({ date: nextStart, interval: current.interval, anchorDay: current.anchorDay });
       current.currentPeriodEnd = nextEnd;
-      if (current.cancelEffectiveDate && nextStart >= current.cancelEffectiveDate) {
+      if (cancelsAtStart) {
         current.status = "CANCELLED";
         current.nextBillingDate = null;
         await store.saveSubscription(current);

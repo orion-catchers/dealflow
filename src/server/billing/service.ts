@@ -255,6 +255,13 @@ async function changeQuantity(
   if (sub.status !== "ACTIVE" || sub.pausedAt) {
     throw new ApiFailure("INVALID_INPUT", "Quantity can only change on an active subscription");
   }
+  // Proration would otherwise clamp a date outside the period silently, including the default (today).
+  if (asOf < sub.currentPeriodStart || asOf > sub.currentPeriodEnd) {
+    throw new ApiFailure(
+      "INVALID_INPUT",
+      `Effective date must fall within the current billing period ${sub.currentPeriodStart} to ${sub.currentPeriodEnd}`,
+    );
+  }
   const before = sub.quantity;
   const currentAmt = periodAmount(before, sub.unitPrice, sub.discountPct, sub.taxPct);
   const nextAmt = periodAmount(quantity, sub.unitPrice, sub.discountPct, sub.taxPct);
@@ -294,6 +301,10 @@ async function changeQuantity(
   } else if (adj < 0) {
     const target = await tx.findRecurringInvoice(sub.id, sub.currentPeriodStart);
     if (target) {
+      // Lock, then re-read, so a payment committed since the lookup cannot be over-settled by this credit.
+      await tx.lockInvoice(target.id);
+      const locked = await tx.getInvoice(target.id);
+      const outstanding = locked ? toCents(locked.outstanding) : 0;
       const note = await tx.saveCreditNote({
         id: await tx.nextId("cn"),
         customerId: sub.customerId,
@@ -304,8 +315,8 @@ async function changeQuantity(
         appliedAmount: "0.00",
         createdAt: tx.now(),
       });
-      if (toCents(target.outstanding) > 0) {
-        const applyAmt = Math.min(-adj, toCents(target.outstanding));
+      if (outstanding > 0) {
+        const applyAmt = Math.min(-adj, outstanding);
         await tx.applyCredit({
           id: await tx.nextId("capp"),
           creditNoteId: note.id,
@@ -355,6 +366,10 @@ async function changePlan(
     sub.planId = plan.id;
     sub.planName = plan.name;
     sub.cancelPolicy = plan.cancelPolicy;
+    // The plan applied now supersedes any earlier scheduled change.
+    sub.pendingPlanId = null;
+    sub.pendingPlanName = null;
+    sub.pendingPlanEffectiveDate = null;
     await tx.saveSubscription(sub);
     await tx.saveChange({
       id: await tx.nextId("schg"),
@@ -487,6 +502,10 @@ async function cancelSubscription(
       });
       const unused = -toCents(result.adjustmentAmount);
       if (unused > 0) {
+        // Lock, then re-read, so a payment committed since the lookup cannot be over-settled by this credit.
+        await tx.lockInvoice(billed.id);
+        const locked = await tx.getInvoice(billed.id);
+        const outstanding = locked ? toCents(locked.outstanding) : 0;
         const note = await tx.saveCreditNote({
           id: await tx.nextId("cn"),
           customerId: sub.customerId,
@@ -497,7 +516,7 @@ async function cancelSubscription(
           appliedAmount: "0.00",
           createdAt: tx.now(),
         });
-        const applyAmt = Math.min(unused, toCents(billed.outstanding));
+        const applyAmt = Math.min(unused, outstanding);
         if (applyAmt > 0) {
           await tx.applyCredit({
             id: await tx.nextId("capp"),
