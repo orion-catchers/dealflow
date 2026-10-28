@@ -132,6 +132,13 @@ export function GlassSelect({
       setOpen(false);
     };
     const onKey = (event: KeyboardEvent) => {
+      // Keys belong to this select only while focus is on its trigger or menu.
+      const target = event.target as Node;
+      if (!wrapRef.current?.contains(target) && !document.getElementById(listId)?.contains(target)) return;
+      if (event.key === 'Tab') {
+        setOpen(false);
+        return;
+      }
       if (event.key === 'Escape') {
         event.preventDefault();
         setOpen(false);
@@ -207,6 +214,8 @@ export function GlassSelect({
         id={listId}
         role="listbox"
         className="df-select-menu"
+        /* Keep focus on the trigger when an option is pressed, so the blur check does not close the menu before the click. */
+        onMouseDown={event => event.preventDefault()}
         style={{
           top: menuBox.openUp ? undefined : menuBox.top,
           bottom: menuBox.openUp ? window.innerHeight - menuBox.top : undefined,
@@ -241,7 +250,16 @@ export function GlassSelect({
     : null;
 
   return (
-    <div className={`${label || error ? 'df-field' : ''} df-select ${className}`.trim()} ref={wrapRef}>
+    <div
+      className={`${label || error ? 'df-field' : ''} df-select ${className}`.trim()}
+      ref={wrapRef}
+      onBlur={event => {
+        // Focus moving to anything outside the trigger and menu closes the menu.
+        const next = event.relatedTarget as Node | null;
+        if (next && (wrapRef.current?.contains(next) || document.getElementById(listId)?.contains(next))) return;
+        setOpen(false);
+      }}
+    >
       {label ? <label htmlFor={fieldId}>{label}</label> : null}
       <button
         ref={triggerRef}
@@ -252,11 +270,11 @@ export function GlassSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
-        aria-invalid={error ? true : ariaInvalid}
         aria-label={ariaLabel ?? (label ? undefined : 'Select')}
         aria-describedby={describedBy}
         onClick={() => {
           if (disabled) return;
+          triggerRef.current?.focus();
           setOpen(isOpen => !isOpen);
         }}
       >

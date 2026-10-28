@@ -2,10 +2,12 @@
 
 import {Suspense,useCallback,useEffect,useState} from 'react';
 import {usePathname,useRouter} from 'next/navigation';
-import {BarChart3,Boxes,CircleCheck,CreditCard,FileText,HeartPulse,LayoutDashboard,LogOut,Menu,Package,PanelLeft,PanelLeftClose,Repeat,Settings,Settings2,ShieldCheck,UsersRound} from 'lucide-react';
+import {BarChart3,Boxes,CircleCheck,CreditCard,FileText,HeartPulse,LayoutDashboard,LogOut,Menu,Package,PanelLeft,PanelLeftClose,Receipt,Repeat,Settings,Settings2,ShieldCheck,UsersRound} from 'lucide-react';
 import type {Actor,DataState,Role} from '../../contracts/application';
 import {api,Button,Heading,Input,Link,Money,Section,StatusBadge,Table,newId,quoteTitle,OpenLink,type Context} from './shared';
 import {approvalOk,attentionItems,canDecide,nextStepHref,nextStepLabel} from './DealFlow';
+import {allowedNextPath,canAccessRoute,isPortalPath} from './route-access';
+export {canAccessRoute} from './route-access';
 import Quotes from './Quotes';
 import Operations from './Operations';
 import Setup from './Setup';
@@ -23,6 +25,7 @@ import {WarehousesScreen} from '@/features/inventory/ui/warehouses/WarehousesScr
 import {UsersAdmin} from '@/features/users/ui/UsersAdmin';
 import {InvoicesList} from '@/features/billing/ui/InvoicesList';
 import {InvoiceDetail} from '@/features/billing/ui/InvoiceDetail';
+import {BillingRun} from '@/features/billing/ui/BillingRun';
 import {SubscriptionsList} from '@/features/billing/ui/SubscriptionsList';
 import {SubscriptionDetail} from '@/features/billing/ui/SubscriptionDetail';
 import {ApprovalsList} from '@/features/approval-ui/ui/ApprovalsList';
@@ -36,6 +39,7 @@ export function navigationFor(role: Role) {
     { href: '/fulfillment', name: 'Fulfillment', icon: Package, roles: ['ADMIN', 'FINANCE_OPS'] as Role[] },
     { href: '/subscriptions', name: 'Subscriptions', icon: Repeat, roles: ['ADMIN', 'FINANCE_OPS'] as Role[] },
     { href: '/invoices', name: 'Invoices', icon: CreditCard, roles: ['ADMIN', 'FINANCE_OPS'] as Role[] },
+    { href: '/billing', name: 'Billing', icon: Receipt, roles: ['ADMIN', 'FINANCE_OPS'] as Role[] },
     { href: '/health', name: 'Deal health', icon: HeartPulse, roles: ['ADMIN', 'SALES_REP', 'SALES_MANAGER'] as Role[] },
     { href: '/reports', name: 'Reports', icon: BarChart3, roles: ['ADMIN', 'SALES_REP', 'SALES_MANAGER', 'FINANCE_OPS'] as Role[] },
     { href: '/products', name: 'Catalog', icon: Boxes, roles: ['ADMIN', 'SALES_REP', 'SALES_MANAGER', 'FINANCE_OPS'] as Role[] },
@@ -73,6 +77,11 @@ function markSignedOut(){
   }catch{/* quota is optional */}
 }
 
+function clearSignedOut(){
+  if(typeof window==='undefined')return;
+  try{window.sessionStorage.removeItem(SIGNED_OUT_KEY);}catch{/* quota is optional */}
+}
+
 function readShell():ShellMemory|null{
   if(typeof window==='undefined')return null;
   if(wasSignedOut()){shellMemory=null;return null;}
@@ -102,69 +111,7 @@ function writeShell(next:ShellMemory|null){
 }
 
 function isAuthPath(path:string){return path==='/'||path==='/login'||path==='/signup';}
-function isPortalPath(path:string){return path==='/portal'||path.startsWith('/portal/');}
 function homeFor(next:Actor){return next.role==='CUSTOMER'?'/portal':'/home';}
-
-export function canAccessRoute(role: Role, path: string): boolean {
-  if (role === 'CUSTOMER') {
-    return isPortalPath(path);
-  }
-  if (role === 'ADMIN') {
-    return !isPortalPath(path);
-  }
-  const cleanPath = path.split('?')[0].split('#')[0];
-  const parts = cleanPath.split('/').filter(Boolean);
-  const first = parts[0];
-  const second = parts[1];
-
-  if (cleanPath === '/home') return true;
-
-  if (role === 'SALES_REP') {
-    if (first === 'quotes' || cleanPath === '/pipeline') {
-      return true;
-    }
-    if (first === 'health') return true;
-    if (first === 'reports') return true;
-    if (first === 'products') {
-      return second !== 'new';
-    }
-    return false;
-  }
-
-  if (role === 'SALES_MANAGER') {
-    if (first === 'quotes' || cleanPath === '/pipeline') {
-      return second !== 'new';
-    }
-    if (first === 'approvals') return true;
-    if (first === 'health') return true;
-    if (first === 'reports') return true;
-    if (first === 'products') {
-      return second !== 'new';
-    }
-    if (cleanPath === '/policies') return true;
-    if (cleanPath === '/settings/recommendations' || cleanPath === '/settings/health') return true;
-    return false;
-  }
-
-  if (role === 'FINANCE_OPS') {
-    if (first === 'quotes') {
-      return Boolean(second && second !== 'new');
-    }
-    if (first === 'approvals') return true;
-    if (first === 'fulfillment') return true;
-    if (first === 'subscriptions') return true;
-    if (first === 'invoices') return true;
-    if (first === 'reports') return true;
-    if (first === 'products') {
-      return second !== 'new';
-    }
-    if (first === 'warehouses' || cleanPath === '/settings/warehouses') return true;
-    if (cleanPath === '/settings/plans') return true;
-    return false;
-  }
-
-  return false;
-}
 
 function viewPathFor(next:Actor|null,path:string){
   if(!next)return isAuthPath(path)?path:'/login';
@@ -202,6 +149,9 @@ export default function Application(){
   const [message,setMessage]=useState('');
   const [menu,setMenu]=useState(false);
   const [collapsed,setCollapsed]=useState(false);
+  // A signed-out marker left in this tab does not prove the server session is gone (e.g. a later Google SSO login), so the first check at load verifies it.
+  const [verifyingSignedOut,setVerifyingSignedOut]=useState(wasSignedOut);
+  const [sessionCheck,setSessionCheck]=useState(0);
   const sessionActor=wasSignedOut()?null:actor;
   const viewPath=viewPathFor(sessionActor,pathname);
   const showAuth=!sessionActor&&(isAuthPath(pathname)||wasSignedOut());
@@ -212,11 +162,11 @@ export default function Application(){
 
   useEffect(()=>{
     if(!sessionActor){
-      if(wasSignedOut()&&!isAuthPath(pathname)) router.replace('/login');
+      if(wasSignedOut()&&!isAuthPath(pathname)&&!verifyingSignedOut) router.replace('/login');
       return;
     }
     if(viewPath!==pathname) router.replace(viewPath);
-  },[sessionActor,pathname,router,viewPath]);
+  },[sessionActor,pathname,router,viewPath,verifyingSignedOut]);
 
   useEffect(()=>{
     const onShow=(event:PageTransitionEvent)=>{
@@ -251,13 +201,13 @@ export default function Application(){
 
   useEffect(()=>{
     let cancelled=false;
-    if(showAuth)return;
+    if(showAuth&&!verifyingSignedOut)return;
     fetch('/api/auth/me',{cache:'no-store'}).then(async response=>{
       const result=await response.json();
       if(cancelled)return;
       if(response.ok){
         const next=sessionToActor(result.data);
-        if(next){setActor(next);setMode(result.mode??'LIVE');}
+        if(next){clearSignedOut();setActor(next);setMode(result.mode??'LIVE');}
       }else if(response.status===401){
         markSignedOut();
         writeShell(null);
@@ -265,9 +215,10 @@ export default function Application(){
         setData(null);
         clearPortalCache();
       }else setError(result.error?.message??'The session could not be checked.');
-    }).catch(reason=>{if(!cancelled)setError(reason instanceof Error?reason.message:'The session could not be checked.');});
+    }).catch(reason=>{if(!cancelled)setError(reason instanceof Error?reason.message:'The session could not be checked.');})
+      .finally(()=>setVerifyingSignedOut(false));
     return()=>{cancelled=true;};
-  },[showAuth]);
+  },[showAuth,verifyingSignedOut,sessionCheck]);
 
   useEffect(()=>{reload().catch(reason=>setError(reason instanceof Error?reason.message:'The workspace could not be loaded.'));},[reload]);
   useEffect(()=>{
@@ -296,7 +247,8 @@ export default function Application(){
     return result;
   };
 
-  if(showAuth||!sessionActor)return showAuth?<Auth path={isAuthPath(pathname)?pathname:'/login'} mode={mode} error={error} onLogin={async(nextActor,nextMode)=>{
+  if(!showAuth&&!sessionActor&&error)return <main id="main" className="auth-body login-body"><div className="auth-form"><div role="alert" className="error">{error}<Button onClick={()=>{setError('');setSessionCheck(count=>count+1);}}>Retry</Button></div></div></main>;
+  if(showAuth||!sessionActor)return showAuth?<Auth key={pathname} path={isAuthPath(pathname)?pathname:'/login'} mode={mode} error={error} onLogin={async(nextActor,nextMode)=>{
     const nextModeValue=nextMode??'LIVE';
     setError('');
     if(nextActor.role==='CUSTOMER'){
@@ -317,7 +269,7 @@ export default function Application(){
     }
     setActor(nextActor);
     setMode(nextModeValue);
-    router.replace(homeFor(nextActor));
+    router.replace(allowedNextPath(new URLSearchParams(window.location.search).get('next'),nextActor.role)??homeFor(nextActor));
   }}/>:null;
   const shellPath=viewPath;
 
@@ -420,7 +372,7 @@ function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;on
         <span className="eyebrow">DEALFLOW360 WORKSPACE</span>
         <h1>{path==='/signup'?'Request an account':'Welcome back'}</h1>
         <p>{path==='/signup'?'Your administrator will verify your access.':'Sign in with your assigned company account.'}</p>
-        <p className="dev-copy">{mode==='DEV FIXTURE'?'DEV FIXTURE · Local JSON store accounts':'LIVE · Seeded sales demo below — do not use password123'}</p>
+        <p className="dev-copy"><StatusBadge status={mode}/> {mode==='DEV FIXTURE'?'Local JSON store accounts':mode==='LIVE'?'Seeded sales demo below — do not use password123':'Live services are not connected, so sign-in may be unavailable.'}</p>
         {path!=='/signup'&&<div className="auth-demo"><span>Demo fill</span><div className="auth-personas">{[['Admin · Dev','dev@nexa.example','admin-nexa-2026!'],['Rep · Arjun','arjun@nexa.example','arjun-nexa-2026!'],['Manager · Sana','sana@nexa.example','sana-nexa-2026!'],['Finance · Farah','farah@nexa.example','farah-nexa-2026!'],['Customer · Acme (Neha)','neha@acme.example','neha-acme-2026!'],['Customer · Beta (Rohan)','rohan@beta.example','rohan-beta-2026!'],['Customer · Gamma (Meera)','meera@gamma.example','meera-gamma-2026!']].map(([label,mail,pass])=><button type="button" key={label} title={`${label} (${mail})`} onClick={()=>{setEmail(mail);setPassword(pass);setIssue('');}}>{label}</button>)}</div></div>}
         {done?<div className="notice" role="status">Account requested. Your administrator must activate access.<Link href="/login">Return to sign in</Link></div>:<form onSubmit={async event=>{
           event.preventDefault();setBusy(true);setIssue('');
@@ -530,9 +482,10 @@ function WorkspaceBody({path, ctx}:{path:string; ctx:Context}){
     return <ProductDashboard readOnly={ctx.actor.role !== 'ADMIN'}/>;
   }
   if(path==='/price-lists')return <PriceListsManager/>;
-  if(path==='/customers'||path==='/settings/customers')return <CustomersMaster/>;
-  if(path==='/users'||path==='/settings/users')return <UsersAdmin/>;
-  if(path==='/warehouses'||path==='/settings/warehouses')return <WarehousesScreen/>;
+  if(path==='/customers'||path==='/settings/customers')return <><SetupNav role={ctx.actor.role} current="/settings/customers"/><CustomersMaster/></>;
+  if(path==='/users'||path==='/settings/users')return <><SetupNav role={ctx.actor.role} current="/settings/users"/><UsersAdmin/></>;
+  if(path==='/warehouses'||path==='/settings/warehouses')return <><SetupNav role={ctx.actor.role} current="/settings/warehouses"/><WarehousesScreen/></>;
+  if(path==='/billing')return <BillingRun/>;
   if(first==='fulfillment')return second?<FulfillmentDetailView orderId={second}/>:<FulfillmentList/>;
   if(first==='reports')return <Suspense fallback={<p className="hint">Loading reports…</p>}><ReportsDashboard/></Suspense>;
   if(first==='invoices')return second?<InvoiceDetail id={second}/>:<InvoicesList/>;
@@ -540,4 +493,14 @@ function WorkspaceBody({path, ctx}:{path:string; ctx:Context}){
   if(first==='health')return <Operations ctx={ctx}/>;
   if(path.startsWith('/settings')||path==='/policies')return <Setup ctx={ctx}/>;
   return <><Heading title="Page not found" description="This route does not exist."/><Link href="/home">Return to overview</Link></>;
+}
+
+// Same links and classes as the Setup screen's nav, for the screens that render without it.
+function SetupNav({role,current}:{role:Role;current:string}){
+  const links:[string,string][]=role==='ADMIN'
+    ?[['/settings/customers','Customers'],['/settings/users','Users & roles'],['/settings/warehouses','Warehouses & stock'],['/settings/plans','Subscription policies'],['/settings/recommendations','Recommendations'],['/settings/health','Health settings'],['/policies','Approval policy']]
+    :role==='FINANCE_OPS'?[['/settings/warehouses','Warehouses & stock'],['/settings/plans','Subscription policies']]:[];
+  return <div className="setup-nav">
+    {links.map(([href,name])=><Link key={href} href={href} className={`df-button ${href===current?'df-button--primary':'df-button--secondary'}`}>{name}</Link>)}
+  </div>;
 }
