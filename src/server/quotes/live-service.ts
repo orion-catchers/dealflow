@@ -226,7 +226,7 @@ function dateValue(value: string | null | undefined): Date | null {
     throw new ApiFailure("INVALID_INPUT", "promisedDate must be YYYY-MM-DD.");
   }
   const parsed = new Date(`${value}T00:00:00.000Z`);
-  if (parsed.toISOString().slice(0, 10) !== value) {
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
     throw new ApiFailure("INVALID_INPUT", "promisedDate is not a valid calendar date.");
   }
   return parsed;
