@@ -3,6 +3,7 @@ import type { Actor, CanonicalPort, DataState, Order, Quote, TransactionPort } f
 import type { PricedCandidate } from "@/contracts/krishna";
 import { AppError, requireValue } from "@/server/errors";
 import { prisma } from "@/server/lib/db";
+import { requireCompanyId } from "@/server/lib/tenant/context";
 import { initializeBilling } from "@/server/billing/initialize";
 import { combinedDiscountPct } from "@/server/billing/engine/line-total";
 import { initializeFulfillment } from "@/server/inventory/initialize";
@@ -153,6 +154,7 @@ export async function persistWorkspace(state: DataState, dirty: Dirty) {
           },
         },
         create: {
+          companyId: requireCompanyId(),
           baseProductId: rule.baseProductId || rule.candidateProductId,
           candidateProductId: rule.candidateProductId,
           copurchaseScore: rule.coPurchaseScore,
@@ -212,10 +214,14 @@ export async function persistQuote(state: DataState, quote: Quote) {
 
   let row = await prisma.quote.findUnique({ where: { id: quote.id } });
   if (!row) {
-    const deal = await prisma.deal.create({ data: { customerId, repId, teamId: null, status: stage, lastActivityAt: new Date(quote.at) } });
+    const companyId = requireCompanyId();
+    const deal = await prisma.deal.create({
+      data: { companyId, customerId, repId, teamId: null, status: stage, lastActivityAt: new Date(quote.at) },
+    });
     row = await prisma.quote.create({
       data: {
         id: quote.id,
+        companyId,
         customerId,
         repId,
         stage,
@@ -397,6 +403,7 @@ async function persistConfirmation(state: DataState, order: Order, actor: Actor)
   const created = await prisma.$transaction(async (tx) => {
     const row = await tx.order.create({
       data: {
+        companyId: dbQuote.companyId,
         dealId: dbQuote.dealId!,
         sourceRevisionId: revision.id,
         acceptanceId: acceptance.id,

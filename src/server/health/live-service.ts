@@ -20,6 +20,7 @@ import {
   type HealthQuoteInput,
 } from "./deal-health";
 import { toContractFlagType, toDbFlagType } from "./flag-type";
+import { requireCompanyId } from "@/server/lib/tenant/context";
 
 const READ_ROLES = ["ADMIN", "SALES_REP", "SALES_MANAGER", "FINANCE"] as const;
 
@@ -82,6 +83,7 @@ export class LiveHealthService {
       if (existing.some((flag) => flag.fingerprint === candidate.fingerprint)) continue;
       await this.db.healthFlag.create({
         data: {
+          companyId: requireCompanyId(),
           type: toDbFlagType(candidate.type),
           fingerprint: candidate.fingerprint,
           quoteId: candidate.quoteId ?? null,
@@ -132,6 +134,7 @@ export class LiveHealthService {
     if (existing) return this.toTask(existing);
     const task = await this.db.task.create({
       data: {
+        companyId: flag.companyId,
         actionKey,
         flagId: flag.id,
         quoteId: flag.quoteId,
@@ -167,9 +170,11 @@ export class LiveHealthService {
   }
 
   private async settings(): Promise<HealthSettings> {
+    // One settings row per company, created with the blueprint defaults on first read.
+    const companyId = requireCompanyId();
     const row = await this.db.healthSettings.upsert({
-      where: { id: "default" },
-      create: { id: "default" },
+      where: { companyId },
+      create: { companyId },
       update: {},
     });
     return {

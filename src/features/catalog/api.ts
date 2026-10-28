@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import type { Currency, CustomerTier, ProductCategory, Unit } from "@/contracts/harsh";
-import { ApiFailure } from "@/lib/api/respond";
+import { ApiFailure } from "@/lib/api/failure";
 
 export const MONEY_PATTERN = /^\d+(\.\d{1,2})?$/;
 

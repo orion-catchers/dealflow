@@ -78,6 +78,7 @@ export async function destroySessionByToken(token: string): Promise<void> {
   await prisma.session.deleteMany({ where: { tokenHash: hashSessionToken(token) } });
 }
 
+/** The session's user, or null when the session expired or the user's company (workspace) is suspended. */
 export async function findUserBySessionToken(token: string) {
   const session = await prisma.session.findUnique({
     where: { tokenHash: hashSessionToken(token) },
@@ -85,10 +86,11 @@ export async function findUserBySessionToken(token: string) {
       user: {
         include: {
           memberships: true,
+          company: { select: { active: true } },
         },
       },
     },
   });
-  if (!session || session.expiresAt < new Date()) return null;
+  if (!session || session.expiresAt < new Date() || !session.user.company.active) return null;
   return session.user;
 }

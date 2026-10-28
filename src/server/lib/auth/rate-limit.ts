@@ -34,6 +34,7 @@ export class LoginRateLimiter {
     private readonly clock: RateClock = { now: () => Date.now() },
     private readonly maxFailures: number = MAX_FAILURES,
     private readonly windowMs: number = WINDOW_MS,
+    private readonly message: string = "Too many failed sign-in attempts; try again later",
   ) {}
 
   assertAllowed(key: string): void {
@@ -47,11 +48,7 @@ export class LoginRateLimiter {
       const retryAfterSeconds = Math.ceil(
         (attempt.windowStart + this.windowMs - this.clock.now()) / 1000,
       );
-      throw new ApiFailure(
-        "UNAUTHENTICATED",
-        "Too many failed sign-in attempts; try again later",
-        { retryAfterSeconds },
-      );
+      throw new ApiFailure("UNAUTHENTICATED", this.message, { retryAfterSeconds });
     }
   }
 
@@ -71,3 +68,32 @@ export class LoginRateLimiter {
 }
 
 export const loginRateLimiter = new LoginRateLimiter();
+
+/**
+ * Workspace sign-ups per client address: 5 per hour. Every attempt counts, successful or not, because each success
+ * creates a company. Same per-instance limitation as the login limiter.
+ */
+export const signupRateLimiter = new LoginRateLimiter(
+  { now: () => Date.now() },
+  5,
+  60 * 60 * 1000,
+  "Too many workspace sign-ups from this address; try again later",
+);
+
+/**
+ * Client address for rate limiting. The reverse proxy in front of the app appends the address it saw to
+ * X-Forwarded-For, so the right-most entry is the one a client cannot forge (the left-most is whatever the client
+ * sent). Without a proxy setting the header, all callers share one "unknown" bucket.
+ */
+export function clientAddress(request: Request): string {
+  const hops = request.headers.get("x-forwarded-for")?.split(",").map((hop) => hop.trim()).filter(Boolean) ?? [];
+  return hops.at(-1) || request.headers.get("x-real-ip") || "unknown";
+}
+
+/** Invitations per admin: 30 per hour, so one workspace cannot mail-bomb addresses from the platform's domain. */
+export const inviteRateLimiter = new LoginRateLimiter(
+  { now: () => Date.now() },
+  30,
+  60 * 60 * 1000,
+  "Too many invitations from this account; try again later",
+);

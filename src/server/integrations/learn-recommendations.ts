@@ -1,7 +1,8 @@
 import { prisma } from "@/server/lib/db";
+import { requireCompanyId } from "@/server/lib/tenant/context";
 import { trainCopurchaseModel } from "./train-copurchase";
 
-/** Train item-item lift from confirmed quote baskets and upsert pairing rules. */
+/** Train item-item lift from the bound company's confirmed quote baskets and upsert its pairing rules. */
 export async function learnRecommendationWeights(): Promise<{ updated: number; created: number; pairs: number }> {
   const quotes = await prisma.quote.findMany({
     where: { stage: "CONFIRMED" },
@@ -30,6 +31,7 @@ export async function learnRecommendationWeights(): Promise<{ updated: number; c
     }
     await prisma.recommendationRule.create({
       data: {
+        companyId: requireCompanyId(),
         baseProductId: pair.baseProductId,
         candidateProductId: pair.candidateProductId,
         copurchaseScore: pair.score,

@@ -3,7 +3,9 @@ import type { SessionUser } from "@/contracts/ruchir";
 import { ruchirFixtures } from "@/fixtures/ruchir";
 import { fixtureUsers } from "@/fixtures/harsh-dev";
 import { ApiFailure } from "@/lib/api/respond";
-import { userToActor, userToSessionUser } from "./actor-helpers";
+import { prisma } from "@/server/lib/db";
+import { bindTenant } from "@/server/lib/tenant/context";
+import { ACTOR_ID_TO_EMAIL, userToActor, userToSessionUser } from "./actor-helpers";
 import { findUserBySessionToken, parseSessionCookie } from "./session";
 
 // Fixture impersonation via the `x-dev-actor` header is opt-in only:
@@ -33,6 +35,7 @@ function devFixtureToSessionUser(actor: Actor): SessionUser {
     role: actor.role,
     status: fixture?.status ?? "ACTIVE",
     customerId: actor.customerId,
+    companyId: actor.companyId,
     active: actor.active,
   };
 }
@@ -42,13 +45,20 @@ async function actorFromSession(request: Request): Promise<Actor | null> {
   if (!token) return null;
   const user = await findUserBySessionToken(token);
   if (!user || user.status !== "ACTIVE") return null;
+  bindTenant(user.companyId);
   return userToActor(user);
 }
 
-function impersonatedActor(request: Request): Actor | null {
+/** Impersonated fixture actors act for the company of the seeded user with the same email. */
+async function impersonatedActor(request: Request): Promise<Actor | null> {
   const id = request.headers.get("x-dev-actor");
   if (!id) return null;
-  return devFixtureToActor(id);
+  const actor = devFixtureToActor(id);
+  const email = ACTOR_ID_TO_EMAIL[id];
+  const seeded = email ? await prisma.user.findUnique({ where: { email }, select: { companyId: true } }) : null;
+  if (!seeded) throw new ApiFailure("UNAUTHENTICATED", `Dev actor '${id}' has no seeded user`);
+  bindTenant(seeded.companyId);
+  return { ...actor, companyId: seeded.companyId };
 }
 
 export async function getActor(request: Request): Promise<Actor> {
@@ -56,7 +66,7 @@ export async function getActor(request: Request): Promise<Actor> {
   if (fromSession) return fromSession;
 
   if (impersonationEnabled()) {
-    const impersonated = impersonatedActor(request);
+    const impersonated = await impersonatedActor(request);
     if (impersonated) return impersonated;
   }
 
@@ -67,11 +77,14 @@ export async function getSessionUser(request: Request): Promise<SessionUser> {
   const token = parseSessionCookie(request.headers.get("cookie"));
   if (token) {
     const user = await findUserBySessionToken(token);
-    if (user) return userToSessionUser(user);
+    if (user) {
+      bindTenant(user.companyId);
+      return userToSessionUser(user);
+    }
   }
 
   if (impersonationEnabled()) {
-    const impersonated = impersonatedActor(request);
+    const impersonated = await impersonatedActor(request);
     if (impersonated) return devFixtureToSessionUser(impersonated);
   }
 

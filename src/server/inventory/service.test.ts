@@ -449,7 +449,8 @@ describe("cancel", () => {
 describe("warehouses and stock configuration", () => {
   it("create/update warehouse; duplicate code → 409", async () => {
     const w = await svc.createWarehouse(admin, { name: "West Hub", code: "WEST", shippingCostPerShipment: "900.00" });
-    expect(w).toMatchObject({ id: "warehouse-west", active: true });
+    expect(w).toMatchObject({ code: "WEST", active: true });
+    expect(w.id).toMatch(/^warehouse-[0-9a-f-]{36}$/);
     expect((await failure(svc.createWarehouse(admin, { name: "Dup", code: "west", shippingCostPerShipment: "1.00" }))).code).toBe("CONFLICT");
     const u = await svc.updateWarehouse(admin, w.id, { active: false, shippingCostPerKg: "10.00" });
     expect(u).toMatchObject({ active: false, shippingCostPerKg: "10.00" });

@@ -6,6 +6,8 @@ import { krishnaFixtures } from "@/fixtures/krishna";
 import { ruchirFixtures } from "@/fixtures/ruchir";
 import { hashPassword } from "@/server/lib/auth/password";
 import { databaseSchema, prisma, rawTable, type Db as PrismaClient } from "@/server/lib/db";
+import { runAsSystem } from "@/server/lib/tenant/context";
+import { provisionStarterConfig } from "@/server/tenancy/workspace";
 import { Prisma } from "@/generated/prisma/client";
 import {
   buildSeedCatalog,
@@ -69,7 +71,7 @@ async function main(): Promise<void> {
 
   for (const team of harshFixtures.salesTeams) {
     const row = await prisma.salesTeam.create({
-      data: { name: team.name },
+      data: { name: team.name, companyId: nexa.id },
     });
     resolver.register(team.sym, row.id);
   }
@@ -90,7 +92,8 @@ async function main(): Promise<void> {
     resolver.register(user.sym, row.id);
   }
 
-  await prisma.user.create({
+  // Second tenant: an empty workspace with only the starter configuration, so the demo can show isolation.
+  const contosoAdmin = await prisma.user.create({
     data: {
       email: "admin@contoso.example",
       passwordHash: await hashPassword("contoso-admin-2026!"),
@@ -100,12 +103,14 @@ async function main(): Promise<void> {
       companyId: contoso.id,
     },
   });
+  await prisma.$transaction((tx) => provisionStarterConfig(tx, contoso.id, contosoAdmin.id, contoso.currency));
 
   for (const plan of ruchirFixtures.subscriptionPlans) {
     const row = await prisma.subscriptionPlan.create({
       data: {
         code: plan.code,
         name: plan.name,
+        companyId: nexa.id,
         interval: plan.interval,
         cancelPolicy: plan.cancelPolicy,
       },
@@ -115,7 +120,7 @@ async function main(): Promise<void> {
 
   for (const category of harshFixtures.categories) {
     const row = await prisma.category.create({
-      data: { code: category.code, name: category.name },
+      data: { code: category.code, name: category.name, companyId: nexa.id },
     });
     resolver.register(category.sym, row.id);
   }
@@ -146,6 +151,7 @@ async function main(): Promise<void> {
     const row = await prisma.variant.create({
       data: {
         productId: resolver.resolve(variant.product),
+        companyId: nexa.id,
         sku: variant.sku,
         name: variant.name,
         extraPrice: variant.extraPrice,
@@ -160,6 +166,7 @@ async function main(): Promise<void> {
       data: {
         code: priceList.code,
         name: priceList.name,
+        companyId: nexa.id,
         currency: priceList.currency,
       },
     });
@@ -184,6 +191,7 @@ async function main(): Promise<void> {
     const row = await prisma.policyVersion.create({
       data: {
         name: policy.name,
+        companyId: nexa.id,
         createdById: resolver.resolve(policy.createdBy),
         anyExcessRequiresManager: policy.anyExcessRequiresManager,
         managerWorstExcessPct: policy.managerWorstExcessPct,
@@ -218,7 +226,7 @@ async function main(): Promise<void> {
   }
 
   await prisma.healthSettings.create({
-    data: { id: atharvaFixtures.healthSettings.id },
+    data: { id: atharvaFixtures.healthSettings.id, companyId: nexa.id },
   });
 
   for (const customer of harshFixtures.customers) {
@@ -273,6 +281,7 @@ async function main(): Promise<void> {
   for (const rule of krishnaFixtures.recommendationRules) {
     await prisma.recommendationRule.create({
       data: {
+        companyId: nexa.id,
         baseProductId: resolver.resolve(rule.base),
         candidateProductId: resolver.resolve(rule.candidate),
         copurchaseScore: rule.copurchaseScore,
@@ -285,6 +294,7 @@ async function main(): Promise<void> {
   const catalog = buildSeedCatalog(
     resolver,
     resolver.resolve("policy-v1"),
+    nexa.id,
   );
   runDemoAssertions(catalog);
 
@@ -343,7 +353,8 @@ async function main(): Promise<void> {
   await prisma.$disconnect();
 }
 
-main().catch(async (error) => {
+// The seed writes every tenant's rows, so it runs with explicit cross-company access.
+runAsSystem(main).catch(async (error) => {
   console.error(error);
   process.exit(1);
 });

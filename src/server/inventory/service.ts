@@ -616,7 +616,8 @@ export class FulfillmentService {
   async createWarehouse(actor: Actor, input: WarehouseCreateInput): Promise<Warehouse> {
     requireRole(actor, ...CONFIG_ROLES);
     return this.repo.withTransaction(async (tx) => {
-      const id = input.id ?? `warehouse-${input.code.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+      // Ids are unique across every company, so they are random rather than derived from the per-company code.
+      const id = `warehouse-${globalThis.crypto.randomUUID()}`;
       if (await tx.getWarehouse(id)) throw new ApiFailure("CONFLICT", `Warehouse ${id} already exists`);
       const all = await tx.listWarehouses();
       if (all.some((w) => w.code.toLowerCase() === input.code.toLowerCase())) {

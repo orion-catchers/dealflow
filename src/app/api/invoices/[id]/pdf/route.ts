@@ -3,6 +3,7 @@ import { ApiFailure, fail } from "@/lib/api/respond";
 import { getBillingService } from "@/server/billing/live";
 import { renderInvoicePdf } from "@/server/billing/pdf";
 import { getAuthorizedActor } from "@/server/lib/auth/permissions";
+import { scopedRoute } from "@/server/lib/tenant/context";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -12,7 +13,7 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return ab;
 }
 
-export async function GET(request: NextRequest, context: RouteContext) {
+export const GET = scopedRoute(async function GET(request: NextRequest, context: RouteContext) {
   try {
     const actor = await getAuthorizedActor(request);
     const { id } = await context.params;
@@ -31,4 +32,4 @@ export async function GET(request: NextRequest, context: RouteContext) {
     console.error(e);
     return NextResponse.json({ error: { code: "INTERNAL", message: "Unexpected server error" } }, { status: 500 });
   }
-}
+});

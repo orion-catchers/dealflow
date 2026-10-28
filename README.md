@@ -12,7 +12,7 @@
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![Tailwind](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)
 
-**Academic team project** · Team Orion Catchers (4 owners) · Demo tenant Nexa Office Solutions  
+**Academic team project** · Team Orion Catchers (4 owners) · Multi-tenant: one deployment serves many seller companies · Demo tenant Nexa Office Solutions  
 **Phase:** core live path implemented; this README prepared for external review as of 6 September 2026. Optional Stripe / Resend / Google / live carrier HTTP stay **503** until keys are set.
 
 </div>
@@ -71,7 +71,8 @@ If an item fails, do not treat the corresponding claim as demonstrated.
 | 4 | Quote mutations are revision-safe | POST bodies on quote/portal actions | `expectedRevision` required; stale → **409 STALE_REVISION** |
 | 5 | Commitment rule | Confirm + allocate (sequence under [Design principles](#design-principles-acceptance-criteria)) | Confirm creates Order + billing/fulfillment **init**; **no** `Stock.reserved` increment until allocate |
 | 6 | Portal isolation | Two customer accounts | Acme cannot read Beta quotes (**404**); portal JSON has no cost/margin/rep internals |
-| 7 | Signup is not privileged | POST `/api/auth/signup` | Creates **PENDING**; cannot sign in until an admin activates |
+| 7 | Sign-up cannot join someone else's workspace | POST `/api/auth/signup` | **403** unless `DEALFLOW_PUBLIC_SIGNUP=1`; then it creates a **new** workspace owned by the signer. Joining an existing workspace needs an admin invite |
+| 7a | Tenant isolation | `pnpm test` (`src/server/tenancy/isolation.test.ts`), `node scripts/tenant-isolation-check.mjs` | Contoso admin gets **404** for every Nexa quote, invoice, customer, product and order id, and empty lists |
 | 8 | CSRF on mutations | POST with `Origin: http://evil.example` | **403 ORIGIN** when Origin is present and mismatched |
 | 9 | Session is httpOnly | Login `Set-Cookie` | `dealflow_session` / `dealflow-session` httpOnly, not readable from JS |
 | 10 | CI is the source of type/lint/test/build | `.github/workflows/ci.yml` | validate → migrate → seed twice → typecheck → lint → test → build |
@@ -93,7 +94,8 @@ Gaps the authors are aware of. Absence from this table is not a guarantee.
 | Reports / export | Filters then aggregates **stored** quote/order totals in process (`src/server/reports`). Export uses the same filtered row set. | Not proven free of N+1 at the Prisma layer under large tenants. Unsuitable as a warehouse-scale BI extract. |
 | Approval chain | Policy chain steps may be stored with unique `stepIndex`, but allowed roles are **`SALES_MANAGER` then `FINANCE` only**. Seeded Gold/hardware/services ceilings drive 0–2 steps. | Arbitrary N-level chains, extra roles, or parallel approvers are not implemented. |
 | Timezones | Billing periods and many dates are **date-only**. Audit timestamps are UTC. Display uses the browser locale (e.g. `en-IN`). | No per-user timezone; a period that is “today” in IST vs UTC is not modeled. |
-| Login rate limit | Dedicated LIVE login: **5 failures / 10 minutes per email**, in-memory on that Node process (`src/server/lib/auth/rate-limit.ts`). | Not shared across instances. Catch-all login path does not use the same limiter. Signup is **not** rate-limited. Email-keyed lockout can be used as a targeted denial of sign-in. |
+| Login rate limit | Dedicated LIVE login: **5 failures / 10 minutes per email**; workspace sign-up: **5 per hour per client address**. Both in-memory on that Node process (`src/server/lib/auth/rate-limit.ts`). | Not shared across instances. Catch-all login path does not use the same limiter. Email-keyed lockout can be used as a targeted denial of sign-in. |
+| Tenancy | Every business row has a `companyId`; a tenant-scoped Prisma client filters all queries and triggers reject cross-company references ([docs/SECURITY.md](docs/SECURITY.md#tenant-isolation)). | One email belongs to one workspace. Tax rates, Stripe and Google SSO are platform-wide. The workspace screens still load a whole company's data per request (fine for small companies, not for large ones). See [docs/productization-roadmap.md](docs/productization-roadmap.md). |
 | CSRF / Origin | Catch-all POST: if `Origin` is **present** and mismatches → **403**. If `Origin` is **absent**, catch-all does **not** reject. Dedicated lane routes differ; production scripts should send Origin/Referer. | Legacy or non-browser clients with no Origin on the catch-all are not origin-bound. |
 | Session cookies | LIVE dedicated login sets `dealflow_session` (`SameSite=Lax`, **7 days**) and `dealflow-session` (`SameSite=Strict`, **8 hours**). Catch-all login sets **both** to Strict / 8 hours. Stored value is SHA-256 of the token. | No idle timeout, no rotation on each request, two max-age policies. |
 | Validation | Lane REST auth bodies use **Zod**. Catch-all login/signup coerce `String(body.email)` without Zod. | Not every mutation on the catch-all is Zod-validated. |
@@ -599,7 +601,9 @@ Prisma uses `@prisma/adapter-pg` with a `pg` `Pool` constructed from `DATABASE_U
 | `pnpm test` / `pnpm typecheck` / `pnpm lint` / `pnpm build` | Checks |
 | `pnpm synthetic:seed` | Add-only `src/fixtures/dealflow360_synthetic_dataset.json` |
 | `pnpm db:reset` | **Drop** DB — never on shared/prod |
-| `pnpm jobs` | Due billing / health (`JOBS_ACTOR_EMAIL`) |
+| `pnpm jobs` | Due billing / health / recommendation learning, once per active company |
+| `pnpm workspace:create --company … --name … --email …` | Provision a customer workspace and print the owner's set-password link |
+| `node scripts/tenant-isolation-check.mjs` | HTTP check that the Contoso workspace cannot see or change Nexa records (`BASE_URL`, seeded DB) |
 
 ---
 
@@ -624,13 +628,13 @@ Summary. Threat model: [docs/SECURITY.md](docs/SECURITY.md).
 
 **Session token:** `crypto.randomBytes(32)` encoded as hex (64 characters). Database stores **SHA-256** of the token (`tokenHash`). Cookie is httpOnly. `dealflow_session` max-age **7 days**, SameSite **Lax** (dedicated login helper). `dealflow-session` max-age **8 hours**, SameSite **Strict** on several paths. Expiry is absolute (`expiresAt`); **no idle timeout**; **no per-request rotation**. Expired rows are deleted on a sampled login (every 20th `createSession`), not by a dedicated job.
 
-**Login throttling:** LIVE dedicated login only — 5 failures / 10 minutes / email, in-memory. Signup: no limiter. See Known limitations.
+**Login throttling:** LIVE dedicated login only — 5 failures / 10 minutes / email, in-memory. Workspace sign-up: 5 per hour per client address. See Known limitations.
 
 **CSRF:** Catch-all POST rejects a **present, mismatched** Origin. Missing Origin on catch-all is allowed. Production scripts should send Origin or Referer matching the app host.
 
 **Input:** Zod on lane auth schemas (`loginSchema`, `signupSchema`, …). Catch-all auth uses string coercion. Money/quote lane bodies: see [docs/API.md](docs/API.md).
 
-**Other:** `x-dev-actor` only with development adapter. Signup cannot select ADMIN. Portal JSON is allowlisted. SQL via Prisma parameterization.
+**Other:** `x-dev-actor` only with development adapter. Sign-up only ever creates a new workspace; people join a workspace by admin invitation. Portal JSON is allowlisted. SQL via Prisma parameterization. Every query is scoped to the signed-in company ([docs/SECURITY.md](docs/SECURITY.md#tenant-isolation)).
 
 ### Request validation pipeline (mutating routes)
 
@@ -691,11 +695,11 @@ Lane REST (auth, catalog, invoices) may run **Zod before** a handler-local RBAC 
 Runbook: [docs/deploy.md](docs/deploy.md), [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 1. PostgreSQL **16** with backups you actually test.
-2. `DATABASE_URL` + `SESSION_SECRET` from a secret manager (not Git).
-3. `NODE_ENV=production`. Do not set `DEALFLOW_ADAPTER=development`.
-4. `pnpm install --frozen-lockfile` → `pnpm db:deploy` → `pnpm build` → `pnpm start`.
-5. Smoke with real users on production; seed emails only on labeled demo hosts.
-6. Process up; `GET /api/auth/me` without cookie → 401. Do not use `/api/health` (deal flags) as a k8s liveness probe.
+2. `DATABASE_URL` and `APP_URL` (plus mail settings) from a secret manager (not Git). The server exits at start if required settings are missing.
+3. `NODE_ENV=production`. Do not set `DEALFLOW_ADAPTER=development` or `DEALFLOW_DEMO_MODE`.
+4. `pnpm install --frozen-lockfile` → `pnpm db:deploy` → `pnpm build` → `pnpm start`, or the `Dockerfile` image.
+5. Onboard each customer company with `pnpm workspace:create` (or enable `DEALFLOW_PUBLIC_SIGNUP=1`). Never seed production.
+6. Probes: `GET /api/livez` (liveness) and `GET /api/readyz` (database). Do not use `/api/health` (deal flags).
 
 `pnpm db:reset` is forbidden against shared and production URLs.
 
@@ -729,7 +733,8 @@ Full text: [docs/OPERATIONS.md](docs/OPERATIONS.md).
 | [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | Tables |
 | [docs/architecture.md](docs/architecture.md) | Engines |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Runbooks |
-| [docs/deploy.md](docs/deploy.md) | Host |
+| [docs/deploy.md](docs/deploy.md) | Host, onboarding a customer company, container image, probes |
+| [docs/productization-roadmap.md](docs/productization-roadmap.md) | What is done and what remains before selling to customer companies |
 | [docs/full-cycle-audit.md](docs/full-cycle-audit.md) | Probe notes |
 | [docs/MENTOR_REVIEW.md](docs/MENTOR_REVIEW.md) | Oral map |
 | [LICENSE](./LICENSE) | Academic; not for reuse |

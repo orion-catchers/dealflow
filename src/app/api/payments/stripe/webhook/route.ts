@@ -1,23 +1,14 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/server/lib/db";
 import { getBillingService } from "@/server/billing/live";
-import type { Actor } from "@/contracts/harsh";
+import { runAsInvoiceCompany } from "@/server/billing/system-actor";
 import {
   paidInvoiceFromStripeEvent,
   stripeConfigured,
   verifyStripeSignature,
 } from "@/server/integrations/stripe";
+import { scopedRoute } from "@/server/lib/tenant/context";
 
-async function financeActor(): Promise<Actor> {
-  const user = await prisma.user.findFirst({
-    where: { role: { in: ["FINANCE", "ADMIN"] }, status: "ACTIVE" },
-    include: { memberships: true },
-  });
-  if (!user) throw new Error("No FINANCE/ADMIN user for Stripe webhook");
-  return { id: user.id, role: user.role, active: true, customerId: user.memberships[0]?.customerId };
-}
-
-export async function POST(request: Request) {
+export const POST = scopedRoute(async function POST(request: Request) {
   if (!stripeConfigured()) {
     return NextResponse.json(
       { error: { code: "INTEGRATION_REQUIRED", message: "Stripe is not connected" } },
@@ -39,19 +30,19 @@ export async function POST(request: Request) {
   const event = JSON.parse(body) as Parameters<typeof paidInvoiceFromStripeEvent>[0];
   const paid = paidInvoiceFromStripeEvent(event);
   if (!paid) return NextResponse.json({ data: { ignored: true } });
-  const actor = await financeActor();
-  const invoice = await getBillingService().getInvoice(actor, paid.invoiceId);
-  // A settlement in another currency is not booked against this invoice; treat it like any other ignored event.
-  if (paid.currency.toLowerCase() !== invoice.currency.toLowerCase()) {
-    return NextResponse.json({ data: { ignored: true } });
-  }
-  const payment = await getBillingService().recordPayment(actor, {
-    invoiceId: paid.invoiceId,
-    amount: paid.amount,
-    method: "CARD",
-    reference: paid.reference,
-    paidOn: paid.paidOn,
-    requestKey: `stripe:${paid.reference}`,
+  const payment = await runAsInvoiceCompany(paid.invoiceId, async (actor) => {
+    const invoice = await getBillingService().getInvoice(actor, paid.invoiceId);
+    // A settlement in another currency is not booked against this invoice; treat it like any other ignored event.
+    if (paid.currency.toLowerCase() !== invoice.currency.toLowerCase()) return null;
+    return getBillingService().recordPayment(actor, {
+      invoiceId: paid.invoiceId,
+      amount: paid.amount,
+      method: "CARD",
+      reference: paid.reference,
+      paidOn: paid.paidOn,
+      requestKey: `stripe:${paid.reference}`,
+    });
   });
+  if (!payment) return NextResponse.json({ data: { ignored: true } });
   return NextResponse.json({ data: { payment } });
-}
+});

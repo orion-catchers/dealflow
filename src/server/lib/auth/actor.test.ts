@@ -3,6 +3,7 @@ import { ApiFailure } from "@/lib/api/respond";
 import { customerIdForUser } from "./actor-helpers";
 import { getActor, getSessionUser } from "./actor";
 import { getAuthorizedActor } from "./permissions";
+import { DEMO_COMPANY_ID, inRequest } from "@/server/lib/tenant/testing";
 
 describe("customerIdForUser", () => {
   const customer = { id: "user-neha", email: "neha@acme.example", name: "Neha", role: "CUSTOMER" as const, status: "ACTIVE" as const };
@@ -51,15 +52,16 @@ describe("getActor", () => {
     expect(err.code).toBe("UNAUTHENTICATED");
   });
 
-  it("dev x-dev-actor resolves fixture actor only with DEALFLOW_DEV_IMPERSONATION=1", async () => {
+  // Impersonation binds the company of the seeded user with the fixture's email, so it needs the seeded database.
+  it.skipIf(!process.env.DATABASE_URL)("dev x-dev-actor resolves fixture actor only with DEALFLOW_DEV_IMPERSONATION=1", inRequest(async () => {
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("DEALFLOW_DEV_IMPERSONATION", "1");
     const request = new Request("http://localhost/api/test", {
       headers: { "x-dev-actor": "admin-dev" },
     });
     const actor = await getActor(request);
-    expect(actor).toEqual({ id: "admin-dev", role: "ADMIN", active: true });
-  });
+    expect(actor).toEqual({ id: "admin-dev", role: "ADMIN", active: true, companyId: DEMO_COMPANY_ID });
+  }));
 
   it("unknown fixture actor id throws even with opt-in", async () => {
     vi.stubEnv("NODE_ENV", "development");

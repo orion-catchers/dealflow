@@ -4,6 +4,7 @@
  */
 import type { Customer, PlanRef, PriceList, PriceRule, Product, SalesTeam, TaxRate, Variant } from "@/contracts/harsh";
 import { prisma, type Db, type Tx } from "@/server/lib/db";
+import { requireCompanyId } from "@/server/lib/tenant/context";
 import { Prisma } from "@/generated/prisma/client";
 import {
   FIXTURE_CUSTOMER_EMAIL,
@@ -77,20 +78,12 @@ export class PrismaCatalogRepository implements CatalogRepository {
   }
 
   private async ensureCategory(code: string): Promise<string> {
-    const existing = await this.db.category.findUnique({ where: { code } });
+    const existing = await this.db.category.findFirst({ where: { code } });
     if (existing) return existing.id;
     const created = await this.db.category.create({
-      data: { code, name: code.charAt(0) + code.slice(1).toLowerCase() },
+      data: { code, name: code.charAt(0) + code.slice(1).toLowerCase(), companyId: requireCompanyId() },
     });
     return created.id;
-  }
-
-  private async companyId(): Promise<string> {
-    const nexa = await this.db.company.findUnique({ where: { code: "NEXA" } });
-    if (nexa) return nexa.id;
-    const any = await this.db.company.findFirst();
-    if (!any) throw new Error("No Company row — run migrations and seed");
-    return any.id;
   }
 
   private async resolveTaxRate(taxRateId: string) {
@@ -130,7 +123,7 @@ export class PrismaCatalogRepository implements CatalogRepository {
         currency: c.currency,
         priceListId,
         assignedRepId,
-        companyId: c.companyId ?? (await this.companyId()),
+        companyId: requireCompanyId(),
       },
       include: { assignedRep: true },
     });
@@ -175,10 +168,12 @@ export class PrismaCatalogRepository implements CatalogRepository {
   async insertTaxRate(t: TaxRate): Promise<TaxRate> {
     // Whole rates keep "tax-5"; fractional rates keep their decimals ("tax-5.1") so they do not collide.
     const code = /^tax-\d+$/.test(t.id) ? t.id : `tax-${Number(t.ratePct)}`;
+    // Tax rates are shared by every company, so one company must not name or deactivate a rate for the others:
+    // a new rate gets a neutral name and is always active, and an existing rate is returned unchanged.
     const row = await this.db.taxRate.upsert({
       where: { code },
-      create: { id: code, code, name: t.name, ratePct: t.ratePct, active: t.active },
-      update: { name: t.name, ratePct: t.ratePct, active: t.active },
+      create: { id: code, code, name: `Tax ${Number(t.ratePct)}%`, ratePct: t.ratePct, active: true },
+      update: {},
     });
     return { id: row.id, name: row.name, ratePct: Number(row.ratePct), active: row.active };
   }
@@ -196,7 +191,7 @@ export class PrismaCatalogRepository implements CatalogRepository {
   async getProduct(id: string): Promise<Product | undefined> {
     const row =
       (await this.db.product.findUnique({ where: { id }, include: productInclude })) ??
-      (await this.db.product.findUnique({ where: { sku: id }, include: productInclude }));
+      (await this.db.product.findFirst({ where: { sku: id }, include: productInclude }));
     return row ? toProduct(row) : undefined;
   }
 
@@ -212,7 +207,7 @@ export class PrismaCatalogRepository implements CatalogRepository {
         description: p.description,
         taxPct: tax.ratePct,
         taxRateId: tax.id,
-        companyId: p.companyId ?? (await this.companyId()),
+        companyId: requireCompanyId(),
         basePrice: p.basePrice,
         baseCost: p.baseCost,
         stockTracked: p.stockTracked,
@@ -261,7 +256,7 @@ export class PrismaCatalogRepository implements CatalogRepository {
   async getVariant(id: string): Promise<Variant | undefined> {
     const row =
       (await this.db.variant.findUnique({ where: { id }, include: { product: { select: { baseCost: true } } } })) ??
-      (await this.db.variant.findUnique({ where: { sku: id }, include: { product: { select: { baseCost: true } } } }));
+      (await this.db.variant.findFirst({ where: { sku: id }, include: { product: { select: { baseCost: true } } } }));
     return row ? toVariant(row, Number(row.product.baseCost)) : undefined;
   }
 
@@ -272,6 +267,7 @@ export class PrismaCatalogRepository implements CatalogRepository {
     const row = await this.db.variant.create({
       data: {
         productId: v.productId,
+        companyId: product.companyId,
         sku: v.sku,
         name: v.label,
         extraPrice: v.extraPrice,
@@ -308,14 +304,14 @@ export class PrismaCatalogRepository implements CatalogRepository {
 
   async getPriceList(id: string): Promise<PriceList | undefined> {
     const row =
-      (await this.db.priceList.findUnique({ where: { id } })) ?? (await this.db.priceList.findUnique({ where: { code: id } }));
+      (await this.db.priceList.findUnique({ where: { id } })) ?? (await this.db.priceList.findFirst({ where: { code: id } }));
     return row ? toPriceList(row) : undefined;
   }
 
   async insertPriceList(pl: PriceList): Promise<PriceList> {
     const code = pl.id.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40) || `pl-${Date.now()}`;
     const row = await this.db.priceList.create({
-      data: { code, name: pl.name, currency: pl.currency },
+      data: { code, name: pl.name, currency: pl.currency, companyId: requireCompanyId() },
     });
     return toPriceList(row);
   }
@@ -344,6 +340,9 @@ export class PrismaCatalogRepository implements CatalogRepository {
   async insertPriceRule(r: PriceRule): Promise<PriceRule> {
     const list = await this.db.priceList.findUnique({ where: { id: r.priceListId } });
     const product = await this.db.product.findUnique({ where: { id: r.productId } });
+    // Both lookups are company-scoped; a missing row means the id is unknown or another company's.
+    if (!list) throw new Error(`Price list ${r.priceListId} not found`);
+    if (!product) throw new Error(`Product ${r.productId} not found`);
     let calculatedPrice = r.fixedPrice;
     if (calculatedPrice === undefined && r.discountPct !== undefined && product) {
       // Stored basis is the product base only; the resolver adds variant.extraPrice on top.

@@ -8,6 +8,7 @@ import { ApiFailure, fail } from "@/lib/api/respond";
 import { getAuthorizedActor } from "@/server/lib/auth/permissions";
 import { parseExportFormat, parseReportFilters } from "@/features/reports/api";
 import { getReportService } from "@/server/reports/live";
+import { scopedRoute } from "@/server/lib/tenant/context";
 
 /** Copy into a plain ArrayBuffer so the body type is unambiguous for `Response`. */
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -16,7 +17,7 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return ab;
 }
 
-export async function GET(request: NextRequest) {
+export const GET = scopedRoute(async function GET(request: NextRequest) {
   try {
     const actor = await getAuthorizedActor(request);
     const params = request.nextUrl.searchParams;
@@ -40,4 +41,4 @@ export async function GET(request: NextRequest) {
     console.error(e);
     return NextResponse.json({ error: { code: "INTERNAL", message: "Unexpected server error" } }, { status: 500 });
   }
-}
+});

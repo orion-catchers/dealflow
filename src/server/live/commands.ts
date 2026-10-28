@@ -3,6 +3,7 @@ import type { Actor, Allocation, DataState, Quote } from "@/contracts/applicatio
 import { forms } from "@/contracts/forms";
 import { AppError, requireValue, revisionCheck } from "@/server/errors";
 import { prisma } from "@/server/lib/db";
+import { requireCompanyId } from "@/server/lib/tenant/context";
 import { getBillingService } from "@/server/billing/live";
 import { getCatalogService } from "@/server/catalog/live";
 import { getFulfillmentService } from "@/server/inventory/live";
@@ -277,6 +278,8 @@ export async function runLiveCommand(
         requireValue(list, "Create a price list before adding customer prices");
         const tier = String(r.tier) === "Gold" ? "GOLD" : String(r.tier) === "Silver" ? "SILVER" : "STANDARD";
         const variantId = r.variantId ? String(r.variantId) : null;
+        // Company-scoped lookup: an unknown id, or another company's product, is rejected here.
+        requireValue(await prisma.product.findUnique({ where: { id: String(r.productId) }, select: { id: true } }), "Product not found");
         const data = {
           productId: String(r.productId),
           variantId,
@@ -311,9 +314,11 @@ export async function runLiveCommand(
       const categories = await prisma.category.findMany();
       const hardware = categories.find((c) => c.code === "HARDWARE") ?? categories[0];
       const services = categories.find((c) => c.code === "SERVICES") ?? categories[0];
+      requireValue(hardware && services, "Create catalog categories before publishing a policy");
       await prisma.policyVersion.create({
         data: {
           name: `Policy ${new Date().toISOString().slice(0, 10)}`,
+          companyId: requireCompanyId(),
           createdById,
           anyExcessRequiresManager: true,
           managerWorstExcessPct: 0,
@@ -346,10 +351,11 @@ export async function runLiveCommand(
       roles(actor, "ADMIN", "SALES_MANAGER");
       const settings = b.settings as DataState["healthSettings"];
       requireValue(settings && settings.stalledDays >= 1 && settings.anomalyPoints >= 0 && settings.minimumHistory >= 1, "Invalid health settings");
+      const companyId = requireCompanyId();
       await prisma.healthSettings.upsert({
-        where: { id: "default" },
+        where: { companyId },
         create: {
-          id: "default",
+          companyId,
           stalledAfterDays: settings.stalledDays,
           anomalyMinSamples: settings.minimumHistory,
           anomalyExcessPoints: settings.anomalyPoints,
@@ -380,8 +386,11 @@ export async function runLiveCommand(
       const assigneeId = await prismaUserId(String(b.assigneeId));
       const createdById = await prismaUserId(actor.id);
       const quoteId = String(b.quoteId);
+      requireValue(await prisma.quote.findUnique({ where: { id: quoteId }, select: { id: true } }), "Quotation not found");
+      const companyId = requireCompanyId();
       const flag = await prisma.healthFlag.create({
         data: {
+          companyId,
           type: "STALLED",
           fingerprint: `TASK:${quoteId}:${randomUUID()}`,
           quoteId,
@@ -391,6 +400,7 @@ export async function runLiveCommand(
       });
       return await prisma.task.create({
         data: {
+          companyId,
           actionKey: `manual:${quoteId}:${randomUUID()}`,
           flagId: flag.id,
           quoteId,

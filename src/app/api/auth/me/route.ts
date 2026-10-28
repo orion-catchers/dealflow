@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ApiFailure, fail } from "@/lib/api/respond";
 import { getSessionUser } from "@/server/lib/auth/actor";
 import { developmentEnabled, getAdapter } from "@/server/adapters";
+import { scopedRoute } from "@/server/lib/tenant/context";
 
 function connectionMode() {
   return process.env.NODE_ENV !== "production" && process.env.DEALFLOW_ADAPTER === "development"
@@ -28,7 +29,7 @@ function toAppActor(user: {
   };
 }
 
-export async function GET(request: Request) {
+export const GET = scopedRoute(async function GET(request: Request) {
   try {
     if (developmentEnabled()) {
       const token = request.headers.get("cookie")?.split(";")
@@ -49,4 +50,4 @@ export async function GET(request: Request) {
     console.error(e);
     return NextResponse.json({ error: { code: "INTERNAL", message: "Unexpected server error" } }, { status: 500 });
   }
-}
+});

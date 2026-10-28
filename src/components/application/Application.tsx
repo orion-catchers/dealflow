@@ -345,7 +345,7 @@ export default function Application(){
   </div>;
 }
 
-function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;onLogin:(actor:Actor,mode?:string)=>void|Promise<void>}){
+function Auth({path,mode:sessionMode,error,onLogin}:{path:string;mode:string;error:string;onLogin:(actor:Actor,mode?:string)=>void|Promise<void>}){
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
   const [name,setName]=useState('');
@@ -358,6 +358,22 @@ function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;on
   const [resetPassword,setResetPassword]=useState('');
   const [recoveryMsg,setRecoveryMsg]=useState('');
   const [recoveryOk,setRecoveryOk]=useState(false);
+  const [companyName,setCompanyName]=useState('');
+  const [inviting,setInviting]=useState(false);
+  const config=usePublicConfig();
+  // Before sign-in there is no session to report the connection, so the entry pages use the server's own answer.
+  const mode=sessionMode==='NOT CONNECTED'&&config.mode?config.mode:sessionMode;
+  // An invitation link (/login#invite=<token>) opens an "activate your account" view with the token filled in. The
+  // token lives in the fragment, which never reaches server logs, and is cleared from the address bar once read.
+  useEffect(()=>{
+    const invite=new URLSearchParams(window.location.hash.slice(1)).get('invite');
+    if(!invite)return;
+    window.history.replaceState(null,'',window.location.pathname+window.location.search);
+    setInviting(true);setResetToken(invite);setRecovery('confirm');setRecoveryMsg('Choose a password to activate your account. The link works once.');
+  },[]);
+  // LIVE sign-up creates a new workspace; the dev fixture keeps its request-access form.
+  const createsWorkspace=path==='/signup'&&mode!=='DEV FIXTURE';
+  const signupClosed=createsWorkspace&&!config.workspaceSignup;
   const landing=path==='/';
   return <div className={`auth-page ${landing?'auth-landing':''}`} data-public-panel-open={publicMenuOpen}>
     <div className="auth-photo" aria-hidden="true"/>
@@ -376,11 +392,11 @@ function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;on
     </main>:<main className="auth-body login-body" id="access" inert={publicMenuOpen}>
       <div className="auth-form">
         <span className="eyebrow">DEALFLOW360 WORKSPACE</span>
-        <h1>{path==='/signup'?'Request an account':'Welcome back'}</h1>
-        <p>{path==='/signup'?'Your administrator will verify your access.':'Sign in with your assigned company account.'}</p>
-        <p className="dev-copy"><StatusBadge status={mode}/> {mode==='DEV FIXTURE'?'Local JSON store accounts':mode==='LIVE'?'Seeded sales demo below — do not use password123':'Live services are not connected, so sign-in may be unavailable.'}</p>
-        {path!=='/signup'&&<div className="auth-demo"><span>Demo fill</span><div className="auth-personas">{[['Admin · Dev','dev@nexa.example','admin-nexa-2026!'],['Rep · Arjun','arjun@nexa.example','arjun-nexa-2026!'],['Manager · Sana','sana@nexa.example','sana-nexa-2026!'],['Finance · Farah','farah@nexa.example','farah-nexa-2026!'],['Customer · Acme (Neha)','neha@acme.example','neha-acme-2026!'],['Customer · Beta (Rohan)','rohan@beta.example','rohan-beta-2026!'],['Customer · Gamma (Meera)','meera@gamma.example','meera-gamma-2026!']].map(([label,mail,pass])=><button type="button" key={label} title={`${label} (${mail})`} onClick={()=>{setEmail(mail);setPassword(pass);setIssue('');}}>{label}</button>)}</div></div>}
-        {done?<div className="notice" role="status">Account requested. Your administrator must activate access.<Link href="/login">Return to sign in</Link></div>:<form onSubmit={async event=>{
+        <h1>{inviting?'Activate your account':createsWorkspace?'Create your workspace':path==='/signup'?'Request an account':'Welcome back'}</h1>
+        <p>{inviting?'You were invited to a DealFlow360 workspace.':createsWorkspace?(signupClosed?'Workspaces are set up by invitation. Ask your workspace administrator for an invite link, or contact us to start a new workspace.':'Start a workspace for your company. You become its administrator and can invite your team.'):path==='/signup'?'Your administrator will verify your access.':'Sign in with your company account.'}</p>
+        <p className="dev-copy"><StatusBadge status={mode}/> {mode==='DEV FIXTURE'?'Local JSON store accounts':mode==='LIVE'?(config.demoAccounts.length?'Demo workspace: seeded accounts below.':'Signed-in access only.'):'Live services are not connected, so sign-in may be unavailable.'}</p>
+        {path!=='/signup'&&config.demoAccounts.length>0&&<div className="auth-demo"><span>Demo fill</span><div className="auth-personas">{config.demoAccounts.map(({label,email:mail,password:pass})=><button type="button" key={label} title={`${label} (${mail})`} onClick={()=>{setEmail(mail);setPassword(pass);setIssue('');}}>{label}</button>)}</div></div>}
+        {signupClosed||inviting?null:done?<div className="notice" role="status">Account requested. Your administrator must activate access.<Link href="/login">Return to sign in</Link></div>:<form onSubmit={async event=>{
           event.preventDefault();setBusy(true);setIssue('');
           const submitted=new FormData(event.currentTarget);
           const passwordField=event.currentTarget.elements.namedItem('password');
@@ -388,34 +404,37 @@ function Auth({path,mode,error,onLogin}:{path:string;mode:string;error:string;on
           const nextEmail=String(submitted.get('email')??(emailField instanceof HTMLInputElement?emailField.value:email)).trim();
           const nextPassword=String(submitted.get('password')??(passwordField instanceof HTMLInputElement?passwordField.value:password)).replace(/\r?\n/g,'');
           const nextName=String(submitted.get('name')??name).trim();
-          try{if(path==='/signup'){await api('auth/signup',{name:nextName,email:nextEmail,password:nextPassword});setDone(true);}else{const result=await api<{actor?:Actor;mode?:string;id?:string;name?:string;email?:string;role?:Role;active?:boolean;customerId?:string}>('auth/login',{email:nextEmail,password:nextPassword});const actor=result.actor??sessionToActor(result);if(!actor)throw new Error('Sign in could not be completed.');await onLogin(actor,result.mode??'LIVE');}}
+          try{if(createsWorkspace){const result=await api<{actor:Actor;mode?:string}>('auth/signup',{companyName:companyName.trim(),name:nextName,email:nextEmail,password:nextPassword});await onLogin(result.actor,result.mode??'LIVE');}else if(path==='/signup'){await api('auth/signup',{name:nextName,email:nextEmail,password:nextPassword});setDone(true);}else{const result=await api<{actor?:Actor;mode?:string;id?:string;name?:string;email?:string;role?:Role;active?:boolean;customerId?:string}>('auth/login',{email:nextEmail,password:nextPassword});const actor=result.actor??sessionToActor(result);if(!actor)throw new Error('Sign in could not be completed.');await onLogin(actor,result.mode??'LIVE');}}
           catch(reason){setIssue(reason instanceof Error?reason.message:'Sign in could not be completed.');}
           finally{setBusy(false);};
         }}>
+          {createsWorkspace&&<Input label="Company name" name="companyName" value={companyName} onChange={event=>setCompanyName(event.target.value)} required minLength={2} autoComplete="organization"/>}
           {path==='/signup'&&<Input label="Full name" name="name" value={name} onChange={event=>setName(event.target.value)} required autoComplete="name"/>}
           <Input label="Work email" name="email" type="email" value={email} onChange={event=>setEmail(event.target.value)} onInput={event=>setEmail(event.currentTarget.value)} required autoComplete="username"/>
           <Input label="Password" name="password" type="password" value={password} onChange={event=>setPassword(event.target.value)} onInput={event=>setPassword(event.currentTarget.value)} required minLength={8} autoComplete={path==='/signup'?'new-password':'current-password'}/>
           {issue&&<p role="alert" className="error">{issue}</p>}
-          <Button type="submit" disabled={busy}>{busy?'Please wait…':path==='/signup'?'Request access':'Sign in'}</Button>
+          <Button type="submit" disabled={busy}>{busy?'Please wait…':createsWorkspace?'Create workspace':path==='/signup'?'Request access':'Sign in'}</Button>
         </form>}
-        <p className="auth-switch">{path==='/signup'?'Already have access?':'Need an account?'} <Link href={path==='/signup'?'/login':'/signup'}>{path==='/signup'?'Sign in':'Request access'}</Link></p>
-        {path!=='/signup'&&<GoogleSsoLink/>}
-        <small className="auth-recovery">{recovery==='none'&&recoveryOk?<span>Password updated. Sign in with your new password.</span>:recovery==='none'&&<button type="button" onClick={()=>{setRecovery('request');setRecoveryOk(false);setRecoveryMsg('');}}>Forgot password?</button>}{recovery==='request'&&<form onSubmit={async event=>{event.preventDefault();setBusy(true);try{await api('auth/password-reset',{email});setRecovery('confirm');setRecoveryMsg('If that account exists, a reset was recorded. With RESEND_API_KEY or MAIL_WEBHOOK_URL the token is emailed; otherwise it is printed in the server log in development.');}catch(reason){setIssue(reason instanceof Error?reason.message:'Reset request failed.');}finally{setBusy(false);}}} aria-label="Password recovery"><Input label="Work email" type="email" value={email} onChange={event=>setEmail(event.target.value)} required autoComplete="username"/><Button type="submit" disabled={busy}>{busy?'Please wait…':'Send reset request'}</Button> <button type="button" onClick={()=>setRecovery('none')}>Cancel</button></form>}{recovery==='confirm'&&<div><div className="notice" role="status">{recoveryMsg}</div><form onSubmit={async event=>{event.preventDefault();setBusy(true);try{await api('auth/password-reset/confirm',{token:resetToken.trim(),newPassword:resetPassword});setRecovery('none');setResetToken('');setResetPassword('');setRecoveryOk(true);}catch(reason){setIssue(reason instanceof Error?reason.message:'Reset failed; check the token and try again.');}finally{setBusy(false);}}} aria-label="Set new password"><Input label="Reset token" value={resetToken} onChange={event=>setResetToken(event.target.value)} required/><Input label="New password" type="password" value={resetPassword} onChange={event=>setResetPassword(event.target.value)} required minLength={8} autoComplete="new-password"/><Button type="submit" disabled={busy}>{busy?'Please wait…':'Set new password'}</Button></form></div>}</small>
+        {!inviting&&<p className="auth-switch">{path==='/signup'?'Already have access?':'New to DealFlow360?'} <Link href={path==='/signup'?'/login':'/signup'}>{path==='/signup'?'Sign in':mode==='DEV FIXTURE'?'Request access':'Create a workspace'}</Link></p>}
+        {path!=='/signup'&&config.googleSso&&<p className="auth-switch"><a href="/api/auth/sso/google">Sign in with Google</a></p>}
+        <small className="auth-recovery">{recovery==='none'&&recoveryOk?<span>Password updated. Sign in with your new password.</span>:recovery==='none'&&<button type="button" onClick={()=>{setRecovery('request');setRecoveryOk(false);setRecoveryMsg('');}}>Forgot password?</button>}{recovery==='request'&&<form onSubmit={async event=>{event.preventDefault();setBusy(true);try{await api('auth/password-reset',{email});setRecovery('confirm');setRecoveryMsg('If that account exists, a reset was recorded. With RESEND_API_KEY or MAIL_WEBHOOK_URL the token is emailed; otherwise it is printed in the server log in development.');}catch(reason){setIssue(reason instanceof Error?reason.message:'Reset request failed.');}finally{setBusy(false);}}} aria-label="Password recovery"><Input label="Work email" type="email" value={email} onChange={event=>setEmail(event.target.value)} required autoComplete="username"/><Button type="submit" disabled={busy}>{busy?'Please wait…':'Send reset request'}</Button> <button type="button" onClick={()=>setRecovery('none')}>Cancel</button></form>}{recovery==='confirm'&&<div><div className="notice" role="status">{recoveryMsg}</div><form onSubmit={async event=>{event.preventDefault();setBusy(true);try{await api('auth/password-reset/confirm',{token:resetToken.trim(),newPassword:resetPassword});setRecovery('none');setResetToken('');setResetPassword('');setRecoveryOk(true);setInviting(false);}catch(reason){setIssue(reason instanceof Error?reason.message:'Reset failed; check the token and try again.');}finally{setBusy(false);}}} aria-label="Set new password">{!inviting&&<Input label="Reset token" value={resetToken} onChange={event=>setResetToken(event.target.value)} required/>}<Input label="New password" type="password" value={resetPassword} onChange={event=>setResetPassword(event.target.value)} required minLength={8} autoComplete="new-password"/><Button type="submit" disabled={busy}>{busy?'Please wait…':inviting?'Activate account':'Set new password'}</Button></form></div>}</small>
       </div>
     </main>}
   </div>;
 }
 
-function GoogleSsoLink(){
-  const [enabled,setEnabled]=useState(false);
+type PublicConfig={mode?:string;googleSso:boolean;workspaceSignup:boolean;demoAccounts:{label:string;email:string;password:string}[]};
+
+/** Unauthenticated entry-page settings: optional Google SSO, public workspace sign-up, and demo logins (demo hosts only). */
+function usePublicConfig():PublicConfig{
+  const [config,setConfig]=useState<PublicConfig>({googleSso:false,workspaceSignup:false,demoAccounts:[]});
   useEffect(()=>{
     fetch('/api/integrations/public',{cache:'no-store'}).then(async response=>{
       const result=await response.json();
-      if(response.ok&&result.data?.googleSso)setEnabled(true);
-    }).catch(()=>{/* optional vendor */});
+      if(response.ok&&result.data)setConfig({mode:typeof result.data.mode==='string'?result.data.mode:undefined,googleSso:Boolean(result.data.googleSso),workspaceSignup:Boolean(result.data.workspaceSignup),demoAccounts:Array.isArray(result.data.demoAccounts)?result.data.demoAccounts:[]});
+    }).catch(()=>{/* entry pages work without optional settings */});
   },[]);
-  if(!enabled)return null;
-  return <p className="auth-switch"><a href="/api/auth/sso/google">Sign in with Google</a></p>;
+  return config;
 }
 
 function Home({ctx}:{ctx:Context}){

@@ -20,6 +20,7 @@ import type {
 import { ApiFailure } from "@/lib/api/respond";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma, type Db, type Tx } from "@/server/lib/db";
+import { requireCompanyId } from "@/server/lib/tenant/context";
 import {
   dateOnly,
   FIXTURE_USER_EMAIL,
@@ -91,8 +92,8 @@ export class PrismaInventoryStore implements InventoryStore {
     const code = FIXTURE_WAREHOUSE_CODE[id] ?? (id.startsWith("warehouse-") ? id.slice("warehouse-".length).toUpperCase() : id.toUpperCase());
     const row =
       (await this.db.warehouse.findUnique({ where: { id } })) ??
-      (await this.db.warehouse.findUnique({ where: { code: id.toUpperCase() } })) ??
-      (await this.db.warehouse.findUnique({ where: { code } }));
+      (await this.db.warehouse.findFirst({ where: { code: id.toUpperCase() } })) ??
+      (await this.db.warehouse.findFirst({ where: { code } }));
     return row ? applyCourierRateCard(toWarehouse(row)) : null;
   }
 
@@ -110,7 +111,7 @@ export class PrismaInventoryStore implements InventoryStore {
           data: {
             id: warehouse.id,
             ...data,
-            companyId: warehouse.companyId ?? (await this.db.company.findUnique({ where: { code: "NEXA" } }))?.id ?? (await this.db.company.findFirstOrThrow()).id,
+            companyId: requireCompanyId(),
           },
         });
     return applyCourierRateCard(toWarehouse(row));
@@ -355,7 +356,7 @@ export class PrismaInventoryStore implements InventoryStore {
     const pair = requestKeyPair("receipt", receipt.requestKey);
     const rk = await this.db.requestKey.upsert({
       where: { scope_key: { scope: pair.scope, key: pair.key } },
-      create: { scope: pair.scope, key: pair.key, actorId },
+      create: { companyId: requireCompanyId(), scope: pair.scope, key: pair.key, actorId },
       update: {},
     });
     const existing = await this.db.stockReceipt.findUnique({ where: { requestKeyId: rk.id } });
@@ -398,6 +399,7 @@ export class PrismaInventoryStore implements InventoryStore {
     await this.db.requestKey.upsert({
       where: { scope_key: { scope: pair.scope, key: pair.key } },
       create: {
+        companyId: requireCompanyId(),
         scope: pair.scope,
         key: pair.key,
         resultKind: kind,
@@ -418,8 +420,8 @@ export class PrismaInventoryStore implements InventoryStore {
     const sku = FIXTURE_VARIANT_SKU[id] ?? id;
     const row =
       (await this.db.variant.findUnique({ where: { id }, include: { product: { select: { baseCost: true } } } })) ??
-      (await this.db.variant.findUnique({ where: { sku: id }, include: { product: { select: { baseCost: true } } } })) ??
-      (await this.db.variant.findUnique({ where: { sku }, include: { product: { select: { baseCost: true } } } }));
+      (await this.db.variant.findFirst({ where: { sku: id }, include: { product: { select: { baseCost: true } } } })) ??
+      (await this.db.variant.findFirst({ where: { sku }, include: { product: { select: { baseCost: true } } } }));
     return row ? toVariant(row, Number(row.product.baseCost)) : null;
   }
 

@@ -17,6 +17,7 @@ import { Prisma, type RequestResultKind, type RequestScope } from "@/generated/p
 import { ApiFailure } from "@/lib/api/respond";
 import { prismaUserIdForActor } from "@/server/lib/auth/resolve-user";
 import { prisma, rawTable, type Db, type Tx } from "@/server/lib/db";
+import { requireCompanyId } from "@/server/lib/tenant/context";
 import { parseDate } from "./engine/calendar";
 import { combinedDiscountPct, lineAmounts } from "./engine/line-total";
 import { fromCents, toCents } from "./engine/money";
@@ -259,7 +260,7 @@ export class PrismaBillingStore implements BillingStore {
     }
     if (existing) throw new ApiFailure("CONFLICT", "Request already in progress");
     const row = await this.db.requestKey.create({
-      data: { scope: asScope(scope), key, actorId: actorId ?? null },
+      data: { companyId: requireCompanyId(), scope: asScope(scope), key, actorId: actorId ?? null },
     });
     return { replayed: false, claimId: row.id };
   }
@@ -277,11 +278,11 @@ export class PrismaBillingStore implements BillingStore {
   }
 
   async lockInvoice(id: string): Promise<void> {
-    await this.db.$queryRaw`SELECT id FROM ${rawTable("Invoice")} WHERE id = ${id} FOR UPDATE`;
+    await this.db.$queryRaw`SELECT id FROM ${rawTable("Invoice")} WHERE id = ${id} AND "companyId" = ${requireCompanyId()} FOR UPDATE`;
   }
 
   async lockSubscription(id: string): Promise<void> {
-    await this.db.$queryRaw`SELECT id FROM ${rawTable("Subscription")} WHERE id = ${id} FOR UPDATE`;
+    await this.db.$queryRaw`SELECT id FROM ${rawTable("Subscription")} WHERE id = ${id} AND "companyId" = ${requireCompanyId()} FOR UPDATE`;
   }
 
   async customerIdsForActor(actor: Actor): Promise<string[]> {
@@ -329,10 +330,10 @@ export class PrismaBillingStore implements BillingStore {
     };
     const row = await this.db.subscriptionPlan.upsert({
       where: { id: plan.id },
-      create: { id: plan.id, code: plan.code, ...data },
+      create: { id: plan.id, code: plan.code, companyId: requireCompanyId(), ...data },
       update: data,
     });
-    await this.db.$executeRaw`UPDATE ${rawTable("SubscriptionPlan")} SET "listPrice" = CAST(${plan.listPrice} AS DECIMAL(14, 2)) WHERE "id" = ${plan.id}`;
+    await this.db.$executeRaw`UPDATE ${rawTable("SubscriptionPlan")} SET "listPrice" = CAST(${plan.listPrice} AS DECIMAL(14, 2)) WHERE "id" = ${plan.id} AND "companyId" = ${row.companyId}`;
     return { ...toPlan(row), listPrice: plan.listPrice };
   }
 
@@ -373,6 +374,7 @@ export class PrismaBillingStore implements BillingStore {
       where: { id: sub.id },
       create: {
         id: sub.id,
+        companyId: requireCompanyId(),
         sourceOrderLineId: sub.sourceOrderLineId,
         customerId: sub.customerId,
         planId: sub.planId,
@@ -526,6 +528,7 @@ export class PrismaBillingStore implements BillingStore {
     const row = await this.db.invoice.create({
       data: {
         ...(draft.id ? { id: draft.id } : {}),
+        companyId: requireCompanyId(),
         customerId: draft.customerId,
         orderId: draft.orderId,
         subscriptionId: draft.subscriptionId,
@@ -651,6 +654,7 @@ export class PrismaBillingStore implements BillingStore {
     await this.db.creditNote.create({
       data: {
         id: note.id,
+        companyId: requireCompanyId(),
         customerId: note.customerId,
         sourceInvoiceId: note.sourceInvoiceId,
         reason: note.reason,

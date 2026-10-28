@@ -1,20 +1,11 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/server/lib/db";
 import { getBillingService } from "@/server/billing/live";
-import type { Actor } from "@/contracts/harsh";
+import { runAsInvoiceCompany } from "@/server/billing/system-actor";
 import { appOrigin, retrieveCheckoutSession, stripeConfigured } from "@/server/integrations/stripe";
-
-async function financeActor(): Promise<Actor> {
-  const user = await prisma.user.findFirst({
-    where: { role: { in: ["FINANCE", "ADMIN"] }, status: "ACTIVE" },
-    include: { memberships: true },
-  });
-  if (!user) throw new Error("No FINANCE/ADMIN user to record Stripe payment");
-  return { id: user.id, role: user.role, active: true, customerId: user.memberships[0]?.customerId };
-}
+import { scopedRoute } from "@/server/lib/tenant/context";
 
 /** After Stripe Checkout: record the books payment using STRIPE_SECRET_KEY (webhook optional). */
-export async function GET(request: Request) {
+export const GET = scopedRoute(async function GET(request: Request) {
   const origin = appOrigin(request.url);
   if (!stripeConfigured()) {
     return NextResponse.redirect(`${origin}/invoices?stripe=not_connected`);
@@ -26,22 +17,25 @@ export async function GET(request: Request) {
     if (!session.paid || !session.invoiceId || !session.paidOn) {
       return NextResponse.redirect(`${origin}/invoices?stripe=unpaid`);
     }
-    const actor = await financeActor();
-    const invoice = await getBillingService().getInvoice(actor, session.invoiceId);
-    // A settlement in another currency is not booked; respond like the other unusable sessions.
-    if (session.currency?.toLowerCase() !== invoice.currency.toLowerCase()) {
-      return NextResponse.redirect(`${origin}/invoices?stripe=unpaid`);
-    }
-    await getBillingService().recordPayment(actor, {
-      invoiceId: session.invoiceId,
-      amount: session.amount,
-      method: "CARD",
-      reference: session.paymentRef,
-      paidOn: session.paidOn,
-      requestKey: `stripe:${session.paymentRef}`,
+    const invoiceId = session.invoiceId;
+    const paidOn = session.paidOn;
+    const recorded = await runAsInvoiceCompany(invoiceId, async (actor) => {
+      const invoice = await getBillingService().getInvoice(actor, invoiceId);
+      // A settlement in another currency is not booked; respond like the other unusable sessions.
+      if (session.currency?.toLowerCase() !== invoice.currency.toLowerCase()) return false;
+      await getBillingService().recordPayment(actor, {
+        invoiceId,
+        amount: session.amount,
+        method: "CARD",
+        reference: session.paymentRef,
+        paidOn,
+        requestKey: `stripe:${session.paymentRef}`,
+      });
+      return true;
     });
-    return NextResponse.redirect(`${origin}/invoices/${session.invoiceId}?stripe=paid`);
+    if (!recorded) return NextResponse.redirect(`${origin}/invoices?stripe=unpaid`);
+    return NextResponse.redirect(`${origin}/invoices/${invoiceId}?stripe=paid`);
   } catch {
     return NextResponse.redirect(`${origin}/invoices?stripe=failed`);
   }
-}
+});

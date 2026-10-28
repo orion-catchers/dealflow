@@ -7,6 +7,20 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["exceljs"],
   experimental: { cpus: 2 },
+  async headers() {
+    const security = [
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "X-Frame-Options", value: "DENY" },
+      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(self)" },
+      // Framing, plugin, base-URL and form-target restrictions; script sources are left to Next.js defaults.
+      { key: "Content-Security-Policy", value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'" },
+    ];
+    if (process.env.NODE_ENV === "production") {
+      security.push({ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" });
+    }
+    return [{ source: "/:path*", headers: security }];
+  },
   async redirects() {
     return [
       { source: "/catalog", destination: "/products", permanent: false },

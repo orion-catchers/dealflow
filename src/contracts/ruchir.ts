@@ -33,11 +33,13 @@ export interface SessionUser {
   active: boolean;
 }
 
+/** Public sign-up creates a workspace (company) owned by this person. */
 export interface SignupInput {
   email: string;
   password: string;
   name: string;
-  customerId?: string;
+  companyName: string;
+  currency?: "INR" | "USD" | "EUR";
 }
 
 export interface LoginInput {

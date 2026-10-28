@@ -172,6 +172,7 @@ export class LivePolicyService {
       const row = await tx.policyVersion.create({
         data: {
           name: typeof body.name === "string" && body.name.trim() ? body.name.trim() : `${previous.name} (published)`,
+          companyId: previous.companyId,
           createdById: actorId,
           anyExcessRequiresManager: Boolean(thresholds.anyExcessRequiresManager ?? previous.anyExcessRequiresManager),
           managerWorstExcessPct: decimalInput(thresholds.managerWorstExcessPct ?? thresholds.managerThresholdPct ?? previous.managerWorstExcessPct.toString(), "Manager worst-line threshold")!,
