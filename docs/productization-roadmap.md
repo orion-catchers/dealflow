@@ -19,7 +19,7 @@ The hackathon build proved the full quote-to-cash flow for one seller (Nexa). It
 
 | Area | What changed | Where |
 |---|---|---|
-| Data model | Every business table now belongs to a company, directly through `companyId` or through its parent. Natural keys are unique per company. The migration backfills existing rows and refuses to finish if it finds a reference across companies. | `prisma/migrations/20261028120000_company_tenancy` |
+| Data model | Every business table now belongs to a company, directly through `companyId` or through its parent. Natural keys are unique per company. The migration backfills existing rows from their relations (audit rows and request keys through what they describe), refuses to finish if any checked reference crosses companies, and reports how many unlinked rows it gave to the oldest company. | `prisma/migrations/20261028120000_company_tenancy` |
 | Query isolation | Each API request runs in a tenant scope. Signing in binds the user's company. A Prisma client extension adds the company filter to every read, update, and delete, and checks the company on every create. Code that runs without a scope is refused. | `src/server/lib/tenant/context.ts`, `src/server/lib/db/tenant.ts` |
 | Database guard | Triggers on 34 tables reject any row that points at another company's row, even if application code has a bug. | `prisma/migrations/20261028120100_tenant_reference_guard` |
 | Onboarding | A new company gets a working workspace (owner admin, four categories, a standard price list, a starter approval policy, health settings) from `pnpm workspace:create`, or from `/signup` when `DEALFLOW_PUBLIC_SIGNUP=1`. | `src/server/tenancy/workspace.ts`, `scripts/create-workspace.ts` |
@@ -54,7 +54,9 @@ These are business decisions, not code. The code cannot settle them.
 | Backups and restore drill | Turn on point-in-time recovery on the managed database and restore it once into a scratch database. | Ruchir |
 | Error tracking and logs | Add `onRequestError` in `src/instrumentation.ts` to send errors to a tracker, and structured request logs with the company id. | Ruchir |
 | Verified email sending | Configure a sending domain (`MAIL_FROM`) so invites and resets actually arrive. | Ruchir |
-| Browser test of onboarding | Click through sign-up, invite, set password, and first quote in a real browser for a brand-new workspace. The HTTP checks pass, but no browser run has been done. | Krishna |
+| Manual check of onboarding | A Playwright run clicked through sign-up, invite, and activation on the production build. A person should still try it on real devices, including the first quote in a brand-new workspace. | Krishna |
+| Invitation edge cases | Login emails are unique across workspaces, so an admin who invites an address that belongs to someone else blocks it for other workspaces until the invitation is withdrawn, and the "already has an account" answer reveals that an address is registered somewhere. Invitations stay PENDING (no sign-in, no Google SSO) until redeemed, are emailed rather than shown when mail is configured, and are limited to 30 per hour per admin. Per-workspace identities (P1) remove the rest. | Ruchir |
+| Request keys per company | Request keys are unique across the platform but looked up per company, so reusing another company's key returns an error instead of a replay. Make the unique key `(companyId, scope, key)`. Upserts on company-owned tables now run as find-then-create, so two identical concurrent upserts can fail one of them instead of converging. | Ruchir |
 
 ### P1: in the first months
 

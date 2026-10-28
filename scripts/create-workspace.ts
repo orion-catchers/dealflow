@@ -9,7 +9,7 @@
 import "dotenv/config";
 import { parseArgs } from "node:util";
 import { prisma } from "../src/server/lib/db";
-import { issueInviteLink } from "../src/server/lib/auth/password-reset";
+import { createInviteLink, sendInviteEmail } from "../src/server/lib/auth/password-reset";
 import { runForCompany } from "../src/server/lib/tenant/context";
 import { createWorkspace } from "../src/server/tenancy/workspace";
 
@@ -33,7 +33,9 @@ async function main() {
   });
   const inviteUrl = await runForCompany(created.companyId, async () => {
     const owner = await prisma.user.findUniqueOrThrow({ where: { id: created.ownerId } });
-    return issueInviteLink(owner, values.company!);
+    const link = await prisma.$transaction((tx) => createInviteLink(tx, owner.id));
+    await sendInviteEmail(owner, values.company!, link);
+    return link;
   });
   console.log(JSON.stringify({ ...created, ownerEmail: values.email.toLowerCase(), inviteUrl }, null, 2));
 }

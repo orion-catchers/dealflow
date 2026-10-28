@@ -60,6 +60,11 @@ describe("scopeArgs", () => {
     expect(() => scopeArgs("Quote", "upsert", { where: { id: "q" }, create: {}, update: { companyId: B } }, A)).toThrow(
       TenantScopeError,
     );
+    expect(() => scopeArgs("Category", "updateMany", { data: { companyId: { set: B } } }, A)).toThrow(TenantScopeError);
+    expect(() => scopeArgs("Category", "create", { data: { company: { connect: { code: "B" } } } }, A)).toThrow(TenantScopeError);
+    expect(() => scopeArgs("Category", "update", { where: { id: "c" }, data: { company: { connect: { id: B } } } }, A)).toThrow(
+      TenantScopeError,
+    );
   });
 
   it("scopes both halves of an upsert", () => {

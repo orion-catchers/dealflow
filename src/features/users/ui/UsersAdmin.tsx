@@ -15,7 +15,7 @@ const ROLES: Array<{ value: UserAdminRow["role"]; label: string }> = [
   { value: "CUSTOMER", label: "Customer portal user" },
 ];
 
-type Invited = { user: UserAdminRow; inviteUrl: string };
+type Invited = { user: UserAdminRow; inviteUrl?: string };
 
 export function UsersAdmin() {
   const list = useApi<UserAdminRow[]>("/api/admin/users");
@@ -38,6 +38,22 @@ export function UsersAdmin() {
     );
     if (result) {
       setNotice(status === "ACTIVE" ? `Activated ${user.email}` : `Disabled ${user.email}; their sessions have ended`);
+      list.reload();
+    }
+  }
+
+  async function resend(user: UserAdminRow) {
+    setNotice(null);
+    const result = await mutation.run(() => api<Invited>(`/api/admin/users/${user.id}/invite`, { method: "POST" }));
+    if (result) setInvited(result);
+  }
+
+  async function withdraw(user: UserAdminRow) {
+    setNotice(null);
+    setInvited(null);
+    const result = await mutation.run(() => api(`/api/admin/users/${user.id}`, { method: "DELETE" }));
+    if (result) {
+      setNotice(`Withdrew the invitation for ${user.email}`);
       list.reload();
     }
   }
@@ -70,7 +86,16 @@ export function UsersAdmin() {
       key: "actions",
       header: "",
       render: (u) =>
-        u.status === "ACTIVE" ? (
+        u.status === "PENDING" ? (
+          <span className="flex gap-2">
+            <Button type="button" variant="secondary" disabled={mutation.pending} onClick={() => void resend(u)}>
+              Resend invite
+            </Button>
+            <Button type="button" variant="ghost" disabled={mutation.pending} onClick={() => void withdraw(u)}>
+              Withdraw
+            </Button>
+          </span>
+        ) : u.status === "ACTIVE" ? (
           <Button type="button" variant="secondary" disabled={mutation.pending} onClick={() => void setStatus(u, "DISABLED")}>
             Disable
           </Button>
@@ -133,8 +158,14 @@ export function UsersAdmin() {
       {notice ? <p className="mb-3 text-sm text-emerald-700">{notice}</p> : null}
       {invited ? (
         <div className="notice" role="status">
-          Invited {invited.user.email}. If email delivery is not configured, send them this one-time link:{" "}
-          <code className="break-all">{invited.inviteUrl}</code>
+          {invited.inviteUrl ? (
+            <>
+              Invited {invited.user.email}. Email delivery is not configured, so send them this one-time link yourself:{" "}
+              <code className="break-all">{invited.inviteUrl}</code>
+            </>
+          ) : (
+            <>Invitation emailed to {invited.user.email}. They appear as PENDING until they set a password.</>
+          )}
         </div>
       ) : null}
       <DataTable

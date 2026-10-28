@@ -6,7 +6,9 @@ import { randomBytes } from "node:crypto";
 import { prisma } from "@/server/lib/db";
 import { requireRole } from "@/server/lib/auth/actor";
 import { hashPassword } from "@/server/lib/auth/password";
-import { issueInviteLink } from "@/server/lib/auth/password-reset";
+import { createInviteLink, sendInviteEmail } from "@/server/lib/auth/password-reset";
+import { inviteRateLimiter } from "@/server/lib/auth/rate-limit";
+import { mailConfigured } from "@/server/integrations/mail";
 import { prismaUserIdForActor } from "@/server/lib/auth/resolve-user";
 import { recordPrismaAudit } from "@/server/audit/prisma-repository";
 import { userInviteSchema, userPatchSchema } from "@/server/lib/auth/schemas";
@@ -65,6 +67,14 @@ export async function patchUser(actor: Actor, id: string, raw: unknown): Promise
     }
   }
 
+  // A workspace with no active admin cannot invite, configure, or run its billing jobs, so the last one stays.
+  const losesAdmin =
+    existing.role === "ADMIN" && existing.status === "ACTIVE" &&
+    ((input.status !== undefined && input.status !== "ACTIVE") || (input.role !== undefined && input.role !== "ADMIN"));
+  if (losesAdmin && (await prisma.user.count({ where: { role: "ADMIN", status: "ACTIVE", id: { not: id } } })) === 0) {
+    throw new ApiFailure("CONFLICT", "A workspace needs at least one active admin");
+  }
+
   const changes: Record<string, { from: unknown; to: unknown }> = {};
   if (input.status !== undefined && input.status !== existing.status) changes.status = { from: existing.status, to: input.status };
   if (input.role !== undefined && input.role !== existing.role) changes.role = { from: existing.role, to: input.role };
@@ -120,19 +130,22 @@ export async function patchUser(actor: Actor, id: string, raw: unknown): Promise
 }
 
 /**
- * Add a person to the admin's own workspace. The account is ACTIVE with an unusable password until the invitee sets
- * one from the returned link (also emailed when a mail provider is configured). Customer-role invitees must be bound
- * to at least one of the workspace's customers.
+ * Add a person to the admin's own workspace. The account stays PENDING, unable to sign in by password or Google,
+ * until the invitee sets a password from the one-time link. The link is emailed; it is returned to the admin only when
+ * no mail provider is configured, because then the admin has to deliver it. Customer-role invitees must be bound to
+ * at least one of the workspace's customers.
  */
-export async function inviteUser(actor: Actor, raw: unknown): Promise<{ user: UserAdminRow; inviteUrl: string }> {
+export async function inviteUser(actor: Actor, raw: unknown): Promise<{ user: UserAdminRow; inviteUrl?: string }> {
   requireRole(actor, "ADMIN");
   const input = parseInput(userInviteSchema, raw);
   const email = input.email.toLowerCase();
   const companyId = requireCompanyId();
+  inviteRateLimiter.assertAllowed(actor.id);
+  inviteRateLimiter.recordFailure(actor.id);
 
   // Login emails are unique across every workspace, so the check deliberately looks beyond this company.
   if (await runAsSystem(() => prisma.user.findUnique({ where: { email }, select: { id: true } }))) {
-    throw new ApiFailure("CONFLICT", "Email already registered");
+    throw new ApiFailure("CONFLICT", "This email already has a DealFlow360 account");
   }
   const customerIds = input.customerIds ?? [];
   if (input.role === "CUSTOMER" && customerIds.length === 0) {
@@ -149,14 +162,14 @@ export async function inviteUser(actor: Actor, raw: unknown): Promise<{ user: Us
 
   const resolvedActorId = await prismaUserIdForActor(actor);
   const passwordHash = await hashPassword(randomBytes(32).toString("hex"));
-  const user = await prisma.$transaction(async (tx) => {
+  const { user, link } = await prisma.$transaction(async (tx) => {
     const created = await tx.user.create({
       data: {
         email,
         passwordHash,
         name: input.name,
         role: input.role,
-        status: "ACTIVE",
+        status: "PENDING",
         teamId: input.teamId ?? null,
         companyId,
         memberships: { create: customerIds.map((customerId) => ({ customerId })) },
@@ -170,10 +183,52 @@ export async function inviteUser(actor: Actor, raw: unknown): Promise<{ user: Us
       action: "user.invite",
       metadata: { role: input.role, customerIds, actor: actor.id },
     });
-    return created;
+    return { user: created, link: await createInviteLink(tx, created.id) };
   });
-  const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId }, select: { name: true } });
-  const inviteUrl = await issueInviteLink(user, company.name);
-  return { user: toAdminRow(user), inviteUrl };
+  await deliverInvite(user, companyId, link);
+  return { user: toAdminRow(user), ...(mailConfigured() ? {} : { inviteUrl: link }) };
 }
 
+/** Issue a fresh invitation link for a PENDING user of this workspace; earlier links stop working. */
+export async function resendInvite(actor: Actor, id: string): Promise<{ user: UserAdminRow; inviteUrl?: string }> {
+  requireRole(actor, "ADMIN");
+  inviteRateLimiter.assertAllowed(actor.id);
+  inviteRateLimiter.recordFailure(actor.id);
+  const user = await prisma.user.findUnique({ where: { id }, include: { memberships: true } });
+  if (!user) throw new ApiFailure("NOT_FOUND", "User not found");
+  if (user.status !== "PENDING") throw new ApiFailure("CONFLICT", "Only a pending invitation can be resent");
+  const link = await prisma.$transaction((tx) => createInviteLink(tx, user.id));
+  await deliverInvite(user, user.companyId, link);
+  return { user: toAdminRow(user), ...(mailConfigured() ? {} : { inviteUrl: link }) };
+}
+
+/**
+ * Withdraw an invitation nobody accepted, which frees the email for any workspace. Accounts that were ever active
+ * are disabled instead, so their history keeps its author.
+ */
+export async function withdrawInvite(actor: Actor, id: string): Promise<{ removed: true; id: string }> {
+  requireRole(actor, "ADMIN");
+  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, status: true } });
+  if (!user) throw new ApiFailure("NOT_FOUND", "User not found");
+  if (user.status !== "PENDING") throw new ApiFailure("CONFLICT", "Only a pending invitation can be withdrawn; disable the user instead");
+  const resolvedActorId = await prismaUserIdForActor(actor);
+  await prisma.$transaction(async (tx) => {
+    await tx.passwordResetToken.deleteMany({ where: { userId: id } });
+    await tx.session.deleteMany({ where: { userId: id } });
+    await tx.customerMembership.deleteMany({ where: { userId: id } });
+    await tx.user.delete({ where: { id } });
+    await recordPrismaAudit(tx, {
+      entityType: "User",
+      entityId: id,
+      actorId: resolvedActorId ?? undefined,
+      action: "user.invite.withdraw",
+      metadata: { actor: actor.id },
+    });
+  });
+  return { removed: true, id };
+}
+
+async function deliverInvite(user: { email: string }, companyId: string, link: string): Promise<void> {
+  const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId }, select: { name: true } });
+  await sendInviteEmail(user, company.name, link);
+}

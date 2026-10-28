@@ -16,6 +16,7 @@ import type {
 } from "@/generated/prisma/client";
 import { ApiFailure } from "@/lib/api/respond";
 import { prisma, rawTable } from "@/server/lib/db";
+import { requireCompanyId } from "@/server/lib/tenant/context";
 import { requireRole } from "@/server/lib/auth/dev-actor";
 import { prismaUserIdForActor } from "@/server/lib/auth/resolve-user";
 import {
@@ -270,7 +271,7 @@ export class ApprovalUiService {
     if (!actorUserId) throw new ApiFailure("UNAUTHENTICATED", "Actor is not a database user");
 
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM ${rawTable("QuoteRevision")} WHERE id = ${revisionId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT r.id FROM ${rawTable("QuoteRevision")} r JOIN ${rawTable("Quote")} q ON q.id = r."quoteId" WHERE r.id = ${revisionId} AND q."companyId" = ${requireCompanyId()} FOR UPDATE OF r`;
       const row = await tx.dealRevision.findUnique({
         where: { id: revisionId },
         include: {

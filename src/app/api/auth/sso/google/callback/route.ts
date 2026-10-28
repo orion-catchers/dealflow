@@ -42,9 +42,10 @@ export const GET = scopedRoute(async function GET(request: Request) {
   const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
     headers: { Authorization: `Bearer ${tokens.access_token}` },
   });
-  const profile = (await userRes.json()) as { email?: string };
+  const profile = (await userRes.json()) as { email?: string; verified_email?: boolean };
   const email = profile.email?.toLowerCase();
-  if (!email) return NextResponse.redirect(`${origin}/login?sso=no_email`);
+  // An unverified Google address proves nothing about who owns it.
+  if (!email || profile.verified_email !== true) return NextResponse.redirect(`${origin}/login?sso=no_email`);
   const user = await prisma.user.findUnique({ where: { email }, include: { company: { select: { active: true } } } });
   if (!user || user.status !== "ACTIVE" || !user.company.active) return NextResponse.redirect(`${origin}/login?sso=unknown_user`);
   const { token } = await createSession(user.id);

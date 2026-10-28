@@ -75,7 +75,6 @@ export const stockLevelPatchSchema = z
   });
 
 export const warehouseCreateSchema = z.object({
-  id: z.string().min(1).optional(),
   name: z.string().trim().min(1).max(120),
   code: z.string().trim().min(1).max(20),
   shippingCostPerShipment: money,

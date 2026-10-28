@@ -5,11 +5,11 @@ import { getBillingService } from "@/server/billing/live";
 import { getLiveHealthService } from "@/server/health/live-service";
 import { learnRecommendationWeights } from "./learn-recommendations";
 
-/** Jobs run as the company's earliest active admin, so audit rows name a real user of that tenant. */
+/** Jobs run as the company's earliest active admin (else finance user), so audit rows name a real user of that tenant. */
 async function jobsActor(companyId: string): Promise<Actor | null> {
   const user = await prisma.user.findFirst({
-    where: { role: "ADMIN", status: "ACTIVE" },
-    orderBy: { createdAt: "asc" },
+    where: { role: { in: ["ADMIN", "FINANCE"] }, status: "ACTIVE" },
+    orderBy: [{ role: "asc" }, { createdAt: "asc" }],
   });
   if (!user) return null;
   return { id: user.id, role: user.role, active: true, companyId };
@@ -17,7 +17,7 @@ async function jobsActor(companyId: string): Promise<Actor | null> {
 
 async function runCompanyJobs(companyId: string, asOf: string) {
   const actor = await jobsActor(companyId);
-  if (!actor) return { companyId, skipped: "no active ADMIN user" };
+  if (!actor) throw new Error("no active ADMIN or FINANCE user to run billing as");
   const billing = await getBillingService().runDueBilling(actor, {
     // Request keys are unique across the platform, so the company is part of the key.
     requestKey: `cron-due-${companyId}-${asOf}`,
@@ -42,5 +42,6 @@ export async function runScheduledJobs(asOf = new Date().toISOString().slice(0, 
       results.push({ companyId: company.id, error: error instanceof Error ? error.message : String(error) });
     }
   }
-  return { asOf, companies: results };
+  const failed = results.filter((result) => "error" in result).length;
+  return { asOf, failed, companies: results };
 }

@@ -12,5 +12,8 @@ export async function POST(request: Request) {
   }
   const auth = request.headers.get("authorization") ?? "";
   if (auth !== `Bearer ${secret}`) return fail("UNAUTHENTICATED", "Invalid cron secret");
-  return handle(async () => runScheduledJobs());
+  const result = await runScheduledJobs();
+  // A company whose billing failed must page someone, so the run is not reported as a plain success.
+  if (result.failed > 0) return NextResponse.json({ error: { code: "JOBS_FAILED", message: `${result.failed} company job(s) failed`, details: result } }, { status: 500 });
+  return handle(async () => result);
 }

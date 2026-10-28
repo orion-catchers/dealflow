@@ -134,7 +134,8 @@ export async function createWorkspace(raw: WorkspaceInput): Promise<CreatedWorks
       });
       return runForCompany(company.id, async () => {
         const owner = await tx.user.create({
-          data: { email, passwordHash, name: input.name, role: "ADMIN", status: "ACTIVE", companyId: company.id },
+          // An operator-provisioned owner signs in only after redeeming the invite link.
+          data: { email, passwordHash, name: input.name, role: "ADMIN", status: input.password ? "ACTIVE" : "PENDING", companyId: company.id },
         });
         await provisionStarterConfig(tx, company.id, owner.id, input.currency);
         await tx.auditEvent.create({

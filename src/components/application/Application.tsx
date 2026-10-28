@@ -363,10 +363,12 @@ function Auth({path,mode:sessionMode,error,onLogin}:{path:string;mode:string;err
   const config=usePublicConfig();
   // Before sign-in there is no session to report the connection, so the entry pages use the server's own answer.
   const mode=sessionMode==='NOT CONNECTED'&&config.mode?config.mode:sessionMode;
-  // An invitation link (/login?invite=<token>) opens an "activate your account" view with the token filled in.
+  // An invitation link (/login#invite=<token>) opens an "activate your account" view with the token filled in. The
+  // token lives in the fragment, which never reaches server logs, and is cleared from the address bar once read.
   useEffect(()=>{
-    const invite=new URLSearchParams(window.location.search).get('invite');
+    const invite=new URLSearchParams(window.location.hash.slice(1)).get('invite');
     if(!invite)return;
+    window.history.replaceState(null,'',window.location.pathname+window.location.search);
     setInviting(true);setResetToken(invite);setRecovery('confirm');setRecoveryMsg('Choose a password to activate your account. The link works once.');
   },[]);
   // LIVE sign-up creates a new workspace; the dev fixture keeps its request-access form.

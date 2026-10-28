@@ -80,7 +80,20 @@ export const signupRateLimiter = new LoginRateLimiter(
   "Too many workspace sign-ups from this address; try again later",
 );
 
-/** Client address for rate limiting: the first X-Forwarded-For hop set by the reverse proxy, else "unknown". */
+/**
+ * Client address for rate limiting. The reverse proxy in front of the app appends the address it saw to
+ * X-Forwarded-For, so the right-most entry is the one a client cannot forge (the left-most is whatever the client
+ * sent). Without a proxy setting the header, all callers share one "unknown" bucket.
+ */
 export function clientAddress(request: Request): string {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
+  const hops = request.headers.get("x-forwarded-for")?.split(",").map((hop) => hop.trim()).filter(Boolean) ?? [];
+  return hops.at(-1) || request.headers.get("x-real-ip") || "unknown";
 }
+
+/** Invitations per admin: 30 per hour, so one workspace cannot mail-bomb addresses from the platform's domain. */
+export const inviteRateLimiter = new LoginRateLimiter(
+  { now: () => Date.now() },
+  30,
+  60 * 60 * 1000,
+  "Too many invitations from this account; try again later",
+);

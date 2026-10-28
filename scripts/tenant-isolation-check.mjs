@@ -83,7 +83,8 @@ for (const [path, list] of [
 const companies = (await contoso("GET", "/api/companies")).json?.data ?? [];
 check("GET /api/companies lists only Contoso", companies.length === 1 && companies[0].code === "CONTOSO", JSON.stringify(companies.map((c) => c.code)));
 
-const denied = (res) => [403, 404, 409, 422].includes(res.status);
+// Only "forbidden" or "not found" counts as refused; a validation error could hide a lookup that succeeded.
+const denied = (res) => [403, 404].includes(res.status);
 const probes = [
   ["GET", `/api/quotes/${ids.quote}`],
   ["GET", `/api/invoices/${ids.invoice}`],
@@ -105,8 +106,15 @@ for (const [method, path, body] of probes) {
   check(`${method} ${path.replace(/\/[a-z0-9-]{20,}/gi, "/:nexaId")} is refused`, denied(res), `status ${res.status}`);
 }
 
-const after = await nexa("GET", `/api/customers/${ids.customer}`);
-check("Nexa customer is unchanged", after.status === 200 && after.json?.data?.name !== "Hijacked", after.json?.data?.name);
+for (const [kind, path] of [
+  ["customer", `/api/customers/${ids.customer}`],
+  ["product", `/api/products/${ids.product}`],
+]) {
+  const after = await nexa("GET", path);
+  check(`Nexa ${kind} is unchanged`, after.status === 200 && after.json?.data?.name !== "Hijacked", after.json?.data?.name);
+}
+const warehouses = (await nexa("GET", "/api/warehouses")).json?.data ?? [];
+check("Nexa warehouse is unchanged", warehouses.some((w) => w.id === ids.warehouse && w.name !== "Hijacked"));
 
 console.log(failures ? `\n${failures} isolation check(s) FAILED` : "\nAll isolation checks passed");
 process.exit(failures ? 1 : 0);

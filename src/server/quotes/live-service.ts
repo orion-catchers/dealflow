@@ -20,6 +20,7 @@ import { evaluatePolicy } from "@/server/governance/policy-evaluation";
 import { snapshotForTier } from "@/server/governance/live-policy-service";
 import { ApiFailure } from "@/lib/api/respond";
 import { prisma, rawTable, type Db, type Tx } from "@/server/lib/db";
+import { requireCompanyId } from "@/server/lib/tenant/context";
 import { requireRole } from "@/server/lib/auth/dev-actor";
 import { ACTOR_ID_TO_EMAIL } from "@/server/lib/auth/actor-helpers";
 import { recordPrismaAudit } from "@/server/audit/prisma-repository";
@@ -705,7 +706,7 @@ export class LiveQuoteService {
     if (!trimmed) throw new ApiFailure("INVALID_INPUT", "Reason is required.");
     const actorId = await this.resolveActorUserId(actor, this.db);
     return this.db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM ${rawTable("QuoteRevision")} WHERE id = ${input.revisionId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT r.id FROM ${rawTable("QuoteRevision")} r JOIN ${rawTable("Quote")} q ON q.id = r."quoteId" WHERE r.id = ${input.revisionId} AND q."companyId" = ${requireCompanyId()} FOR UPDATE OF r`;
       const revision = await tx.dealRevision.findUnique({
         where: { id: input.revisionId },
         include: {
@@ -1284,7 +1285,7 @@ export class LiveQuoteService {
   }
 
   private async lockVisibleQuote(actor: Actor, quoteId: string, db: Tx): Promise<QuoteRow> {
-    await db.$queryRaw`SELECT id FROM ${rawTable("Quote")} WHERE id = ${quoteId} FOR UPDATE`;
+    await db.$queryRaw`SELECT id FROM ${rawTable("Quote")} WHERE id = ${quoteId} AND "companyId" = ${requireCompanyId()} FOR UPDATE`;
     return this.loadVisibleQuote(actor, quoteId, db);
   }
 

@@ -81,7 +81,7 @@ The repository's `Dockerfile` builds a Node 24 image that runs `pnpm start` as t
 
 ```bash
 docker build -t dealflow .
-docker run --rm --env-file .env.production dealflow pnpm db:deploy
+docker run --rm --env-file .env.production dealflow node_modules/.bin/prisma migrate deploy
 docker run -d --env-file .env.production -p 3000:3000 dealflow
 ```
 

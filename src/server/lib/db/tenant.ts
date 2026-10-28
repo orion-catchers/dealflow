@@ -113,15 +113,24 @@ function withScope(where: unknown, filter: Where): Where {
   return { ...base, AND: [...existing, filter] };
 }
 
+/**
+ * A write may name its company only as the plain bound id: `companyId: "<bound>"` or
+ * `company: { connect: { id: "<bound>" } }`. Any other form (`{ set: … }`, `connect: { code: … }`, nested create) is
+ * refused, because the database triggers cannot catch it on tables that reference nothing else.
+ */
 function assertSameCompany(model: string, data: unknown, companyId: string): void {
   if (!data || typeof data !== "object") return;
   const row = data as Record<string, unknown>;
-  const named =
-    typeof row.companyId === "string"
-      ? row.companyId
-      : ((row.company as { connect?: { id?: unknown } } | undefined)?.connect?.id as string | undefined);
-  if (named !== undefined && named !== companyId) {
+  if (row.companyId !== undefined && row.companyId !== companyId) {
     throw new TenantScopeError(`${model} write names another company`);
+  }
+  if (row.company !== undefined) {
+    const relation = row.company as { connect?: Record<string, unknown> } | null;
+    const connect = relation?.connect;
+    const plain =
+      relation !== null && typeof relation === "object" && Object.keys(relation).length === 1 &&
+      connect !== undefined && Object.keys(connect).length === 1 && connect.id === companyId;
+    if (!plain) throw new TenantScopeError(`${model} write names another company`);
   }
 }
 

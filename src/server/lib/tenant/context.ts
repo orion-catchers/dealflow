@@ -27,11 +27,18 @@ export class TenantScopeError extends Error {
   }
 }
 
+/**
+ * Run `fn` and await its result inside `scope`. Prisma queries are lazy (they start when awaited), so returning one
+ * unawaited from `storage.run` would run it after the scope ended; awaiting here keeps it inside.
+ */
+function runIn<T>(scope: TenantScope, fn: () => Promise<T>): Promise<T> {
+  return storage.run(scope, async () => await fn());
+}
+
 /** Run a request handler with an empty scope that authentication later binds. */
-export function withTenantScope<T>(fn: () => Promise<T>): Promise<T> {
-  const current = storage.getStore();
-  if (current) return fn();
-  return storage.run({ system: false }, fn);
+export async function withTenantScope<T>(fn: () => Promise<T>): Promise<T> {
+  if (storage.getStore()) return await fn();
+  return runIn({ system: false }, fn);
 }
 
 /** Bind the authenticated company to the current request. A request never switches company. */
@@ -47,12 +54,12 @@ export function bindTenant(companyId: string): void {
 
 /** Run work for exactly one company, e.g. one tenant's slice of a cron job. */
 export function runForCompany<T>(companyId: string, fn: () => Promise<T>): Promise<T> {
-  return storage.run({ companyId, system: false }, fn);
+  return runIn({ companyId, system: false }, fn);
 }
 
 /** Run work that deliberately spans companies. Keep these call sites few and reviewed. */
 export function runAsSystem<T>(fn: () => Promise<T>): Promise<T> {
-  return storage.run({ system: true }, fn);
+  return runIn({ system: true }, fn);
 }
 
 export function currentTenantScope(): TenantScope | undefined {

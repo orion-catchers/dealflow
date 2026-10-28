@@ -168,10 +168,11 @@ export class PrismaCatalogRepository implements CatalogRepository {
   async insertTaxRate(t: TaxRate): Promise<TaxRate> {
     // Whole rates keep "tax-5"; fractional rates keep their decimals ("tax-5.1") so they do not collide.
     const code = /^tax-\d+$/.test(t.id) ? t.id : `tax-${Number(t.ratePct)}`;
-    // Tax rates are shared by every company, so an existing rate is returned unchanged rather than renamed.
+    // Tax rates are shared by every company, so one company must not name or deactivate a rate for the others:
+    // a new rate gets a neutral name and is always active, and an existing rate is returned unchanged.
     const row = await this.db.taxRate.upsert({
       where: { code },
-      create: { id: code, code, name: t.name, ratePct: t.ratePct, active: t.active },
+      create: { id: code, code, name: `Tax ${Number(t.ratePct)}%`, ratePct: t.ratePct, active: true },
       update: {},
     });
     return { id: row.id, name: row.name, ratePct: Number(row.ratePct), active: row.active };

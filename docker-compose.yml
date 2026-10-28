@@ -29,7 +29,7 @@ services:
       APP_URL: ${APP_URL:-http://localhost:3000}
       DEALFLOW_DEMO_MODE: ${DEALFLOW_DEMO_MODE:-0}
       DEALFLOW_PUBLIC_SIGNUP: ${DEALFLOW_PUBLIC_SIGNUP:-0}
-    command: ["sh", "-c", "pnpm db:deploy && pnpm start"]
+    command: ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node_modules/.bin/next start"]
     ports:
       - "${DEALFLOW_APP_PORT:-3000}:3000"
 

@@ -10,8 +10,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Actor } from "@/contracts/harsh";
 import { prisma } from "@/server/lib/db";
 import { getCatalogService } from "@/server/catalog/live";
-import { loginWithPassword } from "@/server/lib/auth/credentials";
-import { findUserBySessionToken } from "@/server/lib/auth/session";
+import { getActor } from "@/server/lib/auth/actor";
+import { loginWithPassword, signupWorkspace } from "@/server/lib/auth/credentials";
+import { confirmPasswordReset } from "@/server/lib/auth/password-reset";
+import { findUserBySessionToken, SESSION_COOKIE } from "@/server/lib/auth/session";
+import { inviteUser, withdrawInvite } from "@/server/users/service";
 import { loadDataState } from "@/server/live/state";
 import { runAsSystem, runForCompany, TenantScopeError, withTenantScope } from "@/server/lib/tenant/context";
 import { createWorkspace, type CreatedWorkspace } from "./workspace";
@@ -80,6 +83,7 @@ afterAll(async () => {
     const companyIds = [a?.companyId, b?.companyId].filter(Boolean) as string[];
     const where = { companyId: { in: companyIds } };
     await prisma.auditEvent.deleteMany({ where });
+    await prisma.priceRule.deleteMany({ where: { priceList: where } });
     await prisma.product.deleteMany({ where });
     await prisma.customerMembership.deleteMany({ where: { customer: where } });
     await prisma.customer.deleteMany({ where });
@@ -90,6 +94,7 @@ afterAll(async () => {
     await prisma.category.deleteMany({ where });
     await prisma.healthSettings.deleteMany({ where });
     await prisma.session.deleteMany({ where: { user: where } });
+    await prisma.passwordResetToken.deleteMany({ where: { user: where } });
     await prisma.user.deleteMany({ where });
     await prisma.company.deleteMany({ where: { id: { in: companyIds } } });
   });
@@ -178,6 +183,12 @@ describe.skipIf(!dbAvailable)("tenant isolation", () => {
     });
   });
 
+  it("runs a lazy query returned unawaited from a scope helper inside that scope", async () => {
+    // Prisma queries start when awaited; the helpers must await them before the scope ends.
+    expect(await runAsSystem(() => prisma.user.findUnique({ where: { id: a.ownerId } }))).not.toBeNull();
+    expect(await asB(() => prisma.user.findUnique({ where: { id: a.ownerId } }))).toBeNull();
+  });
+
   it("refuses company data before sign-in and outside any scope", async () => {
     await withTenantScope(async () => {
       await expect(prisma.customer.findMany()).rejects.toBeInstanceOf(TenantScopeError);
@@ -195,6 +206,57 @@ describe.skipIf(!dbAvailable)("tenant isolation", () => {
         code: "UNAUTHENTICATED",
       });
       await runAsSystem(() => prisma.company.update({ where: { id: b.companyId }, data: { active: true } }));
+    });
+  });
+
+  it("a real signed-in request is bound to the user's own company", async () => {
+    await withTenantScope(async () => {
+      const { token } = await loginWithPassword({ email: `owner-b-${run}@iso.test`, password: "isolation-b-pass" });
+      const request = new Request("http://localhost/api/customers", { headers: { cookie: `${SESSION_COOKIE}=${token}` } });
+      expect((await getActor(request)).companyId).toBe(b.companyId);
+      expect(await prisma.customer.findMany()).toEqual([]);
+      expect(await prisma.customer.findUnique({ where: { id: aCustomerId } })).toBeNull();
+    });
+  });
+
+  it("child tables are filtered through their parent", async () => {
+    await asA(() =>
+      prisma.priceRule.create({ data: { priceListId: aPriceListId, productId: aProductId, tier: "STANDARD", currency: "INR", unitPrice: "900.00" } }),
+    );
+    await asA(async () => expect(await prisma.priceRule.count()).toBe(1));
+    await asB(async () => expect(await prisma.priceRule.findMany()).toEqual([]));
+  });
+
+  it("an invitee stays pending until redeeming the link, and only joins the inviting company", async () => {
+    const email = `invitee-${run}@iso.test`;
+    const invited = await asA(() => inviteUser(admin(a), { name: "Invitee", email, role: "SALES_REP" }));
+    expect(invited.user.status).toBe("PENDING");
+    const token = new URL(invited.inviteUrl!).hash.replace("#invite=", "");
+    await withTenantScope(async () => {
+      await expect(loginWithPassword({ email, password: "invitee-pass-1" })).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
+      await confirmPasswordReset({ token, newPassword: "invitee-pass-1" });
+      await expect(confirmPasswordReset({ token, newPassword: "invitee-pass-2" })).rejects.toMatchObject({ code: "INVALID_INPUT" });
+      const { user } = await loginWithPassword({ email, password: "invitee-pass-1" });
+      expect(user.companyId).toBe(a.companyId);
+    });
+    await asB(async () => expect(await prisma.user.findMany({ where: { email } })).toEqual([]));
+    await expect(asA(() => withdrawInvite(admin(a), invited.user.id))).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(asB(() => inviteUser(admin(b), { name: "Again", email, role: "SALES_REP" }))).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+
+  it("withdrawing a pending invitation frees the email", async () => {
+    const email = `withdrawn-${run}@iso.test`;
+    const invited = await asA(() => inviteUser(admin(a), { name: "Withdrawn", email, role: "FINANCE" }));
+    await asA(() => withdrawInvite(admin(a), invited.user.id));
+    const again = await asB(() => inviteUser(admin(b), { name: "Withdrawn", email, role: "FINANCE" }));
+    expect(again.user.status).toBe("PENDING");
+  });
+
+  it("public sign-up is refused unless the operator enables it", async () => {
+    await withTenantScope(async () => {
+      await expect(
+        signupWorkspace({ companyName: "Closed", name: "N", email: `closed-${run}@iso.test`, password: "closed-pass-1" }, "test"),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
   });
 

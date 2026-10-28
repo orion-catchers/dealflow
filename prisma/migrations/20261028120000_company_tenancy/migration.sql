@@ -92,7 +92,43 @@ ALTER TABLE "HealthSettings" ADD COLUMN "companyId" TEXT;
 ALTER TABLE "HealthSettings" ALTER COLUMN "id" DROP DEFAULT;
 UPDATE "HealthSettings" SET "companyId" = (SELECT "id" FROM "_tenancy_default");
 
+-- Actor-less audit rows and request keys: place them through what they describe.
+UPDATE "AuditEvent" a SET "companyId" = q."companyId" FROM "Quote" q WHERE a."companyId" IS NULL AND a."entityType" = 'Quote' AND q."id" = a."entityId";
+UPDATE "AuditEvent" a SET "companyId" = o."companyId" FROM "Order" o WHERE a."companyId" IS NULL AND a."entityType" = 'Order' AND o."id" = a."entityId";
+UPDATE "AuditEvent" a SET "companyId" = i."companyId" FROM "Invoice" i WHERE a."companyId" IS NULL AND a."entityType" = 'Invoice' AND i."id" = a."entityId";
+UPDATE "AuditEvent" a SET "companyId" = s."companyId" FROM "Subscription" s WHERE a."companyId" IS NULL AND a."entityType" = 'Subscription' AND s."id" = a."entityId";
+UPDATE "AuditEvent" a SET "companyId" = c."companyId" FROM "Customer" c WHERE a."companyId" IS NULL AND a."entityType" = 'Customer' AND c."id" = a."entityId";
+UPDATE "AuditEvent" a SET "companyId" = p."companyId" FROM "Product" p WHERE a."companyId" IS NULL AND a."entityType" = 'Product' AND p."id" = a."entityId";
+UPDATE "AuditEvent" a SET "companyId" = u."companyId" FROM "User" u WHERE a."companyId" IS NULL AND a."entityType" = 'User' AND u."id" = a."entityId";
+UPDATE "AuditEvent" a SET "companyId" = pv."companyId" FROM "PolicyVersion" pv WHERE a."companyId" IS NULL AND a."entityType" = 'PolicyVersion' AND pv."id" = a."entityId";
+UPDATE "AuditEvent" a SET "companyId" = f."companyId" FROM "HealthFlag" f WHERE a."companyId" IS NULL AND a."entityType" = 'HealthFlag' AND f."id" = a."entityId";
+UPDATE "AuditEvent" a SET "companyId" = t."companyId" FROM "Task" t WHERE a."companyId" IS NULL AND a."entityType" = 'Task' AND t."id" = a."entityId";
+UPDATE "AuditEvent" a SET "companyId" = q."companyId" FROM "QuoteRevision" r JOIN "Quote" q ON q."id" = r."quoteId" WHERE a."companyId" IS NULL AND r."id" = a."revisionId";
+UPDATE "RequestKey" k SET "companyId" = o."companyId" FROM "Order" o WHERE k."companyId" IS NULL AND k."resultKind" = 'ORDER' AND o."id" = k."resultId";
+UPDATE "RequestKey" k SET "companyId" = i."companyId" FROM "Invoice" i WHERE k."companyId" IS NULL AND k."resultKind" = 'INVOICE' AND i."id" = k."resultId";
+UPDATE "RequestKey" k SET "companyId" = i."companyId" FROM "Payment" p JOIN "Invoice" i ON i."id" = p."invoiceId" WHERE k."companyId" IS NULL AND p."requestKeyId" = k."id";
+UPDATE "RequestKey" k SET "companyId" = i."companyId" FROM "CreditApplication" ca JOIN "Invoice" i ON i."id" = ca."invoiceId" WHERE k."companyId" IS NULL AND ca."requestKeyId" = k."id";
+UPDATE "RequestKey" k SET "companyId" = w."companyId" FROM "StockReceipt" sr JOIN "Warehouse" w ON w."id" = sr."warehouseId" WHERE k."companyId" IS NULL AND sr."requestKeyId" = k."id";
+
 -- Fallback for rows no relation could place, then enforce -------------------
+
+-- Tell the operator how many rows were placed by the fallback; on a database with one company this is harmless.
+DO $$
+DECLARE
+  unplaced integer;
+BEGIN
+  SELECT
+    (SELECT count(*) FROM "Variant" WHERE "companyId" IS NULL) + (SELECT count(*) FROM "Category" WHERE "companyId" IS NULL) +
+    (SELECT count(*) FROM "PriceList" WHERE "companyId" IS NULL) + (SELECT count(*) FROM "SubscriptionPlan" WHERE "companyId" IS NULL) +
+    (SELECT count(*) FROM "SalesTeam" WHERE "companyId" IS NULL) + (SELECT count(*) FROM "PolicyVersion" WHERE "companyId" IS NULL) +
+    (SELECT count(*) FROM "RecommendationRule" WHERE "companyId" IS NULL) + (SELECT count(*) FROM "HealthFlag" WHERE "companyId" IS NULL) +
+    (SELECT count(*) FROM "Task" WHERE "companyId" IS NULL) + (SELECT count(*) FROM "AuditEvent" WHERE "companyId" IS NULL) +
+    (SELECT count(*) FROM "RequestKey" WHERE "companyId" IS NULL)
+  INTO unplaced;
+  IF unplaced > 0 THEN
+    RAISE NOTICE 'company tenancy: % rows had no relation to a company and were assigned to the oldest company with users', unplaced;
+  END IF;
+END $$;
 
 UPDATE "Variant"            SET "companyId" = (SELECT "id" FROM "_tenancy_default") WHERE "companyId" IS NULL;
 UPDATE "Category"           SET "companyId" = (SELECT "id" FROM "_tenancy_default") WHERE "companyId" IS NULL;
@@ -142,7 +178,12 @@ BEGIN
     (SELECT count(*) FROM "QuoteLine" l JOIN "QuoteRevision" r ON r."id" = l."revisionId" JOIN "Quote" q ON q."id" = r."quoteId" JOIN "Product" p ON p."id" = l."productId" WHERE p."companyId" <> q."companyId") +
     (SELECT count(*) FROM "QuoteRevision" r JOIN "Quote" q ON q."id" = r."quoteId" JOIN "PolicyVersion" pv ON pv."id" = r."policyVersionId" WHERE pv."companyId" <> q."companyId") +
     (SELECT count(*) FROM "CustomerMembership" m JOIN "User" u ON u."id" = m."userId" JOIN "Customer" cu ON cu."id" = m."customerId" WHERE u."companyId" <> cu."companyId") +
-    (SELECT count(*) FROM "Subscription" s JOIN "SubscriptionPlan" sp ON sp."id" = s."planId" WHERE sp."companyId" <> s."companyId")
+    (SELECT count(*) FROM "Subscription" s JOIN "SubscriptionPlan" sp ON sp."id" = s."planId" WHERE sp."companyId" <> s."companyId") +
+    (SELECT count(*) FROM "PolicyCeiling" pc JOIN "PolicyVersion" pv ON pv."id" = pc."policyVersionId" JOIN "Category" c ON c."id" = pc."categoryId" WHERE c."companyId" <> pv."companyId") +
+    (SELECT count(*) FROM "QuoteLine" l JOIN "QuoteRevision" r ON r."id" = l."revisionId" JOIN "Quote" q ON q."id" = r."quoteId" JOIN "Category" c ON c."id" = l."categoryId" WHERE c."companyId" <> q."companyId") +
+    (SELECT count(*) FROM "Task" t JOIN "User" u ON u."id" = t."assigneeId" WHERE u."companyId" <> t."companyId") +
+    (SELECT count(*) FROM "AuditEvent" a JOIN "User" u ON u."id" = a."actorId" WHERE u."companyId" <> a."companyId") +
+    (SELECT count(*) FROM "RequestKey" k JOIN "User" u ON u."id" = k."actorId" WHERE u."companyId" <> k."companyId")
   INTO bad;
   IF bad > 0 THEN
     RAISE EXCEPTION 'company tenancy backfill found % cross-company references; split the shared rows per company before migrating', bad;

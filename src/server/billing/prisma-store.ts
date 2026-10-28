@@ -278,11 +278,11 @@ export class PrismaBillingStore implements BillingStore {
   }
 
   async lockInvoice(id: string): Promise<void> {
-    await this.db.$queryRaw`SELECT id FROM ${rawTable("Invoice")} WHERE id = ${id} FOR UPDATE`;
+    await this.db.$queryRaw`SELECT id FROM ${rawTable("Invoice")} WHERE id = ${id} AND "companyId" = ${requireCompanyId()} FOR UPDATE`;
   }
 
   async lockSubscription(id: string): Promise<void> {
-    await this.db.$queryRaw`SELECT id FROM ${rawTable("Subscription")} WHERE id = ${id} FOR UPDATE`;
+    await this.db.$queryRaw`SELECT id FROM ${rawTable("Subscription")} WHERE id = ${id} AND "companyId" = ${requireCompanyId()} FOR UPDATE`;
   }
 
   async customerIdsForActor(actor: Actor): Promise<string[]> {
