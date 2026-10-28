@@ -113,10 +113,16 @@ function writeShell(next:ShellMemory|null){
 function isAuthPath(path:string){return path==='/'||path==='/login'||path==='/signup';}
 function homeFor(next:Actor){return next.role==='CUSTOMER'?'/portal':'/home';}
 
+function requestedNext(next:Actor){
+  if(typeof window==='undefined')return null;
+  return allowedNextPath(new URLSearchParams(window.location.search).get('next'),next.role);
+}
+
 function viewPathFor(next:Actor|null,path:string){
   if(!next)return isAuthPath(path)?path:'/login';
+  if(isAuthPath(path))return requestedNext(next)??homeFor(next);
   if(next.role==='CUSTOMER')return isPortalPath(path)?path:'/portal';
-  if(isAuthPath(path)||isPortalPath(path))return '/home';
+  if(isPortalPath(path))return '/home';
   if(!canAccessRoute(next.role,path))return homeFor(next);
   return path;
 }
@@ -216,7 +222,7 @@ export default function Application(){
         clearPortalCache();
       }else setError(result.error?.message??'The session could not be checked.');
     }).catch(reason=>{if(!cancelled)setError(reason instanceof Error?reason.message:'The session could not be checked.');})
-      .finally(()=>setVerifyingSignedOut(false));
+      .finally(()=>{if(!cancelled)setVerifyingSignedOut(false);});
     return()=>{cancelled=true;};
   },[showAuth,verifyingSignedOut,sessionCheck]);
 
@@ -247,7 +253,7 @@ export default function Application(){
     return result;
   };
 
-  if(!showAuth&&!sessionActor&&error)return <main id="main" className="auth-body login-body"><div className="auth-form"><div role="alert" className="error">{error}<Button onClick={()=>{setError('');setSessionCheck(count=>count+1);}}>Retry</Button></div></div></main>;
+  if(!sessionActor&&error)return <main id="main" className="auth-body login-body"><div className="auth-form"><div role="alert" className="error">{error}<Button onClick={()=>{setError('');if(showAuth)setVerifyingSignedOut(true);setSessionCheck(count=>count+1);}}>Retry</Button></div></div></main>;
   if(showAuth||!sessionActor)return showAuth?<Auth key={pathname} path={isAuthPath(pathname)?pathname:'/login'} mode={mode} error={error} onLogin={async(nextActor,nextMode)=>{
     const nextModeValue=nextMode??'LIVE';
     setError('');
@@ -269,7 +275,7 @@ export default function Application(){
     }
     setActor(nextActor);
     setMode(nextModeValue);
-    router.replace(allowedNextPath(new URLSearchParams(window.location.search).get('next'),nextActor.role)??homeFor(nextActor));
+    router.replace(requestedNext(nextActor)??homeFor(nextActor));
   }}/>:null;
   const shellPath=viewPath;
 
@@ -322,7 +328,7 @@ export default function Application(){
       <div className="sidebar-footer">
         <span className="avatar" aria-hidden="true">{sessionActor.name.split(' ').map(s=>s[0]).join('')}</span>
         <div><strong>{sessionActor.name}</strong><small>{sessionActor.role.replaceAll('_',' ')}</small></div>
-        <button type="button" aria-label="Sign out" title="Sign out" onClick={async()=>{markSignedOut();writeShell(null);setActor(null);setData(null);clearPortalCache();try{await api('auth/logout',{});}catch{/* leave locally even if the server call fails */}window.location.replace('/login');}}><LogOut size={18}/></button>
+        <button type="button" aria-label="Sign out" title="Sign out" onClick={async()=>{try{await api('auth/logout',{});}catch(reason){setMessage(reason instanceof Error?`Sign out failed: ${reason.message}`:'Sign out failed. Try again.');return;}markSignedOut();writeShell(null);setActor(null);setData(null);clearPortalCache();window.location.replace('/login');}}><LogOut size={18}/></button>
       </div>
     </aside>
     <div className="main-column">

@@ -63,12 +63,17 @@ export class PrismaCatalogRepository implements CatalogRepository {
   }
 
   /**
-   * Tier/currency default list for a customer without an override. Uses the pricing engine's
-   * own rule (selectPriceList); lists are ordered by code so ties resolve the same way each time.
+   * Tier/currency default list for a customer without an override: the list for the customer's
+   * tier when one exists (selectPriceList), otherwise the standard (BRONZE) list in the customer's
+   * currency, which is how seeded GOLD/SILVER customers are configured. Lists are ordered by code
+   * so ties resolve the same way each time.
    */
   private async defaultPriceListId(customer: Customer): Promise<string> {
-    const rows = await this.db.priceList.findMany({ orderBy: { code: "asc" } });
-    return selectPriceList({ ...customer, priceListId: undefined }, rows.map(toPriceList)).id;
+    const lists = (await this.db.priceList.findMany({ orderBy: { code: "asc" } })).map(toPriceList);
+    const sameCurrency = lists.filter((pl) => pl.active && pl.currency === customer.currency);
+    const fallback = sameCurrency.find((pl) => pl.tier === "BRONZE") ?? sameCurrency[0];
+    if (!sameCurrency.some((pl) => pl.tier === customer.tier) && fallback) return fallback.id;
+    return selectPriceList({ ...customer, priceListId: undefined }, lists).id;
   }
 
   private async ensureCategory(code: string): Promise<string> {
@@ -212,7 +217,7 @@ export class PrismaCatalogRepository implements CatalogRepository {
         baseCost: p.baseCost,
         stockTracked: p.stockTracked,
         defaultPlanId: p.isSubscription ? (p.planId ?? null) : null,
-        archivedAt: p.archivedAt ? new Date(p.archivedAt) : null,
+        archivedAt: p.archivedAt ? new Date(p.archivedAt) : p.active === false ? new Date() : null,
       },
       include: productInclude,
     });
