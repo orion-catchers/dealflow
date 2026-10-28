@@ -83,18 +83,45 @@ export function parseLineMutation(raw: unknown): DealLineMutationInput {
   };
 }
 
+function lineChangeDrafts(raw: unknown[]): Array<{
+  lineId: string;
+  quantity?: number;
+  discountPct?: number;
+  comment?: string;
+}> {
+  return raw.map((item, index) => {
+    const change = item && typeof item === "object" ? item as Record<string, unknown> : {};
+    if (typeof change.lineId !== "string" || !change.lineId.trim()) {
+      throw new ApiFailure("INVALID_INPUT", `Line change ${index + 1} lineId is required.`);
+    }
+    if (change.quantity !== undefined && (!Number.isInteger(change.quantity) || (change.quantity as number) <= 0)) {
+      throw new ApiFailure("INVALID_INPUT", `Line change ${index + 1} quantity must be a positive integer.`);
+    }
+    if (
+      change.discountPct !== undefined &&
+      (typeof change.discountPct !== "number" || !Number.isFinite(change.discountPct) || change.discountPct < 0 || change.discountPct > 100)
+    ) {
+      throw new ApiFailure("INVALID_INPUT", `Line change ${index + 1} discountPct must be between 0 and 100.`);
+    }
+    if (change.comment !== undefined && typeof change.comment !== "string") {
+      throw new ApiFailure("INVALID_INPUT", `Line change ${index + 1} comment must be a string.`);
+    }
+    return {
+      lineId: change.lineId,
+      quantity: change.quantity as number | undefined,
+      discountPct: change.discountPct as number | undefined,
+      comment: change.comment as string | undefined,
+    };
+  });
+}
+
 export function parseExpectedRevisionBody(raw: unknown) {
   const body = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
   return {
     expectedRevision: expectedRevision(body.expectedRevision),
     requestKey: typeof body.requestKey === "string" ? body.requestKey : "",
     body: typeof body.body === "string" ? body.body : "",
-    lineChanges: Array.isArray(body.lineChanges) ? body.lineChanges as Array<{
-      lineId: string;
-      quantity?: number;
-      discountPct?: number;
-      comment?: string;
-    }> : [],
+    lineChanges: Array.isArray(body.lineChanges) ? lineChangeDrafts(body.lineChanges) : [],
     requestedDeliveryDate: typeof body.requestedDeliveryDate === "string" ? body.requestedDeliveryDate : undefined,
   };
 }
