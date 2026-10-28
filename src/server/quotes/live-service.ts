@@ -24,6 +24,7 @@ import { requireRole } from "@/server/lib/auth/dev-actor";
 import { ACTOR_ID_TO_EMAIL } from "@/server/lib/auth/actor-helpers";
 import { recordPrismaAudit } from "@/server/audit/prisma-repository";
 import { initializeBilling } from "@/server/billing/initialize";
+import { combinedDiscountPct } from "@/server/billing/engine/line-total";
 import { initializeFulfillment } from "@/server/inventory/initialize";
 import type { ConfirmedOrderForBilling } from "@/contracts/ruchir";
 import type { OrderForFulfillment } from "@/contracts/harsh";
@@ -867,6 +868,10 @@ export class LiveQuoteService {
       if (revision.approvalStatus === "PENDING" || revision.approvalStatus === "REJECTED" || revision.approvalStatus === "SUPERSEDED") {
         throw new ApiFailure("CONFLICT", "The current revision is not approved for confirmation.");
       }
+      // Older writes could mark a revision APPROVED while a later required step was still BLOCKED.
+      if (revision.approvalStatus === "APPROVED" && revision.approvalSteps.some((step) => step.status !== "APPROVED")) {
+        throw new ApiFailure("CONFLICT", "Every required approval must be complete before confirmation.");
+      }
       if (quote.stage === "CONFIRMED") throw new ApiFailure("CONFLICT", "Quote is already confirmed.");
       const claim = await tx.requestKey.create({
         data: { scope: "CONFIRM_ORDER", key: input.requestKey, actorId },
@@ -927,7 +932,7 @@ export class LiveQuoteService {
             description: variantName ? `${productName} · ${variantName}` : productName,
             quantity: dealLine?.quantity ?? line.quantity,
             unitPrice: money(dealLine?.unitPrice ?? line.unitPrice),
-            discountPct: Number((dealLine?.effectiveDiscountPct ?? line.lineDiscountPct).toString()),
+            discountPct: combinedDiscountPct((dealLine?.lineDiscountPct ?? line.lineDiscountPct).toString(), revision.orderDiscountPct.toString()),
             taxPct: Number((dealLine?.taxPct ?? line.taxPct).toString()),
             lineTotal: money(dealLine?.lineTotal ?? line.lineTotal),
             billingKind: (dealLine?.billingKind ?? line.billingKind) === "RECURRING" ? "RECURRING" : "ONE_TIME",

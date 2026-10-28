@@ -740,7 +740,7 @@ Bug sweep: four GPT-6.1 Sol audits (quotes/approvals, auth/billing/portal, catal
 
 Files: see `git log b0700a9..` on this merge (61+ files under src/server, src/features, src/components, src/app/api, prisma/seed.ts).
 
-Checks (disposable Postgres on port 5440, schema `sweep`): `pnpm db:deploy`; `pnpm db:seed` run twice; seeding a second schema leaves `public` untouched; `pnpm typecheck` 0 errors; `pnpm exec eslint --ignore-pattern '.claude/**'` 0 problems (was 8 warnings); `pnpm test` 335/335; `pnpm test:krishna` 30/30; `pnpm build` passed.
+Checks (disposable Postgres on port 5440, schema `sweep`): `pnpm db:deploy`; `pnpm db:seed` run twice; seeding a second schema leaves `public` untouched; `pnpm typecheck` 0 errors; `pnpm exec eslint --ignore-pattern '.claude/**'` 0 problems (was 8 warnings); `pnpm test` 334/334; `pnpm test:krishna` 30/30; `pnpm build` passed.
 
 Limitations / open items (not fixed; need schema changes, design, or a team decision):
 - DECISION: customers can record their own payments (`POST /api/payments`) and the card "Preview" fallback in `CardCheckoutButton.tsx` records a real payment when Stripe is not configured, including in production.
@@ -753,3 +753,6 @@ Limitations / open items (not fixed; need schema changes, design, or a team deci
 - Billing: quantity change before the first invoice double-charges; subscription request keys do not bind the payload; multi-currency report totals are summed without conversion.
 - A customer whose membership is moved to another customer still maps to the hardcoded fixture customer (`actor-helpers.ts`). The login badge shows NOT CONNECTED before sign-in in LIVE mode.
 - UI fixes were verified by typecheck/lint/unit tests only; no browser run.
+- Sending a quote with the tier field still re-runs evaluation and resets approvals on the same revision. The narrow fix was reverted because it could keep an obsolete approval; the correct fix creates a new revision when the tier changes.
+- Quantity changes are now rejected when the subscription's billing period has lapsed (due billing not yet run); run due billing first.
+- Revisions wrongly marked APPROVED by the old BLOCKED-step bug are not repaired; `confirm()` now refuses them (CONFLICT), so the rep must send a new revision.

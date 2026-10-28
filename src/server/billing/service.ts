@@ -171,7 +171,7 @@ export class BillingService {
       if (input.cancel) return cancelSubscription(tx, actorUserId, sub, asOf, input.requestKey);
       if (input.uncancel) return uncancelSubscription(tx, actorUserId, sub, input.requestKey);
       if (input.quantity !== undefined) {
-        return changeQuantity(tx, actorUserId, sub, input.quantity, asOf, input.requestKey, input.effectiveDate);
+        return changeQuantity(tx, actorUserId, sub, input.quantity, asOf, input.requestKey);
       }
       if (input.planId) return changePlan(tx, sub, input.planId, asOf, input.requestKey);
       throw new ApiFailure("INVALID_INPUT", "No subscription change specified");
@@ -249,18 +249,14 @@ async function changeQuantity(
   quantity: number,
   asOf: IsoDate,
   requestKey: string,
-  requestedEffectiveDate: IsoDate | undefined,
 ): Promise<StoredSubscription> {
   const claim = await tx.claimRequest("CREDIT_APPLY", requestKey, actorUserId);
   if (claim.replayed) return (await tx.getSubscription(sub.id))!;
   if (sub.status !== "ACTIVE" || sub.pausedAt) {
     throw new ApiFailure("INVALID_INPUT", "Quantity can only change on an active subscription");
   }
-  // Only an explicitly requested date is checked; proration would otherwise clamp it silently.
-  if (
-    requestedEffectiveDate !== undefined &&
-    (requestedEffectiveDate < sub.currentPeriodStart || requestedEffectiveDate > sub.currentPeriodEnd)
-  ) {
+  // Proration would otherwise clamp a date outside the period silently, including the default (today).
+  if (asOf < sub.currentPeriodStart || asOf > sub.currentPeriodEnd) {
     throw new ApiFailure(
       "INVALID_INPUT",
       `Effective date must fall within the current billing period ${sub.currentPeriodStart} to ${sub.currentPeriodEnd}`,

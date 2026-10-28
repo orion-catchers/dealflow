@@ -18,7 +18,7 @@ import { ApiFailure } from "@/lib/api/respond";
 import { prismaUserIdForActor } from "@/server/lib/auth/resolve-user";
 import { prisma, rawTable, type Db, type Tx } from "@/server/lib/db";
 import { parseDate } from "./engine/calendar";
-import { lineAmounts } from "./engine/line-total";
+import { combinedDiscountPct, lineAmounts } from "./engine/line-total";
 import { fromCents, toCents } from "./engine/money";
 import { invoiceStatus } from "./engine/status";
 import type {
@@ -165,7 +165,7 @@ const subInclude = {
       orderId: true,
       taxPct: true,
       lineDiscountPct: true,
-      sourceDealLine: { select: { effectiveDiscountPct: true } },
+      sourceDealLine: { select: { lineDiscountPct: true, revision: { select: { orderDiscountPct: true } } } },
       product: { select: { name: true } },
       order: { select: { currency: true } },
     },
@@ -198,7 +198,10 @@ function toStoredSub(row: SubRow): StoredSubscription {
     pendingPlanName: row.pendingPlan?.name ?? null,
     pendingPlanEffectiveDate: row.pendingPlanEffectiveDate ? isoDateOf(row.pendingPlanEffectiveDate) : null,
     taxPct: Number(row.sourceOrderLine.taxPct.toString()),
-    discountPct: Number(row.sourceOrderLine.sourceDealLine.effectiveDiscountPct.toString()),
+    discountPct: combinedDiscountPct(
+      row.sourceOrderLine.sourceDealLine.lineDiscountPct.toString(),
+      row.sourceOrderLine.sourceDealLine.revision.orderDiscountPct.toString(),
+    ),
     description: row.sourceOrderLine.product.name,
     currency: row.sourceOrderLine.order.currency,
   };
