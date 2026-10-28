@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { handle } from "@/lib/api/respond";
+import { handle, readJsonBody } from "@/lib/api/respond";
 import { getAuthorizedActor } from "@/server/lib/auth/permissions";
 import { getBillingService } from "@/server/billing/live";
 
@@ -17,6 +17,6 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   return handle(async () => {
     const actor = await getAuthorizedActor(request);
-    return getBillingService().createPlan(actor, await request.json());
+    return getBillingService().createPlan(actor, await readJsonBody(request));
   });
 }

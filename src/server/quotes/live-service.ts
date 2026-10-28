@@ -927,7 +927,7 @@ export class LiveQuoteService {
             description: variantName ? `${productName} · ${variantName}` : productName,
             quantity: dealLine?.quantity ?? line.quantity,
             unitPrice: money(dealLine?.unitPrice ?? line.unitPrice),
-            discountPct: Number((dealLine?.lineDiscountPct ?? line.lineDiscountPct).toString()),
+            discountPct: Number((dealLine?.effectiveDiscountPct ?? line.lineDiscountPct).toString()),
             taxPct: Number((dealLine?.taxPct ?? line.taxPct).toString()),
             lineTotal: money(dealLine?.lineTotal ?? line.lineTotal),
             billingKind: (dealLine?.billingKind ?? line.billingKind) === "RECURRING" ? "RECURRING" : "ONE_TIME",

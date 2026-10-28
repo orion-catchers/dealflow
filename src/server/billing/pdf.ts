@@ -16,9 +16,16 @@ export async function renderInvoicePdf(invoice: InvoiceRecord): Promise<Uint8Arr
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const page = doc.addPage([595.28, 841.89]);
-  let y = 800;
+  const pageSize: [number, number] = [595.28, 841.89];
+  const topY = 800;
+  const bottomY = 40;
+  let page = doc.addPage(pageSize);
+  let y = topY;
   const line = (text: string, size = 11, useBold = false) => {
+    if (y < bottomY) {
+      page = doc.addPage(pageSize);
+      y = topY;
+    }
     page.drawText(safe(text), { x: 40, y, size, font: useBold ? bold : font });
     y -= 16;
   };

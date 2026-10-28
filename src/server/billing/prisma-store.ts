@@ -165,6 +165,7 @@ const subInclude = {
       orderId: true,
       taxPct: true,
       lineDiscountPct: true,
+      sourceDealLine: { select: { effectiveDiscountPct: true } },
       product: { select: { name: true } },
       order: { select: { currency: true } },
     },
@@ -197,7 +198,7 @@ function toStoredSub(row: SubRow): StoredSubscription {
     pendingPlanName: row.pendingPlan?.name ?? null,
     pendingPlanEffectiveDate: row.pendingPlanEffectiveDate ? isoDateOf(row.pendingPlanEffectiveDate) : null,
     taxPct: Number(row.sourceOrderLine.taxPct.toString()),
-    discountPct: Number(row.sourceOrderLine.lineDiscountPct.toString()),
+    discountPct: Number(row.sourceOrderLine.sourceDealLine.effectiveDiscountPct.toString()),
     description: row.sourceOrderLine.product.name,
     currency: row.sourceOrderLine.order.currency,
   };

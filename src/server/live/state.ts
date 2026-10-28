@@ -525,7 +525,8 @@ export async function loadDataState(): Promise<DataState> {
   const appInvoices: Invoice[] = invoices.map((i) => {
     const credited = i.creditApps.reduce((n, a) => n + Number(a.amount), 0);
     const paid = i.payments.reduce((n, p) => n + Number(p.amount), 0);
-    const outstanding = Math.max(0, Number(i.total) - paid - credited);
+    const isVoid = i.status === "VOID";
+    const outstanding = isVoid ? 0 : Math.max(0, Number(i.total) - paid - credited);
     return {
       id: i.id,
       orderId: i.orderId ?? "",
@@ -554,7 +555,7 @@ export async function loadDataState(): Promise<DataState> {
       paid: money(paid),
       credited: money(credited),
       outstanding: money(outstanding),
-      status: invoiceStatus(money(i.total), money(paid), money(credited)),
+      status: isVoid ? "VOID" : invoiceStatus(money(i.total), money(paid), money(credited)),
       events: [],
     };
   });

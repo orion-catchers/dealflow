@@ -439,7 +439,7 @@ async function persistConfirmation(state: DataState, order: Order, actor: Actor)
         description: source?.product.name ?? "Order line",
         quantity: source?.quantity ?? line.quantity,
         unitPrice: String(source?.unitPrice ?? line.unitPrice),
-        discountPct: Number(source?.lineDiscountPct ?? line.lineDiscountPct),
+        discountPct: Number(source?.effectiveDiscountPct ?? line.lineDiscountPct),
         taxPct: Number(source?.taxPct ?? line.taxPct),
         lineTotal: String(source?.lineTotal ?? line.lineTotal),
         billingKind: (source?.billingKind ?? line.billingKind) === "RECURRING" ? ("RECURRING" as const) : ("ONE_TIME" as const),

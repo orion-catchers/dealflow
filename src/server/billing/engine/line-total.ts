@@ -1,5 +1,6 @@
+import { Decimal } from "decimal.js";
 import type { Money, Pct } from "@/contracts/ruchir";
-import { fromCents, roundHalfUp, toCents } from "./money";
+import { fromCents, toCents } from "./money";
 
 export interface LineAmounts {
   subtotal: Money;
@@ -7,10 +8,15 @@ export interface LineAmounts {
   total: Money;
 }
 
-/** subtotal = qty × unit × (1 − discount); tax = subtotal × taxPct; each rounded to cents. */
+/** subtotal = qty × unit × (1 − discount); tax = subtotal × taxPct; each rounded half-up to cents. */
 export function lineAmounts(input: { quantity: number; unitPrice: Money; discountPct: Pct; taxPct: Pct }): LineAmounts {
-  const subtotal = roundHalfUp(input.quantity * toCents(input.unitPrice) * (1 - input.discountPct / 100));
-  const tax = roundHalfUp((subtotal * input.taxPct) / 100);
+  const subtotal = new Decimal(input.quantity)
+    .times(toCents(input.unitPrice))
+    .times(new Decimal(100).minus(input.discountPct))
+    .div(100)
+    .toDecimalPlaces(0, Decimal.ROUND_HALF_UP)
+    .toNumber();
+  const tax = new Decimal(subtotal).times(input.taxPct).div(100).toDecimalPlaces(0, Decimal.ROUND_HALF_UP).toNumber();
   return { subtotal: fromCents(subtotal), tax: fromCents(tax), total: fromCents(subtotal + tax) };
 }
 

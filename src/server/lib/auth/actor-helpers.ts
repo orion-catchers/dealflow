@@ -39,6 +39,10 @@ export function actorIdForEmail(email: string, userId: string): string {
 
 export function customerIdForUser(user: DbUser): string | undefined {
   if (user.role !== "CUSTOMER") return undefined;
+  // A customer with no membership (revoked or never granted) has no portal customer, even if the email is mapped.
+  if (user.memberships.length === 0) return undefined;
+  // The email map holds fixture symbols (e.g. "customer-acme"), not database ids; nothing here can confirm they match
+  // memberships[0].customerId synchronously, so members keep the existing mapping.
   return EMAIL_TO_CUSTOMER_ID[user.email] ?? user.memberships[0]?.customerId;
 }
 

@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { ApiFailure, handle } from "@/lib/api/respond";
+import { ApiFailure, handle, readJsonBody } from "@/lib/api/respond";
 import { getAuthorizedActor } from "@/server/lib/auth/permissions";
 import { getBillingService } from "@/server/billing/live";
 
@@ -20,6 +20,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   return handle(async () => {
     const actor = await getAuthorizedActor(request);
     const { id } = await context.params;
-    return getBillingService().patchPlan(actor, id, await request.json());
+    return getBillingService().patchPlan(actor, id, await readJsonBody(request));
   });
 }
